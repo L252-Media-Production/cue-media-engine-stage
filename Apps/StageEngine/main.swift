@@ -23,6 +23,17 @@ func value(after flag: String) -> String? {
 let seconds = value(after: "--seconds").flatMap(Double.init) ?? 10.0
 
 if let videoPath = value(after: "--video") {
+    guard FileManager.default.isReadableFile(atPath: videoPath),
+          let probe = FileHandle(forReadingAtPath: videoPath) else {
+        print("""
+        Cannot open \(videoPath).
+        If the file exists, macOS is probably blocking access to this folder (Downloads, Desktop and
+        Documents are protected). Copy the video to a folder such as ~/Projects/L252/stage-test-media
+        and pass that path.
+        """)
+        exit(1)
+    }
+    try? probe.close()
     do {
         let sink = NullOutputSink(name: "null", targetFPS: 60)
         let runner = try await SpikeRunner(videoURL: URL(fileURLWithPath: videoPath),

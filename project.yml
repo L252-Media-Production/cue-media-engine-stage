@@ -55,6 +55,8 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Apps/StageEngine/DeckLink/StageEngine-Bridging-Header.h
         HEADER_SEARCH_PATHS:
           - $(SRCROOT)/vendor/DeckLinkSDK/include
+          - $(SRCROOT)/vendor/NDISDK/include
+          - $(SRCROOT)/Apps/StageEngine/NDI
           - $(SRCROOT)/Apps/StageEngine/DeckLink
         CLANG_ENABLE_OBJC_ARC: YES
         CLANG_CXX_LANGUAGE_STANDARD: c++17

@@ -39,7 +39,7 @@ public struct SpikeReport: CustomStringConvertible {
 /// at a fixed rate and sent to an output sink. Measures timing so we can see whether the loop holds.
 public final class SpikeRunner: @unchecked Sendable {
     private let compositor: Compositor
-    private let video: VideoLoopSource
+    private let video: FrameSource
     private let text: TextLayer
     private let output: OutputSink
     /// Further hardware outputs that follow the first one (it sets the pace; these drop or repeat
@@ -58,17 +58,25 @@ public final class SpikeRunner: @unchecked Sendable {
     private var skipped = 0
     private var errors = 0
 
-    public init(videoURL: URL, output: OutputSink, followers: [PacedOutputSink] = [],
-                width: Int = 1920, height: Int = 1080, targetFPS: Double = 60) async throws {
+    /// Play a looping video file.
+    public convenience init(videoURL: URL, output: OutputSink, followers: [PacedOutputSink] = [],
+                            width: Int = 1920, height: Int = 1080, targetFPS: Double = 60) async throws {
+        let video = try await VideoLoopSource.open(url: videoURL)
+        try self.init(source: video, output: output, followers: followers,
+                      width: width, height: height, targetFPS: targetFPS)
+    }
+
+    /// Use any frame source (a file, an NDI input, ...).
+    public init(source: FrameSource, output: OutputSink, followers: [PacedOutputSink] = [],
+                width: Int = 1920, height: Int = 1080, targetFPS: Double = 60) throws {
         let compositor = try Compositor(width: width, height: height, outputFormat: output.preferredFormat)
         for follower in followers where follower.preferredFormat != output.preferredFormat {
             throw CompositorError.pipelineFailed("All outputs must use the same pixel format for now.")
         }
         let text = try TextLayer(device: compositor.device, width: width, height: height)
-        let video = try await VideoLoopSource.open(url: videoURL)
         self.compositor = compositor
         self.text = text
-        self.video = video
+        self.video = source
         self.output = output
         self.followers = followers
         self.followerSkips = Array(repeating: 0, count: followers.count)

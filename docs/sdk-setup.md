@@ -35,3 +35,17 @@ pixel buffer without copying (`PixelBufferFrame` in `DeckLinkOutputBridge.mm`).
 Check a machine's driver version with:
 
     defaults read /Library/Frameworks/DeckLinkAPI.framework/Resources/Info CFBundleShortVersionString
+
+## NDI
+
+NDI is loaded at run time (`dlopen`), so the build needs only the SDK **headers** in `vendor/NDISDK/include`.
+`libndi.dylib` is searched for in this order: `$STAGE_NDI_LIB`, `$NDI_RUNTIME_DIR_V6`,
+`/usr/local/lib`, `/Library/NDI SDK for Apple/lib/macOS`, the app's Frameworks folder, then the default
+library path. Installing the NDI SDK or NDI Tools is enough on a development Mac.
+
+Test commands (StageEngine scheme arguments):
+
+    --ndi-list                                        list sources on the network
+    --video FILE --ndi-send "CueME Stage"             send a looping video as NDI
+    --video FILE --decklink 4 --ndi-send "CueME Stage" SDI and NDI together
+    --ndi-in "Camera" --decklink 4                    NDI input (for example IMAG) out of SDI

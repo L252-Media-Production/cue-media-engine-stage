@@ -212,13 +212,22 @@ private:
         info.outputQueryResult = (int32_t)qhr;
         if (qhr == S_OK && output) {
             info.canOutput = YES;
-            BMDDisplayMode actual = bmdModeUnknown;
-            bool supported = false;
-            if (output->DoesSupportVideoMode(bmdVideoConnectionUnspecified, bmdModeHD1080p5994,
-                                             bmdFormat8BitBGRA, bmdNoVideoOutputConversion,
-                                             bmdSupportedVideoModeDefault, &actual, &supported) == S_OK) {
-                info.supports1080p5994 = supported;
+            struct { BMDPixelFormat format; const char *name; } formats[] = {
+                {bmdFormat8BitYUV, "8bitYUV"}, {bmdFormat10BitYUV, "10bitYUV"},
+                {bmdFormat8BitARGB, "ARGB"}, {bmdFormat8BitBGRA, "BGRA"}, {bmdFormat10BitRGB, "10bitRGB"},
+            };
+            NSMutableArray<NSString *> *parts = [NSMutableArray array];
+            for (auto &f : formats) {
+                BMDDisplayMode actual = bmdModeUnknown;
+                bool supported = false;
+                HRESULT hr = output->DoesSupportVideoMode(bmdVideoConnectionUnspecified, bmdModeHD1080p5994,
+                                                          f.format, bmdNoVideoOutputConversion,
+                                                          bmdSupportedVideoModeDefault, &actual, &supported);
+                [parts addObject:[NSString stringWithFormat:@"%s=%@", f.name,
+                                  hr == S_OK ? (supported ? @"yes" : @"no") : [NSString stringWithFormat:@"err%08X", (unsigned)hr]]];
+                if (f.format == bmdFormat8BitBGRA && hr == S_OK) info.supports1080p5994 = supported;
             }
+            info.ioSupport = [parts componentsJoinedByString:@","];
             output->Release();
         }
         [result addObject:info];
@@ -267,7 +276,8 @@ private:
                                                bmdSupportedVideoModeDefault, &actual, &supported);
     if (hr != S_OK || !supported) {
         if (error) *error = DLMakeError(4, [NSString stringWithFormat:
-            @"%@ does not support 1080p59.94 BGRA output.", _deviceName]);
+            @"%@ does not support 1080p59.94 BGRA output (result 0x%08X, supported=%d). Run --list-decklink to see which pixel formats it accepts.",
+            _deviceName, (unsigned)hr, (int)supported]);
         return nil;
     }
 

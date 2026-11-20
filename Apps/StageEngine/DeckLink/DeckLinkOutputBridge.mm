@@ -378,7 +378,11 @@ private:
     c.dropped = _dropped;
     c.flushed = _flushed;
     uint32_t buffered = 0;
-    if (_output && _started) _output->GetBufferedVideoFrameCount(&buffered);
+    if (_output && _started && _output->GetBufferedVideoFrameCount(&buffered) == S_OK) {
+        // Followers are only sampled here (the lead output is also sampled while waiting for room).
+        uint32_t seen = _minBuffered.load();
+        while (buffered < seen && !_minBuffered.compare_exchange_weak(seen, buffered)) {}
+    }
     c.buffered = buffered;
     c.minBuffered = _minBuffered;
     return c;

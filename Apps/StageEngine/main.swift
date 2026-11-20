@@ -116,6 +116,7 @@ if hasInput {
         print(report)
         if let ndi = ndiInput {
             print("ndi input  : \(ndi.sourceName) \(ndi.resolution), frames received=\(ndi.framesReceived)")
+            print("ndi cadence: \(ndi.cadenceSummary)")
         }
     } catch {
         print("StageEngine spike failed: \(error.localizedDescription)")

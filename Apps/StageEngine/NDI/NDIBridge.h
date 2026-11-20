@@ -41,6 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
                                                 error:(NSError * _Nullable * _Nullable)error;
 @property (nonatomic, copy, readonly) NSString *sourceName;
 @property (nonatomic, readonly) uint64_t framesReceived;
+/// Sequence number of the frame `copyLatestFrame` currently returns (1 for the first frame received).
+@property (nonatomic, readonly) uint64_t latestSequence;
 @property (nonatomic, readonly) int width;
 @property (nonatomic, readonly) int height;
 - (void)start;

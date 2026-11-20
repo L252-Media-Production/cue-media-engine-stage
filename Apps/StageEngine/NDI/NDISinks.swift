@@ -57,8 +57,33 @@ final class NDIFrameSource: FrameSource {
     func start() { receiver.start() }
     func stop() { receiver.stop() }
 
+    private let lock = NSLock()
+    private var lastSequence: UInt64 = 0
+    private var shown: UInt64 = 0
+    private var repeated: UInt64 = 0
+    private var skipped: UInt64 = 0
+
     func frame(at t: Double) -> CVPixelBuffer? {
-        receiver.copyLatestFrame()
+        guard let frame = receiver.copyLatestFrame() else { return nil }
+        let sequence = receiver.latestSequence
+        lock.lock()
+        shown += 1
+        if sequence == lastSequence {
+            repeated += 1            // the same input frame was shown again
+        } else if lastSequence != 0, sequence > lastSequence + 1 {
+            skipped += sequence - lastSequence - 1   // input frames that never reached the output
+        }
+        lastSequence = sequence
+        lock.unlock()
+        return frame
+    }
+
+    /// How smoothly the live input reached the output: frames shown twice or never shown (counts
+    /// include the warm-up). Zero repeats and skips means every input frame was shown exactly once.
+    var cadenceSummary: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return "output frames=\(shown) repeated input frames=\(repeated) skipped input frames=\(skipped)"
     }
 
     var underruns: Int { 0 }

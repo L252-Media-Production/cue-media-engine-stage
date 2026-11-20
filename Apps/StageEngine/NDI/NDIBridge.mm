@@ -232,6 +232,7 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
     CVPixelBufferPoolRef _pool;
     int _poolWidth, _poolHeight;
     std::atomic<uint64_t> _framesReceived;
+    uint64_t _latestSequence;   // guarded by _lock
     std::atomic<int> _width, _height;
 }
 @end
@@ -309,11 +310,16 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
     _pool = nullptr;
     _poolWidth = _poolHeight = 0;
     _framesReceived = 0;
+    _latestSequence = 0;
     _width = _height = 0;
     return self;
 }
 
 - (uint64_t)framesReceived { return _framesReceived; }
+- (uint64_t)latestSequence {
+    std::lock_guard<std::mutex> guard(_lock);
+    return _latestSequence;
+}
 - (int)width { return _width; }
 - (int)height { return _height; }
 
@@ -394,6 +400,7 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
         std::lock_guard<std::mutex> guard(_lock);
         old = _latest;
         _latest = buffer;
+        _latestSequence = _framesReceived + 1;
     }
     if (old) CFRelease(old);
     _width = width;
@@ -440,6 +447,7 @@ static NSString *const kNoSDK = @"Built without the NDI SDK headers. See docs/sd
     return nil;
 }
 - (uint64_t)framesReceived { return 0; }
+- (uint64_t)latestSequence { return 0; }
 - (int)width { return 0; }
 - (int)height { return 0; }
 - (void)start {}

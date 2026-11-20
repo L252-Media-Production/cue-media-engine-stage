@@ -32,6 +32,7 @@ static NSError *DLMakeError(NSInteger code, NSString *message) {
 @property (nonatomic, readwrite) uint64_t dropped;
 @property (nonatomic, readwrite) uint64_t flushed;
 @property (nonatomic, readwrite) uint32_t buffered;
+@property (nonatomic, readwrite) uint32_t minBuffered;
 @end
 @implementation DLOutputCounters
 @end
@@ -186,6 +187,7 @@ private:
     std::atomic<bool> _started;
 
     std::atomic<uint64_t> _scheduled, _completed, _late, _dropped, _flushed;
+    std::atomic<uint32_t> _minBuffered;
 }
 @end
 
@@ -252,6 +254,7 @@ private:
     _playing = false;
     _nextFrame = 0;
     _scheduled = _completed = _late = _dropped = _flushed = 0;
+    _minBuffered = UINT32_MAX;
 
     _deckLink = DeviceAtIndex(index);
     if (!_deckLink) {
@@ -331,7 +334,11 @@ private:
     for (;;) {
         if (!_started) return NO;
         uint32_t buffered = 0;
-        if (_output->GetBufferedVideoFrameCount(&buffered) == S_OK && buffered < (uint32_t)_depth) return YES;
+        if (_output->GetBufferedVideoFrameCount(&buffered) == S_OK) {
+            uint32_t seen = _minBuffered.load();
+            while (buffered < seen && !_minBuffered.compare_exchange_weak(seen, buffered)) {}
+            if (buffered < (uint32_t)_depth) return YES;
+        }
         if (dispatch_semaphore_wait(_roomSignal, deadline) != 0) return NO; // timed out
     }
 }
@@ -373,7 +380,13 @@ private:
     uint32_t buffered = 0;
     if (_output && _started) _output->GetBufferedVideoFrameCount(&buffered);
     c.buffered = buffered;
+    c.minBuffered = _minBuffered;
     return c;
+}
+
+- (void)resetStatistics {
+    _scheduled = _completed = _late = _dropped = _flushed = 0;
+    _minBuffered = UINT32_MAX;
 }
 
 - (void)dealloc {
@@ -404,6 +417,7 @@ private:
 - (BOOL)waitForRoomWithTimeout:(NSInteger)milliseconds { return NO; }
 - (void)stop {}
 - (DLOutputCounters *)counters { return [[DLOutputCounters alloc] init]; }
+- (void)resetStatistics {}
 
 @end
 

@@ -33,6 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) uint64_t flushed;
 /// Frames currently queued on the card.
 @property (nonatomic, readonly) uint32_t buffered;
+/// Lowest queue level seen since the last reset (UINT32_MAX if never sampled). The closer to 0, the
+/// closer the output came to running dry.
+@property (nonatomic, readonly) uint32_t minBuffered;
 @end
 
 /// Scheduled 1080p59.94 video output on one DeckLink connector.
@@ -64,6 +67,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)stop;
 
 - (DLOutputCounters *)counters;
+
+/// Zero the counters and the low-water mark (call after warm-up).
+- (void)resetStatistics;
 
 @end
 

@@ -61,6 +61,9 @@ public protocol PacedOutputSink: OutputSink {
     /// How many frames the output tries to keep queued.
     var targetDepth: Int { get }
 
+    /// Zero the output's counters (called after warm-up so startup is not counted).
+    func resetStatistics()
+
     /// Short human-readable status for the report (late and dropped counters, queue depth).
     func statusSummary() -> String
 }

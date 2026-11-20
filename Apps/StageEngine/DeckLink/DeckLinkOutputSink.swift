@@ -40,9 +40,14 @@ final class DeckLinkOutputSink: PacedOutputSink {
         bridge.waitForRoom(withTimeout: timeoutMs)
     }
 
+    func resetStatistics() {
+        bridge.resetStatistics()
+    }
+
     func statusSummary() -> String {
         let c = bridge.counters()
+        let low = c.minBuffered == UInt32.max ? "n/a" : "\(c.minBuffered)"
         return "card: scheduled=\(c.scheduled) completed=\(c.completed) late=\(c.displayedLate) "
-            + "dropped=\(c.dropped) flushed=\(c.flushed) buffered=\(c.buffered)"
+            + "dropped=\(c.dropped) flushed=\(c.flushed) buffered=\(c.buffered) lowestBuffered=\(low)/\(targetDepth)"
     }
 }

@@ -139,6 +139,8 @@ public final class SpikeRunner: @unchecked Sendable {
             (output as? NullOutputSink)?.timing.reset()
             gpuStats.reset()
             encodeStats.reset()
+            (output as? PacedOutputSink)?.resetStatistics()
+            for follower in followers { follower.resetStatistics() }
             lock.lock()
             skipped = 0
             errors = 0

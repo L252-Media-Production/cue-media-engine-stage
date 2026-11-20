@@ -54,7 +54,7 @@ if arguments.contains("--ndi-list") {
     }
     let wait = value(after: "--wait").flatMap(Double.init) ?? 5.0
     print("Looking for NDI sources for up to \(Int(wait)) s ...")
-    let sources = NDIRuntime.findSources(waiting: wait)
+    let sources = NDIRuntime.findSourcesWaiting(wait)
     if sources.isEmpty { print("No NDI sources found. Is the sender running and on the same network?") }
     for source in sources { print("  \(source.name)   [\(source.address)]") }
     exit(0)

@@ -10,6 +10,9 @@ import Engine
 //
 // In Xcode, set arguments under Product > Scheme > Edit Scheme > Run > Arguments.
 
+// Xcode's console is a pipe, so stdout would otherwise be block-buffered and show nothing until exit.
+setvbuf(stdout, nil, _IOLBF, 0)
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 func value(after flag: String) -> String? {

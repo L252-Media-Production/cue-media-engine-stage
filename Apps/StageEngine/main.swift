@@ -6,7 +6,7 @@ import Engine
 //
 // Usage:
 //   StageEngine [--seconds N]                  time a bare 60 Hz clock (no video, no GPU)
-//   StageEngine --video FILE [--seconds N]     engine spike: looping video + text layer through Metal
+//   StageEngine --video FILE [--seconds N] [--warmup N]   engine spike: looping video + text layer through Metal
 //
 // In Xcode, set arguments under Product > Scheme > Edit Scheme > Run > Arguments.
 
@@ -21,6 +21,7 @@ func value(after flag: String) -> String? {
 }
 
 let seconds = value(after: "--seconds").flatMap(Double.init) ?? 10.0
+let warmup = value(after: "--warmup").flatMap(Double.init) ?? 2.0
 
 if let videoPath = value(after: "--video") {
     guard FileManager.default.isReadableFile(atPath: videoPath),
@@ -38,8 +39,8 @@ if let videoPath = value(after: "--video") {
         let sink = NullOutputSink(name: "null", targetFPS: 60)
         let runner = try await SpikeRunner(videoURL: URL(fileURLWithPath: videoPath),
                                            output: sink, targetFPS: 60)
-        print("StageEngine spike: \(videoPath) for \(seconds) s at 1920x1080, 60 fps ...")
-        let report = try runner.run(seconds: seconds)
+        print("StageEngine spike: \(videoPath) for \(seconds) s (after \(warmup) s warm-up) at 1920x1080, 60 fps ...")
+        let report = try runner.run(seconds: seconds, warmup: warmup)
         print(report)
     } catch {
         print("StageEngine spike failed: \(error)")

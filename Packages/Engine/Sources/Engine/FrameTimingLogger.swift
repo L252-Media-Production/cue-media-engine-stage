@@ -25,6 +25,9 @@ public final class FrameTimingLogger: @unchecked Sendable {
     private let lateThresholdMs: Double
     private var intervalsMs: [Double] = []
     private var lastNanos: UInt64?
+    private var firstNanos: UInt64?
+    private var lateList: [(atMs: Double, intervalMs: Double)] = []
+    private let maxLateEvents = 200
 
     public init(targetFPS: Double) {
         precondition(targetFPS > 0, "targetFPS must be positive")
@@ -36,8 +39,13 @@ public final class FrameTimingLogger: @unchecked Sendable {
     public func recordFrame(at nanos: UInt64 = DispatchTime.now().uptimeNanoseconds) {
         lock.lock()
         defer { lock.unlock() }
+        if firstNanos == nil { firstNanos = nanos }
         if let last = lastNanos {
-            intervalsMs.append(Double(nanos &- last) / 1_000_000.0)
+            let interval = Double(nanos &- last) / 1_000_000.0
+            intervalsMs.append(interval)
+            if interval > lateThresholdMs && lateList.count < maxLateEvents {
+                lateList.append((Double(nanos &- firstNanos!) / 1_000_000.0, interval))
+            }
         }
         lastNanos = nanos
     }
@@ -47,6 +55,16 @@ public final class FrameTimingLogger: @unchecked Sendable {
         defer { lock.unlock() }
         intervalsMs.removeAll(keepingCapacity: true)
         lastNanos = nil
+        firstNanos = nil
+        lateList.removeAll()
+    }
+
+    /// When late frames happened: milliseconds since the first recorded frame, and the interval.
+    /// Capped at 200 entries.
+    public func lateEvents() -> [(atMs: Double, intervalMs: Double)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return lateList
     }
 
     public func summary() -> FrameTimingSummary {

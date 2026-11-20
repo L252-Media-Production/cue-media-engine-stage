@@ -39,4 +39,17 @@ final class FrameTimingLoggerTests: XCTestCase {
         log.reset()
         XCTAssertEqual(log.summary().frames, 0)
     }
+
+    func testLateEventsRecordWhenTheyHappened() {
+        let log = FrameTimingLogger(targetFPS: 60)
+        let step: UInt64 = 16_666_667
+        var t: UInt64 = 1_000_000_000
+        for _ in 0..<5 { log.recordFrame(at: t); t += step }
+        t += 4 * step // a stall
+        log.recordFrame(at: t)
+        let events = log.lateEvents()
+        XCTAssertEqual(events.count, 1)
+        XCTAssertGreaterThan(events[0].intervalMs, 60)
+        XCTAssertEqual(events[0].atMs, 150, accuracy: 1.0)
+    }
 }

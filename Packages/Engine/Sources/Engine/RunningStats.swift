@@ -17,6 +17,14 @@ public final class RunningStats: @unchecked Sendable {
         if value > maxValue { maxValue = value }
     }
 
+    public func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        count = 0
+        sum = 0
+        maxValue = 0
+    }
+
     public var snapshot: (count: Int, mean: Double, max: Double) {
         lock.lock()
         defer { lock.unlock() }

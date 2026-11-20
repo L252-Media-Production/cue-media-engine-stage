@@ -11,15 +11,22 @@ public struct SpikeReport: CustomStringConvertible {
     public var skippedTicks: Int
     public var videoUnderruns: Int
     public var renderErrors: Int
+    /// Late frames in the render loop: (ms since measurement started, interval ms).
+    public var renderLoopLate: [(atMs: Double, intervalMs: Double)] = []
 
     public var description: String {
         func f(_ v: Double) -> String { String(format: "%.3f", v) }
+        let lateLines = renderLoopLate.prefix(15)
+            .map { "  at \(f($0.atMs / 1000)) s: \(f($0.intervalMs)) ms" }
+            .joined(separator: "\n")
         return """
         output     : \(output)
         render loop: \(renderLoop)
         gpu        : mean=\(f(gpuMeanMs))ms max=\(f(gpuMaxMs))ms
         cpu encode : mean=\(f(encodeMeanMs))ms max=\(f(encodeMaxMs))ms
         skipped ticks=\(skippedTicks) video underruns=\(videoUnderruns) render errors=\(renderErrors)
+        late render-loop frames (first 15 of \(renderLoopLate.count)):
+        \(lateLines.isEmpty ? "  none" : lateLines)
         """
     }
 }
@@ -55,8 +62,9 @@ public final class SpikeRunner: @unchecked Sendable {
         self.renderLoopTiming = FrameTimingLogger(targetFPS: targetFPS)
     }
 
-    /// Run for `seconds`, then stop and return the timing report. Blocks the calling thread.
-    public func run(seconds: Double) throws -> SpikeReport {
+    /// Run for `seconds` of measurement, after an unmeasured `warmup`, then stop and return the
+    /// timing report. Blocks the calling thread.
+    public func run(seconds: Double, warmup: Double = 2.0) throws -> SpikeReport {
         try output.start()
         video.start()
 
@@ -68,6 +76,17 @@ public final class SpikeRunner: @unchecked Sendable {
         timer.setEventHandler { [self] in tick(startNanos: startNanos) }
         timer.resume()
 
+        if warmup > 0 {
+            Thread.sleep(forTimeInterval: warmup)
+            renderLoopTiming.reset()
+            (output as? NullOutputSink)?.timing.reset()
+            gpuStats.reset()
+            encodeStats.reset()
+            lock.lock()
+            skipped = 0
+            errors = 0
+            lock.unlock()
+        }
         Thread.sleep(forTimeInterval: seconds)
         timer.cancel()
 
@@ -95,7 +114,7 @@ public final class SpikeRunner: @unchecked Sendable {
                            gpuMeanMs: gpu.mean, gpuMaxMs: gpu.max,
                            encodeMeanMs: encode.mean, encodeMaxMs: encode.max,
                            skippedTicks: skipped, videoUnderruns: video.underruns,
-                           renderErrors: errors)
+                           renderErrors: errors, renderLoopLate: renderLoopTiming.lateEvents())
     }
 
     private func tick(startNanos: UInt64) {

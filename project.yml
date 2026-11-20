@@ -1,0 +1,53 @@
+# XcodeGen spec. Generate the Xcode project with:
+#   brew install xcodegen
+#   xcodegen generate
+# The generated CueMEStage.xcodeproj is not committed.
+name: CueMEStage
+
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+packages:
+  Engine:
+    path: Packages/Engine
+  DeckLinkBridge:
+    path: Packages/DeckLinkBridge
+
+targets:
+  CueMEStage:
+    type: application
+    platform: macOS
+    sources:
+      - Apps/CueMEStage
+    dependencies:
+      - package: Engine
+      - package: DeckLinkBridge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: CueME Stage
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright L252 Media Production
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+
+  StageEngine:
+    type: tool
+    platform: macOS
+    sources:
+      - Apps/StageEngine
+    dependencies:
+      - package: Engine
+      - package: DeckLinkBridge
+    settings:
+      base:
+        PRODUCT_NAME: StageEngine
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic

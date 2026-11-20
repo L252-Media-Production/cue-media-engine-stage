@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/*/.build/
+Packages/*/.swiftpm/
+
+# Vendor SDKs (licensed, not redistributable; place locally, see docs/sdk-setup.md)
+vendor/*
+!vendor/.gitkeep
+!vendor/README.md
+
+# Local logs
+*.log
+timing-logs/

@@ -21,3 +21,17 @@ The `vendor/` folder is git-ignored apart from its README.
 ## Thunderbolt chassis
 DeckLink Duo 2 cards are PCIe. On these Macs they sit in a Sonnet Echo III Thunderbolt chassis.
 Connect the chassis directly to the Mac and confirm the cards are listed before testing.
+
+## Driver versions and API compatibility
+
+The SDK headers can be newer than the Desktop Video driver installed on a machine. A driver rejects
+interfaces newer than itself (`E_NOINTERFACE`, plus `dlsym cannot find symbol ...` lines in the log).
+
+CueME Stage therefore uses the `*_v14_2_1` interfaces from the SDK and compiles
+`DeckLinkAPIDispatch_v14_2_1.cpp`. Drivers from 14.x through 16.x understand them, so the same build
+runs on the Mac Studio's Desktop Video 15.1 and on newer drivers. Frames are wrapped around the Metal
+pixel buffer without copying (`PixelBufferFrame` in `DeckLinkOutputBridge.mm`).
+
+Check a machine's driver version with:
+
+    defaults read /Library/Frameworks/DeckLinkAPI.framework/Resources/Info CFBundleShortVersionString

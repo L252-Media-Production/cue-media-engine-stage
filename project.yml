@@ -40,9 +40,10 @@ targets:
     platform: macOS
     sources:
       - Apps/StageEngine
-      # The DeckLink SDK dispatch file loads Blackmagic's driver framework at run time.
+      # The DeckLink SDK dispatch file loads Blackmagic's driver framework at run time. The 14.2.1
+      # dispatch is used on purpose: it works with Desktop Video 14.x to 16.x drivers (see docs/sdk-setup.md).
       # Not committed; present only when the SDK has been copied into vendor/.
-      - path: vendor/DeckLinkSDK/include/DeckLinkAPIDispatch.cpp
+      - path: vendor/DeckLinkSDK/include/DeckLinkAPIDispatch_v14_2_1.cpp
         optional: true
     dependencies:
       - package: Engine

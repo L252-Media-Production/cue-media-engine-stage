@@ -38,19 +38,28 @@ static NSError *DLMakeError(NSInteger code, NSString *message) {
 
 #if __has_include("DeckLinkAPI.h")
 
+// This bridge speaks the DeckLink API 14.2.1 interfaces (the *_v14_2_1 headers in the SDK). They are
+// understood by Desktop Video 14.x through 16.x drivers, so one build works on a 15.1 driver (the
+// L252 Mac Studio) and on newer ones. The SDK 16.0 interfaces are not used because a 15.1 driver
+// rejects them (E_NOINTERFACE).
+
 #include <atomic>
 #include <mutex>
-#include <unordered_map>
 #import "DeckLinkAPI.h"
+#import "DeckLinkAPI_v14_2_1.h"
 
 static NSString *StringFromCF(CFStringRef s) {
     if (!s) return @"";
     return (__bridge_transfer NSString *)s;
 }
 
+static bool SameIID(REFIID a, REFIID b) {
+    return memcmp(&a, &b, sizeof(REFIID)) == 0;
+}
+
 /// The Nth device the driver lists, or null. The caller releases it.
 static IDeckLink *DeviceAtIndex(NSInteger index) {
-    IDeckLinkIterator *iterator = CreateDeckLinkIteratorInstance();
+    IDeckLinkIterator *iterator = CreateDeckLinkIteratorInstance_v14_2_1();
     if (!iterator) return nullptr;
     IDeckLink *found = nullptr;
     IDeckLink *device = nullptr;
@@ -67,22 +76,36 @@ static IDeckLink *DeviceAtIndex(NSInteger index) {
     return found;
 }
 
-@class DeckLinkOutputBridge;
-
-@interface DeckLinkOutputBridge ()
-- (void)frameCompleted:(IDeckLinkVideoFrame *)frame result:(BMDOutputFrameCompletionResult)result;
-@end
-
-/// Receives frame-completion events from the card.
-class OutputCallback : public IDeckLinkVideoOutputCallback {
+/// A video frame that points straight at a BGRA CVPixelBuffer (no copy). The buffer stays locked
+/// and retained until the card releases the frame.
+class PixelBufferFrame : public IDeckLinkVideoFrame_v14_2_1 {
 public:
-    explicit OutputCallback(DeckLinkOutputBridge *owner) : mOwner(owner), mRefCount(1) {}
+    explicit PixelBufferFrame(CVPixelBufferRef buffer) : mBuffer((CVPixelBufferRef)CFRetain(buffer)), mRefCount(1) {
+        CVPixelBufferLockBaseAddress(mBuffer, kCVPixelBufferLock_ReadOnly);
+    }
+
+    long GetWidth() override { return (long)CVPixelBufferGetWidth(mBuffer); }
+    long GetHeight() override { return (long)CVPixelBufferGetHeight(mBuffer); }
+    long GetRowBytes() override { return (long)CVPixelBufferGetBytesPerRow(mBuffer); }
+    BMDPixelFormat GetPixelFormat() override { return bmdFormat8BitBGRA; }
+    BMDFrameFlags GetFlags() override { return bmdFrameFlagDefault; }
+    HRESULT GetBytes(void **buffer) override {
+        *buffer = CVPixelBufferGetBaseAddress(mBuffer);
+        return *buffer ? S_OK : E_FAIL;
+    }
+    HRESULT GetTimecode(BMDTimecodeFormat, IDeckLinkTimecode **timecode) override {
+        if (timecode) *timecode = nullptr;
+        return S_FALSE;
+    }
+    HRESULT GetAncillaryData(IDeckLinkVideoFrameAncillary **ancillary) override {
+        if (ancillary) *ancillary = nullptr;
+        return S_FALSE;
+    }
 
     HRESULT QueryInterface(REFIID iid, LPVOID *ppv) override {
         CFUUIDBytes iunknown = CFUUIDGetUUIDBytes(IUnknownUUID);
-        if (memcmp(&iid, &iunknown, sizeof(REFIID)) == 0 ||
-            memcmp(&iid, &IID_IDeckLinkVideoOutputCallback, sizeof(REFIID)) == 0) {
-            *ppv = static_cast<IDeckLinkVideoOutputCallback *>(this);
+        if (SameIID(iid, iunknown) || SameIID(iid, IID_IDeckLinkVideoFrame_v14_2_1)) {
+            *ppv = static_cast<IDeckLinkVideoFrame_v14_2_1 *>(this);
             AddRef();
             return S_OK;
         }
@@ -96,8 +119,45 @@ public:
         return n;
     }
 
-    HRESULT ScheduledFrameCompleted(IDeckLinkVideoFrame *frame, BMDOutputFrameCompletionResult result) override {
-        [mOwner frameCompleted:frame result:result];
+private:
+    ~PixelBufferFrame() {
+        CVPixelBufferUnlockBaseAddress(mBuffer, kCVPixelBufferLock_ReadOnly);
+        CFRelease(mBuffer);
+    }
+    CVPixelBufferRef mBuffer;
+    std::atomic<ULONG> mRefCount;
+};
+
+@class DeckLinkOutputBridge;
+
+@interface DeckLinkOutputBridge ()
+- (void)frameCompletedWithResult:(BMDOutputFrameCompletionResult)result;
+@end
+
+/// Receives frame-completion events from the card.
+class OutputCallback : public IDeckLinkVideoOutputCallback_v14_2_1 {
+public:
+    explicit OutputCallback(DeckLinkOutputBridge *owner) : mOwner(owner), mRefCount(1) {}
+
+    HRESULT QueryInterface(REFIID iid, LPVOID *ppv) override {
+        CFUUIDBytes iunknown = CFUUIDGetUUIDBytes(IUnknownUUID);
+        if (SameIID(iid, iunknown) || SameIID(iid, IID_IDeckLinkVideoOutputCallback_v14_2_1)) {
+            *ppv = static_cast<IDeckLinkVideoOutputCallback_v14_2_1 *>(this);
+            AddRef();
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+    }
+    ULONG AddRef() override { return ++mRefCount; }
+    ULONG Release() override {
+        ULONG n = --mRefCount;
+        if (n == 0) delete this;
+        return n;
+    }
+
+    HRESULT ScheduledFrameCompleted(IDeckLinkVideoFrame_v14_2_1 *, BMDOutputFrameCompletionResult result) override {
+        [mOwner frameCompletedWithResult:result];
         return S_OK;
     }
     HRESULT ScheduledPlaybackHasStopped() override { return S_OK; }
@@ -110,8 +170,7 @@ private:
 
 @interface DeckLinkOutputBridge () {
     IDeckLink *_deckLink;
-    IDeckLinkOutput *_output;
-    IDeckLinkMacOutput *_macOutput;
+    IDeckLinkOutput_v14_2_1 *_output;
     OutputCallback *_callback;
 
     BMDTimeValue _frameDuration;
@@ -124,9 +183,6 @@ private:
     bool _playing;
     std::atomic<bool> _started;
 
-    std::mutex _liveLock;         // guards _live
-    std::unordered_map<void *, CVPixelBufferRef> _live; // scheduled frame -> pixel buffer kept alive
-
     std::atomic<uint64_t> _scheduled, _completed, _late, _dropped, _flushed;
 }
 @end
@@ -135,7 +191,7 @@ private:
 
 + (NSArray<DLDeviceInfo *> *)listDevices {
     NSMutableArray<DLDeviceInfo *> *result = [NSMutableArray array];
-    IDeckLinkIterator *iterator = CreateDeckLinkIteratorInstance();
+    IDeckLinkIterator *iterator = CreateDeckLinkIteratorInstance_v14_2_1();
     if (!iterator) return result;
 
     IDeckLink *device = nullptr;
@@ -148,23 +204,11 @@ private:
         info.displayName = (device->GetDisplayName(&name) == S_OK) ? StringFromCF(name) : @"";
         name = nullptr;
         info.modelName = (device->GetModelName(&name) == S_OK) ? StringFromCF(name) : @"";
-
-        info.ioSupport = @"unknown";
+        info.ioSupport = @"n/a";
         info.subDeviceIndex = -1;
-        IDeckLinkProfileAttributes *attrs = nullptr;
-        if (device->QueryInterface(IID_IDeckLinkProfileAttributes, (void **)&attrs) == S_OK && attrs) {
-            int64_t io = 0;
-            if (attrs->GetInt(BMDDeckLinkVideoIOSupport, &io) == S_OK) {
-                bool cap = (io & bmdDeviceSupportsCapture) != 0, play = (io & bmdDeviceSupportsPlayback) != 0;
-                info.ioSupport = cap && play ? @"capture+playback" : cap ? @"capture" : play ? @"playback" : @"none";
-            }
-            int64_t sub = 0;
-            if (attrs->GetInt(BMDDeckLinkSubDeviceIndex, &sub) == S_OK) info.subDeviceIndex = (NSInteger)sub;
-            attrs->Release();
-        }
 
-        IDeckLinkOutput *output = nullptr;
-        HRESULT qhr = device->QueryInterface(IID_IDeckLinkOutput, (void **)&output);
+        IDeckLinkOutput_v14_2_1 *output = nullptr;
+        HRESULT qhr = device->QueryInterface(IID_IDeckLinkOutput_v14_2_1, (void **)&output);
         info.outputQueryResult = (int32_t)qhr;
         if (qhr == S_OK && output) {
             info.canOutput = YES;
@@ -208,12 +252,11 @@ private:
     CFStringRef name = nullptr;
     _deviceName = (_deckLink->GetDisplayName(&name) == S_OK) ? StringFromCF(name) : @"DeckLink";
 
-    if (_deckLink->QueryInterface(IID_IDeckLinkOutput, (void **)&_output) != S_OK || !_output) {
-        if (error) *error = DLMakeError(2, [NSString stringWithFormat:@"%@ has no video output.", _deviceName]);
-        return nil;
-    }
-    if (_output->QueryInterface(IID_IDeckLinkMacOutput, (void **)&_macOutput) != S_OK || !_macOutput) {
-        if (error) *error = DLMakeError(3, @"This driver does not offer the macOS CVPixelBuffer interface.");
+    HRESULT qhr = _deckLink->QueryInterface(IID_IDeckLinkOutput_v14_2_1, (void **)&_output);
+    if (qhr != S_OK || !_output) {
+        if (error) *error = DLMakeError(2, [NSString stringWithFormat:
+            @"%@ has no video output (result 0x%08X). Check that the connector is set to output in Desktop Video Setup.",
+            _deviceName, (unsigned)qhr]);
         return nil;
     }
 
@@ -258,30 +301,13 @@ private:
     if (!_started) return NO;
     std::lock_guard<std::mutex> guard(_submitLock);
 
-    IDeckLinkMutableVideoFrame *frame = nullptr;
-    if (_macOutput->CreateVideoFrameFromCVPixelBufferRef((void *)pixelBuffer, &frame) != S_OK || !frame) {
-        return NO;
-    }
-    CFRetain(pixelBuffer);
-    {
-        std::lock_guard<std::mutex> live(_liveLock);
-        _live[(void *)frame] = pixelBuffer;
-    }
-
+    PixelBufferFrame *frame = new PixelBufferFrame(pixelBuffer);
     HRESULT hr = _output->ScheduleVideoFrame(frame, _nextFrame * _frameDuration, _frameDuration, _timeScale);
-    if (hr != S_OK) {
-        {
-            std::lock_guard<std::mutex> live(_liveLock);
-            _live.erase((void *)frame);
-        }
-        CFRelease(pixelBuffer);
-        frame->Release();
-        return NO;
-    }
-    frame->Release(); // the card holds its own reference until the frame completes
+    frame->Release(); // on success the card holds its own reference until the frame completes
+    if (hr != S_OK) return NO;
+
     _nextFrame++;
     _scheduled++;
-
     if (!_playing && _nextFrame >= _depth) {
         if (_output->StartScheduledPlayback(0, _timeScale, 1.0) == S_OK) _playing = true;
     }
@@ -298,7 +324,7 @@ private:
     }
 }
 
-- (void)frameCompleted:(IDeckLinkVideoFrame *)frame result:(BMDOutputFrameCompletionResult)result {
+- (void)frameCompletedWithResult:(BMDOutputFrameCompletionResult)result {
     switch (result) {
         case bmdOutputFrameCompleted: _completed++; break;
         case bmdOutputFrameDisplayedLate: _late++; break;
@@ -306,16 +332,6 @@ private:
         case bmdOutputFrameFlushed: _flushed++; break;
         default: break;
     }
-    CVPixelBufferRef held = nullptr;
-    {
-        std::lock_guard<std::mutex> live(_liveLock);
-        auto it = _live.find((void *)frame);
-        if (it != _live.end()) {
-            held = it->second;
-            _live.erase(it);
-        }
-    }
-    if (held) CFRelease(held);
     dispatch_semaphore_signal(_roomSignal);
 }
 
@@ -331,11 +347,6 @@ private:
     if (_callback) {
         _callback->Release();
         _callback = nullptr;
-    }
-    {
-        std::lock_guard<std::mutex> live(_liveLock);
-        for (auto &entry : _live) CFRelease(entry.second);
-        _live.clear();
     }
     dispatch_semaphore_signal(_roomSignal); // wake anyone waiting for room
 }
@@ -355,7 +366,6 @@ private:
 
 - (void)dealloc {
     [self stop];
-    if (_macOutput) _macOutput->Release();
     if (_output) _output->Release();
     if (_deckLink) _deckLink->Release();
 }

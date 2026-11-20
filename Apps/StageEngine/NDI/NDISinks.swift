@@ -50,9 +50,14 @@ final class NDIFrameSource: FrameSource {
     var framesReceived: UInt64 { receiver.framesReceived }
     var resolution: String { "\(receiver.width)x\(receiver.height)" }
 
-    init(sourceContaining text: String, waitSeconds: Double) throws {
-        receiver = try NDIReceiverBridge(sourceNameContaining: text, waitSeconds: waitSeconds)
+    /// With `frameSync` (the default) NDI re-times the source to our output pace.
+    init(sourceContaining text: String, waitSeconds: Double, frameSync: Bool = true) throws {
+        receiver = try NDIReceiverBridge(sourceNameContaining: text, waitSeconds: waitSeconds,
+                                         frameSync: frameSync)
+        self.frameSync = frameSync
     }
+
+    let frameSync: Bool
 
     func start() { receiver.start() }
     func stop() { receiver.stop() }

@@ -36,8 +36,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Receives one NDI source and keeps its newest frame as a BGRA pixel buffer.
 @interface NDIReceiverBridge : NSObject
 /// Finds the first source whose name contains `text` (case-insensitive), waiting up to `seconds`.
+/// With `frameSync` the source is re-timed to the caller's pace by NDI's frame synchronizer: each
+/// `copyLatestFrame` call returns the best frame for "now" (a frame may repeat, and is dropped only
+/// when the source runs ahead). Without it the newest raw frame is returned.
 - (nullable instancetype)initWithSourceNameContaining:(NSString *)text
                                           waitSeconds:(NSTimeInterval)seconds
+                                            frameSync:(BOOL)frameSync
                                                 error:(NSError * _Nullable * _Nullable)error;
 @property (nonatomic, copy, readonly) NSString *sourceName;
 @property (nonatomic, readonly) uint64_t framesReceived;

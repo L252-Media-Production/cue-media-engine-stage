@@ -234,6 +234,10 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
     std::atomic<uint64_t> _framesReceived;
     uint64_t _latestSequence;   // guarded by _lock
     std::atomic<int> _width, _height;
+    NDIlib_framesync_instance_t _framesync;
+    BOOL _useFrameSync;
+    int64_t _firstTimestamp;    // frame-sync mode: source timestamps (100 ns units), guarded by _lock
+    int64_t _lastTimestamp;
 }
 @end
 
@@ -241,9 +245,14 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
 
 - (nullable instancetype)initWithSourceNameContaining:(NSString *)text
                                           waitSeconds:(NSTimeInterval)seconds
+                                            frameSync:(BOOL)frameSync
                                                 error:(NSError **)error {
     self = [super init];
     if (!self) return nil;
+    _useFrameSync = frameSync;
+    _framesync = nullptr;
+    _firstTimestamp = 0;
+    _lastTimestamp = 0;
     NSString *failure = nil;
     const NDIlib_v6 *ndi = LoadNDI(&failure);
     if (!ndi) {
@@ -304,6 +313,13 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
         if (error) *error = NDIMakeError(4, @"NDI could not create a receiver.");
         return nil;
     }
+    if (_useFrameSync) {
+        _framesync = ndi->framesync_create(_receiver);
+        if (!_framesync) {
+            if (error) *error = NDIMakeError(5, @"NDI could not create the frame synchronizer.");
+            return nil;
+        }
+    }
 
     _running = false;
     _latest = nullptr;
@@ -325,6 +341,7 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
 
 - (void)start {
     if (_running.exchange(true)) return;
+    if (_useFrameSync) return; // the synchronizer runs its own capture thread
     _thread = std::thread([self] { [self captureLoop]; });
 }
 
@@ -334,7 +351,39 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
     }
 }
 
+/// Frame-sync mode: ask NDI for the best frame for this moment, copy it only if it is a new one.
+- (nullable CVPixelBufferRef)pullFrameSyncFrame {
+    if (!_framesync || !_running) return nullptr;
+    NDIlib_video_frame_v2_t video;
+    video.p_data = nullptr;
+    gNDI->framesync_capture_video(_framesync, &video, NDIlib_frame_format_type_progressive);
+
+    if (video.p_data) {
+        int64_t timestamp = video.timestamp;
+        bool isNew;
+        {
+            std::lock_guard<std::mutex> guard(_lock);
+            isNew = (_latest == nullptr) || (timestamp != _lastTimestamp);
+        }
+        if (isNew) {
+            [self storeFrame:video]; // copies into a pooled buffer and counts the frame
+            std::lock_guard<std::mutex> guard(_lock);
+            _lastTimestamp = timestamp;
+            if (timestamp != INT64_MIN) {
+                if (_firstTimestamp == 0) _firstTimestamp = timestamp;
+                // Sequence number from the source's own clock, so skipped frames show up as gaps.
+                const double framePeriod = 10000000.0 * 1001.0 / 60000.0; // 100 ns units at 59.94 fps
+                _latestSequence = (uint64_t)llround((double)(timestamp - _firstTimestamp) / framePeriod) + 1;
+            }
+        }
+        gNDI->framesync_free_video(_framesync, &video);
+    }
+    std::lock_guard<std::mutex> guard(_lock);
+    return _latest ? (CVPixelBufferRef)CFRetain(_latest) : nullptr;
+}
+
 - (nullable CVPixelBufferRef)copyLatestFrame {
+    if (_useFrameSync) return [self pullFrameSyncFrame];
     std::lock_guard<std::mutex> guard(_lock);
     if (!_latest) return nullptr;
     return (CVPixelBufferRef)CFRetain(_latest);
@@ -410,6 +459,7 @@ static const NDIlib_v6 *LoadNDI(NSString **failure) {
 
 - (void)dealloc {
     [self stop];
+    if (_framesync && gNDI) gNDI->framesync_destroy(_framesync);
     if (_receiver && gNDI) gNDI->recv_destroy(_receiver);
     if (_latest) CFRelease(_latest);
     if (_pool) CVPixelBufferPoolRelease(_pool);
@@ -442,7 +492,7 @@ static NSString *const kNoSDK = @"Built without the NDI SDK headers. See docs/sd
 @end
 
 @implementation NDIReceiverBridge
-- (nullable instancetype)initWithSourceNameContaining:(NSString *)text waitSeconds:(NSTimeInterval)seconds error:(NSError **)error {
+- (nullable instancetype)initWithSourceNameContaining:(NSString *)text waitSeconds:(NSTimeInterval)seconds frameSync:(BOOL)frameSync error:(NSError **)error {
     if (error) *error = NDIMakeError(100, kNoSDK);
     return nil;
 }

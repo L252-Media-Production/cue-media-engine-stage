@@ -10,7 +10,8 @@ import Engine
 //   StageEngine --ndi-list [--wait N]              list NDI sources on the network
 //
 //   Input (pick one):   --video FILE               a looping video file
-//                       --ndi-in TEXT              the NDI source whose name contains TEXT
+//                       --ndi-in TEXT [--ndi-raw]  the NDI source whose name contains TEXT
+//                                                  (frame-synced to our output; --ndi-raw skips that)
 //   Output (any mix):   --decklink INDEX[,INDEX..] SDI outputs, 1080p59.94; the first sets the pace
 //                       --ndi-send NAME            send an NDI stream called NAME
 //   With no output the frames are discarded (a pure render-loop test).
@@ -69,10 +70,11 @@ if hasInput {
         var ndiInput: NDIFrameSource?
         var inputLabel: String
         if let text = value(after: "--ndi-in") {
-            let ndi = try NDIFrameSource(sourceContaining: text, waitSeconds: 10)
+            let ndi = try NDIFrameSource(sourceContaining: text, waitSeconds: 10,
+                                         frameSync: !arguments.contains("--ndi-raw"))
             ndiInput = ndi
             source = ndi
-            inputLabel = "NDI in: \(ndi.sourceName)"
+            inputLabel = "NDI in: \(ndi.sourceName)" + (ndi.frameSync ? " (frame-synced)" : " (raw)")
         } else {
             let videoPath = value(after: "--video") ?? ""
             guard FileManager.default.isReadableFile(atPath: videoPath),

@@ -37,3 +37,17 @@ public final class NullOutputSink: OutputSink {
     public func submit(_ frame: CVPixelBuffer) { timing.recordFrame() }
     public func stop() {}
 }
+
+/// An output with its own hardware clock (for example an SDI card). The render loop is paced by
+/// the output instead of a software timer, so the two can never drift apart.
+public protocol PacedOutputSink: OutputSink {
+    /// Frames per second of the output's own clock (59.94 for 1080p59.94).
+    var frameRate: Double { get }
+
+    /// Block until the output can take another frame, or until the timeout passes.
+    /// Returns false on timeout or when the output has stopped.
+    func waitForRoom(timeoutMs: Int) -> Bool
+
+    /// Short human-readable status for the report (late and dropped counters, queue depth).
+    func statusSummary() -> String
+}

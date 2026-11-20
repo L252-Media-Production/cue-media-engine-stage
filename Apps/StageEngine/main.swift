@@ -5,8 +5,14 @@ import Engine
 // StageEngine: the output process.
 //
 // Usage:
-//   StageEngine [--seconds N]                  time a bare 60 Hz clock (no video, no GPU)
-//   StageEngine --video FILE [--seconds N] [--warmup N]   engine spike: looping video + text layer through Metal
+//   StageEngine [--seconds N]                      time a bare 60 Hz clock (no video, no GPU)
+//   StageEngine --list-decklink                    list the DeckLink devices the driver sees
+//   StageEngine --video FILE [--seconds N] [--warmup N]
+//                                                  engine spike: looping video + text through Metal,
+//                                                  frames discarded by a test sink
+//   StageEngine --video FILE --decklink INDEX [--depth N] [--seconds N] [--warmup N]
+//                                                  same, sent out one DeckLink SDI connector as
+//                                                  1080p59.94, paced by the card's clock
 //
 // In Xcode, set arguments under Product > Scheme > Edit Scheme > Run > Arguments.
 
@@ -23,6 +29,18 @@ func value(after flag: String) -> String? {
 let seconds = value(after: "--seconds").flatMap(Double.init) ?? 10.0
 let warmup = value(after: "--warmup").flatMap(Double.init) ?? 2.0
 
+if arguments.contains("--list-decklink") {
+    let devices = DeckLinkOutputBridge.listDevices()
+    if devices.isEmpty {
+        print("No DeckLink devices found. Is Blackmagic Desktop Video installed, the chassis connected,")
+        print("and the SDK present in vendor/DeckLinkSDK/include when this was built?")
+    }
+    for d in devices {
+        print("[\(d.index)] \(d.displayName)  (\(d.modelName))  output=\(d.canOutput ? "yes" : "no")  1080p59.94 BGRA=\(d.supports1080p5994 ? "yes" : "no")")
+    }
+    exit(0)
+}
+
 if let videoPath = value(after: "--video") {
     guard FileManager.default.isReadableFile(atPath: videoPath),
           let probe = FileHandle(forReadingAtPath: videoPath) else {
@@ -36,14 +54,27 @@ if let videoPath = value(after: "--video") {
     }
     try? probe.close()
     do {
-        let sink = NullOutputSink(name: "null", targetFPS: 60)
+        let sink: OutputSink
+        if let indexText = value(after: "--decklink") {
+            guard let index = Int(indexText) else {
+                print("--decklink needs a device number (see --list-decklink)")
+                exit(1)
+            }
+            let depth = value(after: "--depth").flatMap(Int.init) ?? 4
+            sink = try DeckLinkOutputSink(deviceIndex: index, depth: depth)
+        } else {
+            sink = NullOutputSink(name: "null", targetFPS: 60)
+        }
         let runner = try await SpikeRunner(videoURL: URL(fileURLWithPath: videoPath),
                                            output: sink, targetFPS: 60)
-        print("StageEngine spike: \(videoPath) for \(seconds) s (after \(warmup) s warm-up) at 1920x1080, 60 fps ...")
+        print("StageEngine spike: \(videoPath)")
+        print("  output: \(sink.name)")
+        print("  \(seconds) s (after \(warmup) s warm-up), 1920x1080")
         let report = try runner.run(seconds: seconds, warmup: warmup)
         print(report)
     } catch {
-        print("StageEngine spike failed: \(error)")
+        print("StageEngine spike failed: \(error.localizedDescription)")
+        print("  (\(error))")
         exit(1)
     }
 } else {

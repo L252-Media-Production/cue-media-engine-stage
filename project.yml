@@ -17,8 +17,6 @@ settings:
 packages:
   Engine:
     path: Packages/Engine
-  DeckLinkBridge:
-    path: Packages/DeckLinkBridge
 
 targets:
   CueMEStage:
@@ -28,7 +26,6 @@ targets:
       - Apps/CueMEStage
     dependencies:
       - package: Engine
-      - package: DeckLinkBridge
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage
@@ -43,11 +40,24 @@ targets:
     platform: macOS
     sources:
       - Apps/StageEngine
+      # The DeckLink SDK dispatch file loads Blackmagic's driver framework at run time.
+      # Not committed; present only when the SDK has been copied into vendor/.
+      - path: vendor/DeckLinkSDK/include/DeckLinkAPIDispatch.cpp
+        optional: true
     dependencies:
       - package: Engine
-      - package: DeckLinkBridge
+      - sdk: CoreVideo.framework
+      - sdk: CoreFoundation.framework
     settings:
       base:
         PRODUCT_NAME: StageEngine
-        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Apps/StageEngine/DeckLink/StageEngine-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/vendor/DeckLinkSDK/include
+          - $(SRCROOT)/Apps/StageEngine/DeckLink
+        CLANG_ENABLE_OBJC_ARC: YES
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        # Hardened runtime blocks loading Blackmagic's driver framework (different signer).
+        # For distribution this needs the disable-library-validation entitlement instead.
+        ENABLE_HARDENED_RUNTIME: NO
         CODE_SIGN_STYLE: Automatic

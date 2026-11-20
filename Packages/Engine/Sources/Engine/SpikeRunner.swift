@@ -2,7 +2,10 @@ import CoreVideo
 import Foundation
 
 public struct SpikeReport: CustomStringConvertible {
-    public var output: FrameTimingSummary
+    /// Frame timing measured at the output sink (only for sinks that record it, such as the test sink).
+    public var output: FrameTimingSummary?
+    /// Status from a hardware-paced output (late and dropped frames counted by the card).
+    public var outputStatus: String = ""
     public var renderLoop: FrameTimingSummary
     public var gpuMeanMs: Double
     public var gpuMaxMs: Double
@@ -19,9 +22,10 @@ public struct SpikeReport: CustomStringConvertible {
         let lateLines = renderLoopLate.prefix(15)
             .map { "  at \(f($0.atMs / 1000)) s: \(f($0.intervalMs)) ms" }
             .joined(separator: "\n")
+        let outputLine = output.map { "output     : \($0)\n" } ?? ""
+        let statusLine = outputStatus.isEmpty ? "" : "output     : \(outputStatus)\n"
         return """
-        output     : \(output)
-        render loop: \(renderLoop)
+        \(outputLine)\(statusLine)render loop: \(renderLoop)
         gpu        : mean=\(f(gpuMeanMs))ms max=\(f(gpuMaxMs))ms
         cpu encode : mean=\(f(encodeMeanMs))ms max=\(f(encodeMaxMs))ms
         skipped ticks=\(skippedTicks) video underruns=\(videoUnderruns) render errors=\(renderErrors)
@@ -64,17 +68,51 @@ public final class SpikeRunner: @unchecked Sendable {
 
     /// Run for `seconds` of measurement, after an unmeasured `warmup`, then stop and return the
     /// timing report. Blocks the calling thread.
+    ///
+    /// With a `PacedOutputSink` the render loop is paced by the output's own clock and video time
+    /// is counted in output frames. Otherwise a 60 Hz software timer drives it.
     public func run(seconds: Double, warmup: Double = 2.0) throws -> SpikeReport {
         try output.start()
         video.start()
+        setStop(false)
 
-        let startNanos = DispatchTime.now().uptimeNanoseconds
-        let queue = DispatchQueue(label: "stage.engine.render", qos: .userInteractive)
-        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: queue)
-        let interval = Int(1_000_000_000.0 / targetFPS)
-        timer.schedule(deadline: .now(), repeating: .nanoseconds(interval), leeway: .nanoseconds(0))
-        timer.setEventHandler { [self] in tick(startNanos: startNanos) }
-        timer.resume()
+        var timer: DispatchSourceTimer?
+        let loopFinished = DispatchSemaphore(value: 0)
+
+        if let paced = output as? PacedOutputSink {
+            let frameDuration = 1.0 / paced.frameRate
+            let thread = Thread { [self] in
+                var n = 0
+                while !stopRequested() {
+                    guard paced.waitForRoom(timeoutMs: 100) else { continue }
+                    renderLoopTiming.recordFrame()
+                    if renderFrame(at: Double(n) * frameDuration) { n += 1 } else {
+                        Thread.sleep(forTimeInterval: 0.001)
+                    }
+                }
+                loopFinished.signal()
+            }
+            thread.name = "stage.engine.render"
+            thread.qualityOfService = .userInteractive
+            thread.start()
+        } else {
+            let startNanos = DispatchTime.now().uptimeNanoseconds
+            let queue = DispatchQueue(label: "stage.engine.render", qos: .userInteractive)
+            let source = DispatchSource.makeTimerSource(flags: .strict, queue: queue)
+            let interval = Int(1_000_000_000.0 / targetFPS)
+            source.schedule(deadline: .now(), repeating: .nanoseconds(interval), leeway: .nanoseconds(0))
+            source.setEventHandler { [self] in
+                renderLoopTiming.recordFrame()
+                let t = Double(DispatchTime.now().uptimeNanoseconds &- startNanos) / 1_000_000_000.0
+                if !renderFrame(at: t) {
+                    lock.lock()
+                    skipped += 1
+                    lock.unlock()
+                }
+            }
+            source.resume()
+            timer = source
+        }
 
         if warmup > 0 {
             Thread.sleep(forTimeInterval: warmup)
@@ -88,7 +126,10 @@ public final class SpikeRunner: @unchecked Sendable {
             lock.unlock()
         }
         Thread.sleep(forTimeInterval: seconds)
-        timer.cancel()
+
+        setStop(true)
+        timer?.cancel()
+        if output is PacedOutputSink { _ = loopFinished.wait(timeout: .now() + 1.0) }
 
         // Let frames already on the GPU finish.
         let deadline = Date().addingTimeInterval(1.0)
@@ -100,6 +141,7 @@ public final class SpikeRunner: @unchecked Sendable {
             Thread.sleep(forTimeInterval: 0.005)
         }
 
+        let status = (output as? PacedOutputSink)?.statusSummary() ?? ""
         output.stop()
         video.stop()
 
@@ -107,34 +149,48 @@ public final class SpikeRunner: @unchecked Sendable {
         let encode = encodeStats.snapshot
         lock.lock()
         defer { lock.unlock() }
-        let outputSummary = (output as? NullOutputSink)?.timing.summary()
-            ?? FrameTimingSummary(frames: gpu.count, targetMs: 1000 / targetFPS, meanMs: 0,
-                                  p99Ms: 0, maxMs: 0, lateFrames: 0)
-        return SpikeReport(output: outputSummary, renderLoop: renderLoopTiming.summary(),
+        return SpikeReport(output: (output as? NullOutputSink)?.timing.summary(),
+                           outputStatus: status,
+                           renderLoop: renderLoopTiming.summary(),
                            gpuMeanMs: gpu.mean, gpuMaxMs: gpu.max,
                            encodeMeanMs: encode.mean, encodeMaxMs: encode.max,
                            skippedTicks: skipped, videoUnderruns: video.underruns,
                            renderErrors: errors, renderLoopLate: renderLoopTiming.lateEvents())
     }
 
-    private func tick(startNanos: UInt64) {
-        renderLoopTiming.recordFrame()
-        let tickStart = DispatchTime.now().uptimeNanoseconds
-        let t = Double(tickStart &- startNanos) / 1_000_000_000.0
+    private var stopFlag = false
+
+    private func setStop(_ value: Bool) {
+        lock.lock()
+        stopFlag = value
+        lock.unlock()
+    }
+
+    private func stopRequested() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopFlag
+    }
+
+    /// Render one frame for video time `t` and hand it to the output when the GPU finishes.
+    /// Returns false (and renders nothing) when too many frames are already on the GPU.
+    private func renderFrame(at t: Double) -> Bool {
+        let started = DispatchTime.now().uptimeNanoseconds
 
         lock.lock()
         let busy = inFlight >= maxInFlight
-        if busy { skipped += 1 } else { inFlight += 1 }
+        if !busy { inFlight += 1 }
         lock.unlock()
-        if busy { return }
+        if busy { return false }
 
         var layers: [LayerDraw] = []
         if let buffer = video.frame(at: t), let texture = compositor.makeTexture(from: buffer) {
             layers.append(LayerDraw(texture: texture))
         }
         text.update([
-            TextLine(text: "CueME Stage engine spike", fontSize: 96, centerYFromTop: 480),
-            TextLine(text: "t = \(Int(t)) s    target \(Int(targetFPS)) fps", fontSize: 44, centerYFromTop: 600),
+            TextLine(text: "CueME Stage engine spike", fontSize: 96, centerYFromTop: 440),
+            TextLine(text: "t = \(Int(t)) s    \(String(format: "%.2f", (output as? PacedOutputSink)?.frameRate ?? targetFPS)) fps", fontSize: 44, centerYFromTop: 560),
+            TextLine(text: output.name, fontSize: 32, centerYFromTop: 640),
         ])
         layers.append(LayerDraw(texture: text.layer))
 
@@ -152,6 +208,7 @@ public final class SpikeRunner: @unchecked Sendable {
             errors += 1
             lock.unlock()
         }
-        encodeStats.add(Double(DispatchTime.now().uptimeNanoseconds &- tickStart) / 1_000_000.0)
+        encodeStats.add(Double(DispatchTime.now().uptimeNanoseconds &- started) / 1_000_000.0)
+        return true
     }
 }

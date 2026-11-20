@@ -29,8 +29,17 @@ prove a stable 1080p60 SDI output while compositing video and text in Metal. See
 2. `xcodegen generate` (creates `CueMEStage.xcodeproj`)
 3. Open `CueMEStage.xcodeproj`, choose the `StageEngine` scheme and run.
 
-Without any hardware, StageEngine times a 60 Hz clock for 5 seconds and prints a summary. Run its package
-tests with `swift test --package-path Packages/Engine`.
+Without any hardware, StageEngine can time a bare 60 Hz clock (no arguments), or run the engine spike:
+a looping video with a text layer composited in Metal at 1080p60, with timing reported at the end.
+In Xcode, set arguments under *Product > Scheme > Edit Scheme > Run > Arguments*:
+
+```
+--video /full/path/to/loop.mp4 --seconds 60
+```
+
+Or run the built tool from Terminal with the same arguments. The report shows output and render-loop frame
+timing, GPU and CPU-encode time per frame, skipped ticks, and video decoder underruns. Run the package
+tests (they include a Metal shader smoke test) with `swift test --package-path Packages/Engine`.
 
 SDK setup for DeckLink and NDI is in [docs/sdk-setup.md](docs/sdk-setup.md).
 

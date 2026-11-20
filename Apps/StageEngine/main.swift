@@ -43,7 +43,7 @@ if let videoPath = value(after: "--video") {
     timer.resume()
 
     print("StageEngine: timing a bare 60 Hz clock for \(seconds) s ...")
-    Thread.sleep(forTimeInterval: seconds)
+    try? await Task.sleep(for: .seconds(seconds))
     timer.cancel()
     print(logger.summary())
 }

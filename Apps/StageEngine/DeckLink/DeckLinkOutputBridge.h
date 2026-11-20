@@ -16,6 +16,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL canOutput;
 /// The device accepts 1080p59.94 output with BGRA frames.
 @property (nonatomic, readonly) BOOL supports1080p5994;
+/// What the hardware can do on this connector: "capture", "playback", both, or "unknown".
+@property (nonatomic, copy, readonly) NSString *ioSupport;
+/// Result code from asking the device for its output interface (0 = success).
+@property (nonatomic, readonly) int32_t outputQueryResult;
+/// Sub-device index reported by the driver, or -1.
+@property (nonatomic, readonly) NSInteger subDeviceIndex;
 @end
 
 /// Counters from the card's scheduled playback.

@@ -18,6 +18,9 @@ static NSError *DLMakeError(NSInteger code, NSString *message) {
 @property (nonatomic, copy, readwrite) NSString *modelName;
 @property (nonatomic, readwrite) BOOL canOutput;
 @property (nonatomic, readwrite) BOOL supports1080p5994;
+@property (nonatomic, copy, readwrite) NSString *ioSupport;
+@property (nonatomic, readwrite) int32_t outputQueryResult;
+@property (nonatomic, readwrite) NSInteger subDeviceIndex;
 @end
 @implementation DLDeviceInfo
 @end
@@ -146,8 +149,24 @@ private:
         name = nullptr;
         info.modelName = (device->GetModelName(&name) == S_OK) ? StringFromCF(name) : @"";
 
+        info.ioSupport = @"unknown";
+        info.subDeviceIndex = -1;
+        IDeckLinkProfileAttributes *attrs = nullptr;
+        if (device->QueryInterface(IID_IDeckLinkProfileAttributes, (void **)&attrs) == S_OK && attrs) {
+            int64_t io = 0;
+            if (attrs->GetInt(BMDDeckLinkVideoIOSupport, &io) == S_OK) {
+                bool cap = (io & bmdDeviceSupportsCapture) != 0, play = (io & bmdDeviceSupportsPlayback) != 0;
+                info.ioSupport = cap && play ? @"capture+playback" : cap ? @"capture" : play ? @"playback" : @"none";
+            }
+            int64_t sub = 0;
+            if (attrs->GetInt(BMDDeckLinkSubDeviceIndex, &sub) == S_OK) info.subDeviceIndex = (NSInteger)sub;
+            attrs->Release();
+        }
+
         IDeckLinkOutput *output = nullptr;
-        if (device->QueryInterface(IID_IDeckLinkOutput, (void **)&output) == S_OK && output) {
+        HRESULT qhr = device->QueryInterface(IID_IDeckLinkOutput, (void **)&output);
+        info.outputQueryResult = (int32_t)qhr;
+        if (qhr == S_OK && output) {
             info.canOutput = YES;
             BMDDisplayMode actual = bmdModeUnknown;
             bool supported = false;

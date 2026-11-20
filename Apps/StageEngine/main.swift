@@ -36,7 +36,7 @@ if arguments.contains("--list-decklink") {
         print("and the SDK present in vendor/DeckLinkSDK/include when this was built?")
     }
     for d in devices {
-        print("[\(d.index)] \(d.displayName)  (\(d.modelName))  output=\(d.canOutput ? "yes" : "no")  1080p59.94 BGRA=\(d.supports1080p5994 ? "yes" : "no")")
+        print("[\(d.index)] \(d.displayName)  (\(d.modelName))  output=\(d.canOutput ? "yes" : "no")  1080p59.94 BGRA=\(d.supports1080p5994 ? "yes" : "no")  io=\(d.ioSupport)  sub=\(d.subDeviceIndex)  queryResult=\(d.outputQueryResult)")
     }
     exit(0)
 }

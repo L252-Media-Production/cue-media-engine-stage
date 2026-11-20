@@ -49,3 +49,21 @@ Test commands (StageEngine scheme arguments):
     --video FILE --ndi-send "CueME Stage"             send a looping video as NDI
     --video FILE --decklink 4 --ndi-send "CueME Stage" SDI and NDI together
     --ndi-in "Camera" --decklink 4                    NDI input (for example IMAG) out of SDI
+
+## SDI input (IMAG) loopback test
+
+Set one connector to **Input** in Desktop Video Setup (each Duo 2 connector is its own device) and check that
+`StageEngine --list-decklink` shows `input=yes` for it. Without a camera, loop an output into it:
+
+```
+# process A: play a loop out of connector 7 (route 7 -> input 1 on the video hub)
+StageEngine --video "<file>" --decklink 7 --depth 6 --seconds 600
+
+# process B: capture connector 1 and send it out of connector 4
+StageEngine --sdi-in 1 --decklink 4 --depth 6 --seconds 300
+```
+
+Process B ends with `sdi input` (signal, detected format, frames captured, no-signal frames, format changes),
+`sdi cadence` (repeated and skipped input frames) and `sdi` (GPU unpack time) lines. The source and the output
+run on separate clocks, so an occasional repeated or skipped frame is expected until the clocks are locked;
+the interval between them shows how far apart the clocks run. Only 1920x1080 input is handled.

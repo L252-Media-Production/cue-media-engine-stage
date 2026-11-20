@@ -12,6 +12,8 @@ import Engine
 //   Input (pick one):   --video FILE               a looping video file
 //                       --ndi-in TEXT [--ndi-raw]  the NDI source whose name contains TEXT
 //                                                  (frame-synced to our output; --ndi-raw skips that)
+//                       --sdi-in INDEX             capture SDI on a DeckLink connector set to Input
+//                                                  (1080p, 4:2:2; see --list-decklink for input=yes)
 //   Output (any mix):   --decklink INDEX[,INDEX..] SDI outputs, 1080p59.94; the first sets the pace
 //                       --ndi-send NAME            send an NDI stream called NAME
 //   With no output the frames are discarded (a pure render-loop test).
@@ -41,7 +43,7 @@ if arguments.contains("--list-decklink") {
         print("and the SDK present in vendor/DeckLinkSDK/include when this was built?")
     }
     for d in devices {
-        print("[\(d.index)] \(d.displayName)  (\(d.modelName))  output=\(d.canOutput ? "yes" : "no")  1080p59.94 YUV=\(d.supports1080p5994 ? "yes" : "no")  formats[\(d.ioSupport)]  queryResult=\(d.outputQueryResult)")
+        print("[\(d.index)] \(d.displayName)  (\(d.modelName))  output=\(d.canOutput ? "yes" : "no")  input=\(d.canInput ? "yes" : "no")  1080p59.94 YUV=\(d.supports1080p5994 ? "yes" : "no")  formats[\(d.ioSupport)]  queryResult=\(d.outputQueryResult)")
     }
     exit(0)
 }
@@ -61,15 +63,25 @@ if arguments.contains("--ndi-list") {
     exit(0)
 }
 
-let hasInput = arguments.contains("--video") || arguments.contains("--ndi-in")
+let hasInput = arguments.contains("--video") || arguments.contains("--ndi-in") || arguments.contains("--sdi-in")
 
 if hasInput {
     do {
         // Input
         let source: FrameSource
         var ndiInput: NDIFrameSource?
+        var sdiInput: SDIFrameSource?
         var inputLabel: String
-        if let text = value(after: "--ndi-in") {
+        if let indexText = value(after: "--sdi-in") {
+            guard let index = Int(indexText) else {
+                print("--sdi-in needs a device number (see --list-decklink, input=yes)")
+                exit(1)
+            }
+            let sdi = try SDIFrameSource(deviceIndex: index)
+            sdiInput = sdi
+            source = sdi
+            inputLabel = "SDI in: \(sdi.deviceName) (index \(index))"
+        } else if let text = value(after: "--ndi-in") {
             let ndi = try NDIFrameSource(sourceContaining: text, waitSeconds: 10,
                                          frameSync: !arguments.contains("--ndi-raw"))
             ndiInput = ndi
@@ -116,6 +128,11 @@ if hasInput {
         print("  \(seconds) s (after \(warmup) s warm-up), 1920x1080")
         let report = try runner.run(seconds: seconds, warmup: warmup, reportEvery: reportEvery)
         print(report)
+        if let sdi = sdiInput {
+            print("sdi input  : \(sdi.captureSummary)")
+            print("sdi cadence: \(sdi.cadenceSummary)")
+            print("sdi        : \(sdi.conversionSummary)")
+        }
         if let ndi = ndiInput {
             print("ndi input  : \(ndi.sourceName) \(ndi.resolution), frames received=\(ndi.framesReceived)")
             print("ndi cadence: \(ndi.cadenceSummary)")

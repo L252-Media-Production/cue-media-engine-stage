@@ -17,6 +17,7 @@ static NSError *DLMakeError(NSInteger code, NSString *message) {
 @property (nonatomic, copy, readwrite) NSString *displayName;
 @property (nonatomic, copy, readwrite) NSString *modelName;
 @property (nonatomic, readwrite) BOOL canOutput;
+@property (nonatomic, readwrite) BOOL canInput;
 @property (nonatomic, readwrite) BOOL supports1080p5994;
 @property (nonatomic, copy, readwrite) NSString *ioSupport;
 @property (nonatomic, readwrite) int32_t outputQueryResult;
@@ -233,6 +234,11 @@ private:
             }
             info.ioSupport = [parts componentsJoinedByString:@","];
             output->Release();
+        }
+        IDeckLinkInput_v14_2_1 *input = nullptr;
+        if (device->QueryInterface(IID_IDeckLinkInput_v14_2_1, (void **)&input) == S_OK && input) {
+            info.canInput = YES;
+            input->Release();
         }
         [result addObject:info];
         device->Release();

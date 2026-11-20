@@ -14,6 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, readonly) NSString *modelName;
 /// The device can currently be used for video output.
 @property (nonatomic, readonly) BOOL canOutput;
+/// The device can currently be used for video capture (its connector is set to input).
+@property (nonatomic, readonly) BOOL canInput;
 /// The device accepts 1080p59.94 output with 8-bit YUV frames.
 @property (nonatomic, readonly) BOOL supports1080p5994;
 /// What the hardware can do on this connector: "capture", "playback", both, or "unknown".

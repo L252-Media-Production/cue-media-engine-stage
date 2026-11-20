@@ -76,18 +76,20 @@ static IDeckLink *DeviceAtIndex(NSInteger index) {
     return found;
 }
 
-/// A video frame that points straight at a BGRA CVPixelBuffer (no copy). The buffer stays locked
-/// and retained until the card releases the frame.
+/// A video frame that points straight at a CVPixelBuffer (no copy). The buffer holds packed 8-bit
+/// 4:2:2 YUV ("2vuy": Cb Y0 Cr Y1) written by the compositor into a BGRA buffer half the frame's
+/// width, so the frame is twice as wide as the buffer. The buffer stays locked and retained until
+/// the card releases the frame.
 class PixelBufferFrame : public IDeckLinkVideoFrame_v14_2_1 {
 public:
     explicit PixelBufferFrame(CVPixelBufferRef buffer) : mBuffer((CVPixelBufferRef)CFRetain(buffer)), mRefCount(1) {
         CVPixelBufferLockBaseAddress(mBuffer, kCVPixelBufferLock_ReadOnly);
     }
 
-    long GetWidth() override { return (long)CVPixelBufferGetWidth(mBuffer); }
+    long GetWidth() override { return (long)CVPixelBufferGetWidth(mBuffer) * 2; }
     long GetHeight() override { return (long)CVPixelBufferGetHeight(mBuffer); }
     long GetRowBytes() override { return (long)CVPixelBufferGetBytesPerRow(mBuffer); }
-    BMDPixelFormat GetPixelFormat() override { return bmdFormat8BitBGRA; }
+    BMDPixelFormat GetPixelFormat() override { return bmdFormat8BitYUV; }
     BMDFrameFlags GetFlags() override { return bmdFrameFlagDefault; }
     HRESULT GetBytes(void **buffer) override {
         *buffer = CVPixelBufferGetBaseAddress(mBuffer);
@@ -225,7 +227,7 @@ private:
                                                           bmdSupportedVideoModeDefault, &actual, &supported);
                 [parts addObject:[NSString stringWithFormat:@"%s=%@", f.name,
                                   hr == S_OK ? (supported ? @"yes" : @"no") : [NSString stringWithFormat:@"err%08X", (unsigned)hr]]];
-                if (f.format == bmdFormat8BitBGRA && hr == S_OK) info.supports1080p5994 = supported;
+                if (f.format == bmdFormat8BitYUV && hr == S_OK) info.supports1080p5994 = supported;
             }
             info.ioSupport = [parts componentsJoinedByString:@","];
             output->Release();
@@ -272,11 +274,11 @@ private:
     BMDDisplayMode actual = bmdModeUnknown;
     bool supported = false;
     HRESULT hr = _output->DoesSupportVideoMode(bmdVideoConnectionUnspecified, bmdModeHD1080p5994,
-                                               bmdFormat8BitBGRA, bmdNoVideoOutputConversion,
+                                               bmdFormat8BitYUV, bmdNoVideoOutputConversion,
                                                bmdSupportedVideoModeDefault, &actual, &supported);
     if (hr != S_OK || !supported) {
         if (error) *error = DLMakeError(4, [NSString stringWithFormat:
-            @"%@ does not support 1080p59.94 BGRA output (result 0x%08X, supported=%d). Run --list-decklink to see which pixel formats it accepts.",
+            @"%@ does not support 1080p59.94 8-bit YUV output (result 0x%08X, supported=%d). Run --list-decklink to see which pixel formats it accepts.",
             _deviceName, (unsigned)hr, (int)supported]);
         return nil;
     }

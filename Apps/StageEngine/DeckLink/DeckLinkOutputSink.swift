@@ -9,6 +9,9 @@ final class DeckLinkOutputSink: PacedOutputSink {
 
     private let bridge: DeckLinkOutputBridge
 
+    /// DeckLink SDI outputs take YUV, not BGRA.
+    var preferredFormat: OutputPixelFormat { .yuv8 }
+
     /// - Parameters:
     ///   - deviceIndex: position in the driver's device list (see `--list-decklink`).
     ///   - depth: frames queued on the card before playback starts and kept ahead of it.

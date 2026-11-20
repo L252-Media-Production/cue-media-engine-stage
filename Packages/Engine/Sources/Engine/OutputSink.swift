@@ -14,6 +14,13 @@ public protocol OutputSink: AnyObject {
 
     /// Stop playback and release the device.
     func stop()
+
+    /// The pixel layout this output wants. The compositor produces it directly.
+    var preferredFormat: OutputPixelFormat { get }
+}
+
+public extension OutputSink {
+    var preferredFormat: OutputPixelFormat { .bgra }
 }
 
 public enum OutputError: Error, Equatable {

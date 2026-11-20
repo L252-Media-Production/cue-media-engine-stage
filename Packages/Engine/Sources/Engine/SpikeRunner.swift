@@ -55,7 +55,7 @@ public final class SpikeRunner: @unchecked Sendable {
 
     public init(videoURL: URL, output: OutputSink, width: Int = 1920, height: Int = 1080,
                 targetFPS: Double = 60) async throws {
-        let compositor = try Compositor(width: width, height: height)
+        let compositor = try Compositor(width: width, height: height, outputFormat: output.preferredFormat)
         let text = try TextLayer(device: compositor.device, width: width, height: height)
         let video = try await VideoLoopSource.open(url: videoURL)
         self.compositor = compositor

@@ -8,6 +8,8 @@ final class DeckLinkOutputSink: PacedOutputSink {
     let frameRate: Double
 
     private let bridge: DeckLinkOutputBridge
+    let targetDepth: Int
+    var bufferedFrames: Int { Int(bridge.counters().buffered) }
 
     /// DeckLink SDI outputs take YUV, not BGRA.
     var preferredFormat: OutputPixelFormat { .yuv8 }
@@ -17,6 +19,7 @@ final class DeckLinkOutputSink: PacedOutputSink {
     ///   - depth: frames queued on the card before playback starts and kept ahead of it.
     init(deviceIndex: Int, depth: Int) throws {
         bridge = try DeckLinkOutputBridge(deviceIndex: deviceIndex, depth: depth)
+        targetDepth = depth
         name = "\(bridge.deviceName) (index \(deviceIndex), depth \(depth))"
         frameRate = bridge.frameRate
     }

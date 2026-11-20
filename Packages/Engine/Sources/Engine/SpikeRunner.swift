@@ -42,6 +42,11 @@ public final class SpikeRunner: @unchecked Sendable {
     private let video: VideoLoopSource
     private let text: TextLayer
     private let output: OutputSink
+    /// Further hardware outputs that follow the first one (it sets the pace; these drop or repeat
+    /// a frame when their own clocks drift).
+    private let followers: [PacedOutputSink]
+    private var followerSkips: [Int]
+    private var followerRepeats: [Int]
     private let targetFPS: Double
     private let maxInFlight = 3
 
@@ -53,15 +58,21 @@ public final class SpikeRunner: @unchecked Sendable {
     private var skipped = 0
     private var errors = 0
 
-    public init(videoURL: URL, output: OutputSink, width: Int = 1920, height: Int = 1080,
-                targetFPS: Double = 60) async throws {
+    public init(videoURL: URL, output: OutputSink, followers: [PacedOutputSink] = [],
+                width: Int = 1920, height: Int = 1080, targetFPS: Double = 60) async throws {
         let compositor = try Compositor(width: width, height: height, outputFormat: output.preferredFormat)
+        for follower in followers where follower.preferredFormat != output.preferredFormat {
+            throw CompositorError.pipelineFailed("All outputs must use the same pixel format for now.")
+        }
         let text = try TextLayer(device: compositor.device, width: width, height: height)
         let video = try await VideoLoopSource.open(url: videoURL)
         self.compositor = compositor
         self.text = text
         self.video = video
         self.output = output
+        self.followers = followers
+        self.followerSkips = Array(repeating: 0, count: followers.count)
+        self.followerRepeats = Array(repeating: 0, count: followers.count)
         self.targetFPS = targetFPS
         self.renderLoopTiming = FrameTimingLogger(targetFPS: targetFPS)
     }
@@ -73,6 +84,7 @@ public final class SpikeRunner: @unchecked Sendable {
     /// is counted in output frames. Otherwise a 60 Hz software timer drives it.
     public func run(seconds: Double, warmup: Double = 2.0) throws -> SpikeReport {
         try output.start()
+        for follower in followers { try follower.start() }
         video.start()
         setStop(false)
 
@@ -85,8 +97,15 @@ public final class SpikeRunner: @unchecked Sendable {
                 var n = 0
                 while !stopRequested() {
                     guard paced.waitForRoom(timeoutMs: 100) else { continue }
-                    renderLoopTiming.recordFrame()
-                    if renderFrame(at: Double(n) * frameDuration) { n += 1 } else {
+                    // One frame at a time: wait until the previous one has reached the card.
+                    if inFlightCount() > 0 {
+                        Thread.sleep(forTimeInterval: 0.0005)
+                        continue
+                    }
+                    if renderFrame(at: Double(n) * frameDuration) {
+                        renderLoopTiming.recordFrame()
+                        n += 1
+                    } else {
                         Thread.sleep(forTimeInterval: 0.001)
                     }
                 }
@@ -123,6 +142,8 @@ public final class SpikeRunner: @unchecked Sendable {
             lock.lock()
             skipped = 0
             errors = 0
+            followerSkips = Array(repeating: 0, count: followers.count)
+            followerRepeats = Array(repeating: 0, count: followers.count)
             lock.unlock()
         }
         Thread.sleep(forTimeInterval: seconds)
@@ -141,7 +162,16 @@ public final class SpikeRunner: @unchecked Sendable {
             Thread.sleep(forTimeInterval: 0.005)
         }
 
-        let status = (output as? PacedOutputSink)?.statusSummary() ?? ""
+        var statusLines: [String] = []
+        if let paced = output as? PacedOutputSink { statusLines.append("[\(paced.name)] \(paced.statusSummary())") }
+        lock.lock()
+        let skips = followerSkips, repeats = followerRepeats
+        lock.unlock()
+        for (i, follower) in followers.enumerated() {
+            statusLines.append("[\(follower.name)] \(follower.statusSummary()) followerSkipped=\(skips[i]) followerRepeated=\(repeats[i])")
+        }
+        let status = statusLines.joined(separator: "\n             ")
+        for follower in followers { follower.stop() }
         output.stop()
         video.stop()
 
@@ -164,6 +194,12 @@ public final class SpikeRunner: @unchecked Sendable {
         lock.lock()
         stopFlag = value
         lock.unlock()
+    }
+
+    private func inFlightCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return inFlight
     }
 
     private func stopRequested() -> Bool {
@@ -198,6 +234,18 @@ public final class SpikeRunner: @unchecked Sendable {
             try compositor.render(layers) { [self] frame, gpuMs in
                 gpuStats.add(gpuMs)
                 output.submit(frame)
+                for (i, follower) in followers.enumerated() {
+                    let buffered = follower.bufferedFrames
+                    if buffered >= follower.targetDepth + 1 {
+                        lock.lock(); followerSkips[i] += 1; lock.unlock() // follower is ahead: drop
+                    } else {
+                        follower.submit(frame)
+                        if buffered <= 1 && follower.targetDepth > 2 {
+                            follower.submit(frame) // follower is running dry: repeat once
+                            lock.lock(); followerRepeats[i] += 1; lock.unlock()
+                        }
+                    }
+                }
                 lock.lock()
                 inFlight -= 1
                 lock.unlock()

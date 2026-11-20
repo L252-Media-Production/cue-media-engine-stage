@@ -10,7 +10,7 @@ import Engine
 //   StageEngine --video FILE [--seconds N] [--warmup N]
 //                                                  engine spike: looping video + text through Metal,
 //                                                  frames discarded by a test sink
-//   StageEngine --video FILE --decklink INDEX [--depth N] [--seconds N] [--warmup N]
+//   StageEngine --video FILE --decklink INDEX[,INDEX...] [--depth N] [--seconds N] [--warmup N]
 //                                                  same, sent out one DeckLink SDI connector as
 //                                                  1080p59.94, paced by the card's clock
 //
@@ -55,20 +55,25 @@ if let videoPath = value(after: "--video") {
     try? probe.close()
     do {
         let sink: OutputSink
+        var followers: [PacedOutputSink] = []
         if let indexText = value(after: "--decklink") {
-            guard let index = Int(indexText) else {
-                print("--decklink needs a device number (see --list-decklink)")
+            let indexes = indexText.split(separator: ",").compactMap { Int($0) }
+            guard !indexes.isEmpty, indexes.count == indexText.split(separator: ",").count else {
+                print("--decklink needs device numbers, for example 4 or 4,6 (see --list-decklink)")
                 exit(1)
             }
             let depth = value(after: "--depth").flatMap(Int.init) ?? 4
-            sink = try DeckLinkOutputSink(deviceIndex: index, depth: depth)
+            sink = try DeckLinkOutputSink(deviceIndex: indexes[0], depth: depth)
+            for index in indexes.dropFirst() {
+                followers.append(try DeckLinkOutputSink(deviceIndex: index, depth: depth))
+            }
         } else {
             sink = NullOutputSink(name: "null", targetFPS: 60)
         }
         let runner = try await SpikeRunner(videoURL: URL(fileURLWithPath: videoPath),
-                                           output: sink, targetFPS: 60)
+                                           output: sink, followers: followers, targetFPS: 60)
         print("StageEngine spike: \(videoPath)")
-        print("  output: \(sink.name)")
+        print("  output: \(sink.name)" + followers.map { ", \($0.name)" }.joined())
         print("  \(seconds) s (after \(warmup) s warm-up), 1920x1080")
         let report = try runner.run(seconds: seconds, warmup: warmup)
         print(report)

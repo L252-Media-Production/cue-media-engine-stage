@@ -55,6 +55,12 @@ public protocol PacedOutputSink: OutputSink {
     /// Returns false on timeout or when the output has stopped.
     func waitForRoom(timeoutMs: Int) -> Bool
 
+    /// Frames currently queued on the output, ahead of what it is showing.
+    var bufferedFrames: Int { get }
+
+    /// How many frames the output tries to keep queued.
+    var targetDepth: Int { get }
+
     /// Short human-readable status for the report (late and dropped counters, queue depth).
     func statusSummary() -> String
 }

@@ -10,7 +10,7 @@ import Engine
 //   StageEngine --video FILE [--seconds N] [--warmup N]
 //                                                  engine spike: looping video + text through Metal,
 //                                                  frames discarded by a test sink
-//   StageEngine --video FILE --decklink INDEX[,INDEX...] [--depth N] [--seconds N] [--warmup N]
+//   StageEngine --video FILE --decklink INDEX[,INDEX...] [--depth N] [--seconds N] [--warmup N] [--report-every N]
 //                                                  same, sent out one DeckLink SDI connector as
 //                                                  1080p59.94, paced by the card's clock
 //
@@ -28,6 +28,7 @@ func value(after flag: String) -> String? {
 
 let seconds = value(after: "--seconds").flatMap(Double.init) ?? 10.0
 let warmup = value(after: "--warmup").flatMap(Double.init) ?? 2.0
+let reportEvery = value(after: "--report-every").flatMap(Double.init) ?? 0
 
 if arguments.contains("--list-decklink") {
     let devices = DeckLinkOutputBridge.listDevices()
@@ -75,7 +76,7 @@ if let videoPath = value(after: "--video") {
         print("StageEngine spike: \(videoPath)")
         print("  output: \(sink.name)" + followers.map { ", \($0.name)" }.joined())
         print("  \(seconds) s (after \(warmup) s warm-up), 1920x1080")
-        let report = try runner.run(seconds: seconds, warmup: warmup)
+        let report = try runner.run(seconds: seconds, warmup: warmup, reportEvery: reportEvery)
         print(report)
     } catch {
         print("StageEngine spike failed: \(error.localizedDescription)")

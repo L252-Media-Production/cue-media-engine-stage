@@ -82,7 +82,7 @@ public final class SpikeRunner: @unchecked Sendable {
     ///
     /// With a `PacedOutputSink` the render loop is paced by the output's own clock and video time
     /// is counted in output frames. Otherwise a 60 Hz software timer drives it.
-    public func run(seconds: Double, warmup: Double = 2.0) throws -> SpikeReport {
+    public func run(seconds: Double, warmup: Double = 2.0, reportEvery: Double = 0) throws -> SpikeReport {
         try output.start()
         for follower in followers { try follower.start() }
         video.start()
@@ -148,7 +148,18 @@ public final class SpikeRunner: @unchecked Sendable {
             followerRepeats = Array(repeating: 0, count: followers.count)
             lock.unlock()
         }
-        Thread.sleep(forTimeInterval: seconds)
+        if reportEvery > 0 {
+            // Long runs: print progress so a crash or a problem hours in still leaves a record.
+            var elapsed = 0.0
+            while elapsed < seconds {
+                let step = min(reportEvery, seconds - elapsed)
+                Thread.sleep(forTimeInterval: step)
+                elapsed += step
+                if elapsed < seconds { print("--- progress \(Int(elapsed)) s / \(Int(seconds)) s ---\n\(progressLines())") }
+            }
+        } else {
+            Thread.sleep(forTimeInterval: seconds)
+        }
 
         setStop(true)
         timer?.cancel()
@@ -164,15 +175,7 @@ public final class SpikeRunner: @unchecked Sendable {
             Thread.sleep(forTimeInterval: 0.005)
         }
 
-        var statusLines: [String] = []
-        if let paced = output as? PacedOutputSink { statusLines.append("[\(paced.name)] \(paced.statusSummary())") }
-        lock.lock()
-        let skips = followerSkips, repeats = followerRepeats
-        lock.unlock()
-        for (i, follower) in followers.enumerated() {
-            statusLines.append("[\(follower.name)] \(follower.statusSummary()) followerSkipped=\(skips[i]) followerRepeated=\(repeats[i])")
-        }
-        let status = statusLines.joined(separator: "\n             ")
+        let status = progressLines(separator: "\n             ")
         for follower in followers { follower.stop() }
         output.stop()
         video.stop()
@@ -188,6 +191,19 @@ public final class SpikeRunner: @unchecked Sendable {
                            encodeMeanMs: encode.mean, encodeMaxMs: encode.max,
                            skippedTicks: skipped, videoUnderruns: video.underruns,
                            renderErrors: errors, renderLoopLate: renderLoopTiming.lateEvents())
+    }
+
+    /// One status line per hardware output (card counters, follower skips and repeats).
+    private func progressLines(separator: String = "\n") -> String {
+        var lines: [String] = []
+        if let paced = output as? PacedOutputSink { lines.append("[\(paced.name)] \(paced.statusSummary())") }
+        lock.lock()
+        let skips = followerSkips, repeats = followerRepeats
+        lock.unlock()
+        for (i, follower) in followers.enumerated() {
+            lines.append("[\(follower.name)] \(follower.statusSummary()) followerSkipped=\(skips[i]) followerRepeated=\(repeats[i])")
+        }
+        return lines.joined(separator: separator)
     }
 
     private var stopFlag = false

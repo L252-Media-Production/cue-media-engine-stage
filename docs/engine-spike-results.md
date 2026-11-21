@@ -44,6 +44,32 @@ output, caused by a render-thread stall from redrawing text once a second.
 - The render-loop "late" counter reflects scheduling jitter that the card's buffer absorbs. Judge health by the
   card counters and `lowestBuffered`.
 
+## IMAG (SDI capture) latency, 2026-11-21
+
+Setup: source `--canvas 1920x1080 --decklink 7 --depth 6` (stamps host uptime in ms into the picture), hub, capture
+`--sdi-in 1 --decklink 4`, 120 s runs on the Mac Studio. Latency is computed inside the capture process from the stamp.
+
+| Capture settings | Card | Capture queue wait | Cadence (repeat / skip / trim) | Engine-side IMAG estimate |
+|---|---|---|---|---|
+| depth 6, buffer 2 | late=0 dropped=0, lowest 4/6 | 21 ms | 0 / 0 / - | ~140 ms (8 frames) |
+| depth 4, buffer 1 | late=0 dropped=0, lowest 2/4 | 21 ms | 3 / 2 / - | ~105 ms |
+| depth 3, buffer 1 | late=0 dropped=0, lowest 2/3 | 21 ms | 1 / 0 / - | ~90 ms |
+| depth 2, buffer 1 | late=5 dropped=13, lowest 0/2 | 21 ms | 2 / 1 / - | fails |
+| depth 3, buffer 1, `--realtime` | late=0 dropped=0, lowest 1/3 | 14 ms | 26 / 0 / 25 | ~80 ms, judder |
+| depth 2, buffer 1, `--realtime` | late=5015 (card falls behind) | 13 ms | 21 / 1 / 23 | fails |
+| **depth 3, buffer 2, `--realtime`** | late=0 dropped=0, lowest 1/3 | 22 ms | **0 / 0 / 0** | **~88 ms (5 frames)** |
+
+- Source render to capture arrival is about 101 ms, which is the source's own 6-frame output queue; the hub and the
+  two card hops add under a frame. Panels read on an iPhone NDI feed showed about 6 frames between the source and
+  the capture panel at depth 6 (within the phone's +/-2 frame accuracy).
+- Engine-side IMAG estimate = capture queue wait + output depth x 16.7 ms + about one frame in the card.
+- The capture queue never shrinks by itself (one pop per arrival), so one late render tick left `--sdi-buffer 1`
+  stuck at 2 frames. The source now drops one frame after 2 s above target (`trimmed`).
+- `--realtime` (time-constraint scheduling plus no App Nap) cut late render ticks from 11 to 4-6 per 120 s.
+- Output depth 3 is the minimum that holds; depth 2 fails even with `--realtime`.
+- Recommended IMAG setting for now: `--depth 3 --sdi-buffer 2 --realtime`.
+- Open: occasional CPU encode spikes (13-18 ms) and late ticks up to 36 ms; needed before depth 2 / 3 frames is possible.
+
 ## Not yet tested
 
 - 30 fps 4K clip, SmartView judder with 25 fps content, and the loop restart seam.

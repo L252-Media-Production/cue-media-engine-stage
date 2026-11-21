@@ -162,10 +162,10 @@ public final class CanvasCompositor {
                 if (k <= i && fmod(sx, 44.0) < 28.0) c = over(c, col, 0.95);
             }
             // Frame counter: 12 bits, most significant first, at the bottom left.
-            if (ly >= r.w - 44.0 && ly < r.w - 24.0 && lx >= 16.0) {
+            if (ly >= r.w - 84.0 && ly < r.w - 44.0 && lx >= 16.0) {
                 float sx = lx - 16.0;
-                uint k = uint(sx / 24.0);
-                if (k < 12 && fmod(sx, 24.0) < 20.0) {
+                uint k = uint(sx / 48.0);
+                if (k < 12 && fmod(sx, 48.0) < 40.0) {
                     bool on = ((frame >> (11 - k)) & 1u) != 0u;
                     c = over(c, on ? float3(1.0) : float3(0.15), on ? 1.0 : 0.7);
                 }

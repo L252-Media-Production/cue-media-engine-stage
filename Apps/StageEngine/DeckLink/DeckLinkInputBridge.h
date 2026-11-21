@@ -28,6 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable CVPixelBufferRef)popFrame CF_RETURNS_RETAINED;
 /// Remove and release the oldest frame. Returns NO if the queue was empty.
 - (BOOL)dropOldestFrame;
+/// When the card delivered the frame that `popFrame` last returned (nanoseconds, same clock as
+/// `DispatchTime.now().uptimeNanoseconds`).
+@property (nonatomic, readonly) uint64_t lastPopArrivalNanos;
 /// Frames currently waiting in the queue.
 @property (nonatomic, readonly) NSInteger queuedFrames;
 /// Frames discarded because the queue was full (nobody was taking them).

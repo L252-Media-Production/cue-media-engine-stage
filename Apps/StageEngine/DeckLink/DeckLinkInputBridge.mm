@@ -106,6 +106,8 @@ private:
     std::atomic<bool> _running;
     std::mutex _frameLock;            // guards _queue
     std::deque<CVPixelBufferRef> _queue;
+    std::deque<uint64_t> _arrivals;   // arrival time of each queued frame
+    std::atomic<uint64_t> _lastPopArrival;
 
     std::atomic<uint64_t> _captured, _noSignal, _rejected, _formatChanges, _overflowed;
     std::atomic<bool> _signal, _unsupported;
@@ -122,6 +124,7 @@ private:
 
     _running = false;
     _captured = _noSignal = _rejected = _formatChanges = _overflowed = 0;
+    _lastPopArrival = 0;
     _signal = false;
     _unsupported = false;
     _modeName = @"1080p59.94 (initial mode, no change reported)";
@@ -224,6 +227,7 @@ private:
 }
 
 - (void)videoFrameArrived:(IDeckLinkVideoInputFrame_v14_2_1 *)frame {
+    uint64_t arrivedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     if (frame->GetFlags() & bmdFrameHasNoInputSource) {
         _noSignal++;
         _signal = false;
@@ -262,9 +266,11 @@ private:
     {
         std::lock_guard<std::mutex> guard(_frameLock);
         _queue.push_back(buffer);
+        _arrivals.push_back(arrivedAt);
         if (_queue.size() > kQueueLimit) {
             overflow = _queue.front();
             _queue.pop_front();
+            _arrivals.pop_front();
         }
     }
     if (overflow) {
@@ -279,6 +285,8 @@ private:
     if (_queue.empty()) return nullptr;
     CVPixelBufferRef frame = _queue.front();   // the queue's reference passes to the caller
     _queue.pop_front();
+    _lastPopArrival = _arrivals.front();
+    _arrivals.pop_front();
     return frame;
 }
 
@@ -289,6 +297,7 @@ private:
         if (_queue.empty()) return NO;
         frame = _queue.front();
         _queue.pop_front();
+        _arrivals.pop_front();
     }
     CVPixelBufferRelease(frame);
     return YES;
@@ -299,6 +308,7 @@ private:
     return (NSInteger)_queue.size();
 }
 - (uint64_t)framesOverflowed { return _overflowed; }
+- (uint64_t)lastPopArrivalNanos { return _lastPopArrival; }
 - (uint64_t)framesCaptured { return _captured; }
 - (uint64_t)framesNoSignal { return _noSignal; }
 - (uint64_t)framesRejected { return _rejected; }
@@ -335,6 +345,7 @@ private:
 - (BOOL)dropOldestFrame { return NO; }
 - (NSInteger)queuedFrames { return 0; }
 - (uint64_t)framesOverflowed { return 0; }
+- (uint64_t)lastPopArrivalNanos { return 0; }
 - (uint64_t)framesCaptured { return 0; }
 - (uint64_t)framesNoSignal { return 0; }
 - (uint64_t)framesRejected { return 0; }

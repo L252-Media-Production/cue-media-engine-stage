@@ -126,6 +126,21 @@ public final class CanvasCompositor {
         return float4(rgb * a, a) + dst * (1.0 - a);   // premultiplied source-over
     }
 
+    // One seven-segment digit in a 56x100 box (x, y from the box's top left).
+    static bool segmentHit(uint digit, float x, float y) {
+        const uint masks[10] = {0x3Fu, 0x06u, 0x5Bu, 0x4Fu, 0x66u, 0x6Du, 0x7Du, 0x07u, 0x7Fu, 0x6Fu};
+        uint m = masks[digit % 10u];
+        bool hit = false;
+        if ((m & 1u)  && x >= 8.0  && x < 48.0 && y >= 0.0  && y < 10.0)  hit = true;   // top
+        if ((m & 2u)  && x >= 46.0 && x < 56.0 && y >= 8.0  && y < 48.0)  hit = true;   // top right
+        if ((m & 4u)  && x >= 46.0 && x < 56.0 && y >= 52.0 && y < 92.0)  hit = true;   // bottom right
+        if ((m & 8u)  && x >= 8.0  && x < 48.0 && y >= 90.0 && y < 100.0) hit = true;   // bottom
+        if ((m & 16u) && x >= 0.0  && x < 10.0 && y >= 52.0 && y < 92.0)  hit = true;   // bottom left
+        if ((m & 32u) && x >= 0.0  && x < 10.0 && y >= 8.0  && y < 48.0)  hit = true;   // top left
+        if ((m & 64u) && x >= 8.0  && x < 48.0 && y >= 45.0 && y < 55.0)  hit = true;   // middle
+        return hit;
+    }
+
     static float3 screenColor(uint i) {
         switch (i % 6) {
             case 0: return float3(1.0, 0.25, 0.25);
@@ -170,6 +185,22 @@ public final class CanvasCompositor {
                     c = over(c, on ? float3(1.0) : float3(0.15), on ? 1.0 : 0.7);
                 }
             }
+        }
+
+        // Decimal frame number (last 4 digits) at the bottom right of every screen, easy to read in a video.
+        for (uint i = 0; i < count; i++) {
+            float4 r = float4(p[8 + i * 4], p[9 + i * 4], p[10 + i * 4], p[11 + i * 4]);
+            float ddx = px.x - (r.x + r.z - 16.0 - 4.0 * 68.0);
+            float ddy = px.y - (r.y + r.w - 120.0);
+            if (ddx < -8.0 || ddx >= 4.0 * 68.0 + 8.0 || ddy < -8.0 || ddy >= 108.0) continue;
+            c = over(c, float3(0.0), 0.7);
+            if (ddx < 0.0 || ddx >= 4.0 * 68.0 || ddy < 0.0 || ddy >= 100.0) continue;
+            uint di = uint(ddx / 68.0);
+            float lx2 = ddx - float(di) * 68.0;
+            if (lx2 >= 56.0) continue;
+            uint divisor = di == 0 ? 1000u : (di == 1 ? 100u : (di == 2 ? 10u : 1u));
+            uint digit = (frame / divisor) % 10u;
+            if (segmentHit(digit, lx2, ddy)) c = over(c, float3(1.0), 1.0);
         }
 
         // A bar that crosses the whole canvas every 4 seconds.

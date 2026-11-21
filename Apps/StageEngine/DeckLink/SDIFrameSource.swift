@@ -36,6 +36,9 @@ final class SDIFrameSource: FrameSource {
     private var repeated: UInt64 = 0
     private var skipped: UInt64 = 0
     private var queueSum: UInt64 = 0
+    private var waitSumMs = 0.0
+    private var waitMaxMs = 0.0
+    private var waitCount = 0
 
     /// Captured frames are taken in order, one per output frame. The queue is kept near `buffer` frames
     /// deep: that depth absorbs the timing jitter between the capture clock and the render loop (taking
@@ -62,6 +65,10 @@ final class SDIFrameSource: FrameSource {
             repeated += 1          // queue ran dry: show the last frame again
             return cached
         }
+        let waitMs = Double(DispatchTime.now().uptimeNanoseconds &- bridge.lastPopArrivalNanos) / 1_000_000.0
+        waitSumMs += waitMs
+        waitMaxMs = max(waitMaxMs, waitMs)
+        waitCount += 1
         if let converted = unpacker.unpack(packed) { cached = converted }
         return cached
     }
@@ -89,7 +96,11 @@ final class SDIFrameSource: FrameSource {
     }
 
     var conversionSummary: String {
-        String(format: "unpack: mean=%.3f ms max=%.3f ms", unpacker.meanMs, unpacker.maxMs)
+        lock.lock()
+        defer { lock.unlock() }
+        let wait = waitCount > 0 ? waitSumMs / Double(waitCount) : 0
+        return String(format: "unpack: mean=%.3f ms max=%.3f ms; waited in capture queue: mean=%.1f ms max=%.1f ms (arrival to render)",
+                      unpacker.meanMs, unpacker.maxMs, wait, waitMaxMs)
     }
 
     var underruns: Int { 0 }

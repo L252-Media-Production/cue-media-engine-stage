@@ -11,6 +11,7 @@ pacing, `StageEngine` at commit `ed3de08` (2026-11-20). "late" and "dropped" are
 | 2 outputs, same card (101 + 102), 300 s, depth 6 | both late=0 dropped=0, lowest buffer 4/6, 0 follower skips/repeats |
 | 2 outputs, two cards (101 + 205), 300 s, depth 6 | both late=0 dropped=0, lowest buffer 4/6, 0 follower skips/repeats |
 | 2 outputs, two cards (101 + 205), **4 hours**, depth 6, 1080p H.264 loop | both 863,137 frames, late=0 dropped=0 flushed=0, lowest buffer 3/6, 0 follower skips/repeats, 0 video underruns, 0 render errors |
+| SDI input (IMAG path), 300 s: source on card 205 (index 0) -> hub -> capture 207 (index 1) -> output 101 (index 4), depth 6, `--sdi-buffer 2` | capture 18,087 frames, 15 no-signal at start, 0 repeated / 0 skipped input frames, mean queue depth 2.00, output late=0 dropped=0 flushed=0, lowest buffer 3/6, GPU unpack 0.4 ms mean / 0.9 ms max |
 
 Earlier run at depth 4 (same card, before text drawing moved off the render thread): 1 dropped frame per
 output, caused by a render-thread stall from redrawing text once a second.
@@ -29,6 +30,12 @@ output, caused by a render-thread stall from redrawing text once a second.
   skips or repeats), so the two un-genlocked cards drift slowly enough for a typical service. The render loop
   logged 499 late frames (0.06%, max 61 ms, p99 19.8 ms) at random times; the queue absorbed all of them
   (lowest buffer 3/6) and no card counter moved.
+- SDI input: taking the newest captured frame at render time gave 488 repeated + 488 skipped frames in 300 s
+  (capture/render timing jitter, not clock drift). Passing captured frames through a short in-order queue
+  (default 2 frames, about 33 ms) reduced that to 0 / 0. The source and output were on different cards, and no
+  clock-drift event showed in 300 s; a longer run is needed to measure the real drift interval.
+- Starting a second StageEngine process while another runs can stall the first for 50-75 ms (lowest buffer 2/6,
+  no card counter moved).
 - The render-loop "late" counter reflects scheduling jitter that the card's buffer absorbs. Judge health by the
   card counters and `lowestBuffered`.
 
@@ -36,4 +43,5 @@ output, caused by a render-thread stall from redrawing text once a second.
 
 - 30 fps 4K clip, SmartView judder with 25 fps content, and the loop restart seam.
 - Soak with real service load (ProPresenter/CueME running alongside), and one longer than 4 hours.
+- SDI input over 30+ minutes (drift interval), and a real camera or ProPresenter feed instead of a loopback.
 - Genlock / reference input.

@@ -341,7 +341,8 @@ extension AudioSpecSubject {
 /// Nothing is implemented: every test that asks it something is skipped.
 struct PendingSubject: AudioSpecSubject {}
 
-/// The subject the conformance tests run against. Change this one line when the real engine is ready.
+/// The subject the conformance tests run against. `AudioCoreSubject` does what AudioCore implements and leaves the rest pending;
+/// switch this one line to the real engine when it exists, or to `PendingSubject()` to see everything skipped.
 enum AudioSpecSubjects {
-    static let current: AudioSpecSubject = PendingSubject()
+    static let current: AudioSpecSubject = AudioCoreSubject()
 }

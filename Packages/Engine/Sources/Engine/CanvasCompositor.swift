@@ -2,7 +2,7 @@ import CoreVideo
 import Foundation
 import Metal
 
-/// A rectangle of the canvas (in canvas pixels) that is sent to one output.
+/// A rectangle in pixels: a screen's place on the canvas, or a layer's place inside a composition.
 public struct ScreenRegion: Equatable, CustomStringConvertible {
     public var x: Int
     public var y: Int
@@ -19,14 +19,62 @@ public struct ScreenRegion: Equatable, CustomStringConvertible {
     public var description: String { "\(width)x\(height) at (\(x), \(y))" }
 }
 
-/// Renders one large canvas (for example 5760x1080 or 6000x1920) and cuts "virtual screens" out of it.
-/// Each screen becomes a 1080p packed-YUV frame for one SDI output. If a screen's rectangle is not
-/// 1920x1080 it is scaled to fit.
+/// How a layer's picture fills its rectangle.
+public enum LayerFit {
+    /// Stretch to the rectangle (aspect ratio ignored).
+    case stretch
+    /// Fill the rectangle and crop what does not fit.
+    case cover
+    /// Fit inside the rectangle and leave the rest empty.
+    case contain
+}
+
+/// One layer ready to draw this frame.
+public struct CanvasLayerDraw {
+    /// The picture, or nil for the animated test pattern (master composition only).
+    public var texture: RetainedTexture?
+    public var contentWidth: Int
+    public var contentHeight: Int
+    /// Where the layer goes in its composition; nil fills the whole composition.
+    public var rect: ScreenRegion?
+    public var opacity: Float
+    public var fit: LayerFit
+
+    public init(texture: RetainedTexture?, contentWidth: Int, contentHeight: Int,
+                rect: ScreenRegion? = nil, opacity: Float = 1, fit: LayerFit = .stretch) {
+        self.texture = texture
+        self.contentWidth = contentWidth
+        self.contentHeight = contentHeight
+        self.rect = rect
+        self.opacity = opacity
+        self.fit = fit
+    }
+
+    public static func pattern(opacity: Float = 1) -> CanvasLayerDraw {
+        CanvasLayerDraw(texture: nil, contentWidth: 1, contentHeight: 1, opacity: opacity)
+    }
+}
+
+/// What to draw for one screen this frame: whether the master shows through, and the screen's own layers.
+public struct CanvasScreenDraw {
+    public var showMaster: Bool
+    /// Bottom to top.
+    public var layers: [CanvasLayerDraw]
+
+    public init(showMaster: Bool = true, layers: [CanvasLayerDraw] = []) {
+        self.showMaster = showMaster
+        self.layers = layers
+    }
+}
+
+/// Renders the master composition on one large canvas, then one composition per screen on top of its
+/// slice of the master, and packs each screen as a 1080p 4:2:2 frame for an SDI output.
 ///
-/// The canvas holds an optional background (a video, scaled to cover the whole canvas) and an animated
-/// test pattern: a grid, a coloured border and numbered squares on every screen, a binary frame counter
-/// on every screen, and a bar sweeping across the whole canvas. The sweeping bar and the counters show
-/// whether neighbouring outputs stay in step.
+/// - The **master** spans the whole canvas (for example 6000x1920).
+/// - Each **screen** has its own composition at the size of its rectangle. It starts from the master
+///   slice underneath it (unless `showMaster` is off, which leaves it transparent, that is black on SDI)
+///   and draws the screen's own layers on top.
+/// - A screen whose rectangle is not 1920x1080 is scaled to the output.
 ///
 /// Call `render` from one thread only.
 public final class CanvasCompositor {
@@ -35,11 +83,12 @@ public final class CanvasCompositor {
     public let screens: [ScreenRegion]
     public let outputWidth: Int
     public let outputHeight: Int
+    public let device: MTLDevice
 
-    private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let canvasTexture: MTLTexture
-    private let coverPipeline: MTLRenderPipelineState
+    private let screenTextures: [MTLTexture]
+    private let layerPipeline: MTLRenderPipelineState
     private let patternPipeline: MTLRenderPipelineState
     private let packPipeline: MTLRenderPipelineState
     private let textureCache: CVMetalTextureCache
@@ -64,13 +113,13 @@ public final class CanvasCompositor {
         return o;
     }
 
-    // A video scaled to cover the whole canvas (the part that does not fit is cropped).
-    fragment float4 cover_fragment(VOut in [[stage_in]],
+    // One layer (premultiplied alpha). p: uv scale x, y, uv offset x, y, opacity.
+    fragment float4 layer_fragment(VOut in [[stage_in]],
                                    texture2d<float> tex [[texture(0)]],
-                                   constant float2 &scale [[buffer(0)]]) {
+                                   constant float *p [[buffer(0)]]) {
         constexpr sampler s(filter::linear, address::clamp_to_edge);
-        float2 uv = (in.uv - 0.5) * scale + 0.5;
-        return tex.sample(s, uv);
+        float2 uv = in.uv * float2(p[0], p[1]) + float2(p[2], p[3]);
+        return tex.sample(s, uv) * p[4];
     }
 
     static float4 over(float4 dst, float3 rgb, float a) {
@@ -89,7 +138,7 @@ public final class CanvasCompositor {
     }
 
     // p[0] canvas width, p[1] canvas height, p[2] time (s), p[3] screen count (uint bits),
-    // p[4] frame number (uint bits), p[8 + 4i ...] screen i: x, y, width, height.
+    // p[4] frame number (uint bits), p[5] opacity, p[8 + 4i ...] screen i: x, y, width, height.
     fragment float4 pattern_fragment(VOut in [[stage_in]], constant float *p [[buffer(0)]]) {
         float2 px = in.position.xy;
         float time = p[2];
@@ -126,25 +175,20 @@ public final class CanvasCompositor {
         // A bar that crosses the whole canvas every 4 seconds.
         float barX = fract(time / 4.0) * p[0];
         if (abs(px.x - barX) < 8.0) c = over(c, float3(1.0), 1.0);
-        return c;
+        return c * p[5];
     }
 
-    // Cuts one screen out of the canvas and packs it as 4:2:2 YUV ("2vuy", Cb Y0 Cr Y1, BT.709 video
-    // range) into a buffer half the output width. p: rect x, y, w, h, output w, h, canvas w, h.
+    // Packs a finished screen as 4:2:2 YUV ("2vuy", Cb Y0 Cr Y1, BT.709 video range) into a buffer half
+    // the output width. p: output width, output height.
     fragment float4 screen_pack_fragment(VOut in [[stage_in]],
-                                         texture2d<float> canvas [[texture(0)]],
+                                         texture2d<float> screen [[texture(0)]],
                                          constant float *p [[buffer(0)]]) {
         constexpr sampler s(filter::linear, address::clamp_to_edge);
-        float2 origin = float2(p[0], p[1]);
-        float2 size = float2(p[2], p[3]);
-        float2 outSize = float2(p[4], p[5]);
-        float2 canvasSize = float2(p[6], p[7]);
+        float2 outSize = float2(p[0], p[1]);
         float x = floor(in.position.x) * 2.0;
         float y = floor(in.position.y);
-        float2 uvA = (origin + float2(x + 0.5, y + 0.5) * size / outSize) / canvasSize;
-        float2 uvB = (origin + float2(x + 1.5, y + 0.5) * size / outSize) / canvasSize;
-        float3 a = canvas.sample(s, uvA).rgb;
-        float3 b = canvas.sample(s, uvB).rgb;
+        float3 a = screen.sample(s, float2(x + 0.5, y + 0.5) / outSize).rgb;
+        float3 b = screen.sample(s, float2(x + 1.5, y + 0.5) / outSize).rgb;
         const float3 kY = float3(0.2126, 0.7152, 0.0722);
         float ya = dot(a, kY);
         float yb = dot(b, kY);
@@ -172,14 +216,16 @@ public final class CanvasCompositor {
         self.device = device
         self.queue = queue
 
-        let canvasDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .bgra8Unorm, width: canvasWidth, height: canvasHeight, mipmapped: false)
-        canvasDescriptor.usage = [.renderTarget, .shaderRead]
-        canvasDescriptor.storageMode = .private
-        guard let canvas = device.makeTexture(descriptor: canvasDescriptor) else {
-            throw CompositorError.textureCacheFailed
+        func makeTarget(_ width: Int, _ height: Int) throws -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]
+            d.storageMode = .private
+            guard let texture = device.makeTexture(descriptor: d) else { throw CompositorError.textureCacheFailed }
+            return texture
         }
-        canvasTexture = canvas
+        canvasTexture = try makeTarget(canvasWidth, canvasHeight)
+        screenTextures = try screens.map { try makeTarget($0.width, $0.height) }
 
         let library: MTLLibrary
         do {
@@ -209,7 +255,7 @@ public final class CanvasCompositor {
                 throw CompositorError.pipelineFailed("\(error)")
             }
         }
-        coverPipeline = try pipeline("cover_fragment", blended: true)
+        layerPipeline = try pipeline("layer_fragment", blended: true)
         patternPipeline = try pipeline("pattern_fragment", blended: true)
         packPipeline = try pipeline("screen_pack_fragment", blended: false)
 
@@ -232,98 +278,165 @@ public final class CanvasCompositor {
         packedPool = pool
     }
 
-    private func texture(from buffer: CVPixelBuffer) -> (texture: MTLTexture, backing: CVMetalTexture)? {
-        var cvTexture: CVMetalTexture?
+    private func cvTexture(from buffer: CVPixelBuffer) -> (texture: MTLTexture, backing: CVMetalTexture)? {
+        var cv: CVMetalTexture?
         let status = CVMetalTextureCacheCreateTextureFromImage(
             nil, textureCache, buffer, nil, .bgra8Unorm,
-            CVPixelBufferGetWidth(buffer), CVPixelBufferGetHeight(buffer), 0, &cvTexture)
-        guard status == kCVReturnSuccess, let cvTexture,
-              let texture = CVMetalTextureGetTexture(cvTexture) else { return nil }
-        return (texture, cvTexture)
+            CVPixelBufferGetWidth(buffer), CVPixelBufferGetHeight(buffer), 0, &cv)
+        guard status == kCVReturnSuccess, let cv, let texture = CVMetalTextureGetTexture(cv) else { return nil }
+        return (texture, cv)
     }
 
-    /// Draw the canvas and cut the screens. `completion` runs on a Metal thread with one packed-YUV frame
-    /// per screen (in the order of `screens`) and the GPU time in milliseconds.
-    public func render(background: CVPixelBuffer?, frameNumber: UInt32, time: Double, pattern: Bool,
+    /// A texture view of a BGRA pixel buffer (zero copy), for use as a layer.
+    public func makeTexture(from buffer: CVPixelBuffer) -> RetainedTexture? {
+        guard let t = cvTexture(from: buffer) else { return nil }
+        return RetainedTexture(texture: t.texture, backing: t.backing)
+    }
+
+    private func patternParameters(frameNumber: UInt32, time: Double) -> [Float] {
+        var p = [Float](repeating: 0, count: 8 + 4 * screens.count)
+        p[0] = Float(canvasWidth)
+        p[1] = Float(canvasHeight)
+        p[2] = Float(time)
+        p[3] = Float(bitPattern: UInt32(screens.count))
+        p[4] = Float(bitPattern: frameNumber)
+        p[5] = 1
+        for (i, s) in screens.enumerated() {
+            p[8 + i * 4] = Float(s.x)
+            p[9 + i * 4] = Float(s.y)
+            p[10 + i * 4] = Float(s.width)
+            p[11 + i * 4] = Float(s.height)
+        }
+        return p
+    }
+
+    private func draw(_ layer: CanvasLayerDraw, encoder: MTLRenderCommandEncoder,
+                      width: Int, height: Int, pattern: [Float]?) {
+        guard layer.opacity > 0 else { return }
+        let full = MTLViewport(originX: 0, originY: 0, width: Double(width), height: Double(height),
+                               znear: 0, zfar: 1)
+
+        guard let texture = layer.texture else {
+            guard var p = pattern else { return }
+            p[5] = layer.opacity
+            encoder.setViewport(full)
+            encoder.setRenderPipelineState(patternPipeline)
+            encoder.setFragmentBytes(&p, length: p.count * MemoryLayout<Float>.size, index: 0)
+            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            return
+        }
+
+        let area = layer.rect ?? ScreenRegion(x: 0, y: 0, width: width, height: height)
+        guard area.width > 0, area.height > 0 else { return }
+        var dest = area
+        var uvScale = SIMD2<Float>(1, 1)
+        let cw = Float(max(1, layer.contentWidth))
+        let ch = Float(max(1, layer.contentHeight))
+        switch layer.fit {
+        case .stretch:
+            break
+        case .contain:
+            let s = min(Float(area.width) / cw, Float(area.height) / ch)
+            let w = max(1, Int((cw * s).rounded()))
+            let h = max(1, Int((ch * s).rounded()))
+            dest = ScreenRegion(x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2,
+                                width: w, height: h)
+        case .cover:
+            let areaAspect = Float(area.width) / Float(area.height)
+            let contentAspect = cw / ch
+            uvScale = areaAspect > contentAspect
+                ? SIMD2<Float>(1, contentAspect / areaAspect)
+                : SIMD2<Float>(areaAspect / contentAspect, 1)
+        }
+        let offset = (SIMD2<Float>(1, 1) - uvScale) * 0.5
+        var p: [Float] = [uvScale.x, uvScale.y, offset.x, offset.y, layer.opacity]
+        encoder.setViewport(MTLViewport(originX: Double(dest.x), originY: Double(dest.y),
+                                        width: Double(dest.width), height: Double(dest.height),
+                                        znear: 0, zfar: 1))
+        encoder.setRenderPipelineState(layerPipeline)
+        encoder.setFragmentTexture(texture.texture, index: 0)
+        encoder.setFragmentBytes(&p, length: p.count * MemoryLayout<Float>.size, index: 0)
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+    }
+
+    /// Draw the master, then every screen's composition, and pack the screens. `completion` runs on a
+    /// Metal thread with one packed-YUV frame per screen (in the order of `screens`) and the GPU time (ms).
+    public func render(master: [CanvasLayerDraw], screens drawn: [CanvasScreenDraw],
+                       frameNumber: UInt32, time: Double,
                        completion: @escaping ([CVPixelBuffer], Double) -> Void) throws {
+        guard drawn.count == screens.count else { throw CompositorError.commandFailed }
         guard let command = queue.makeCommandBuffer() else { throw CompositorError.commandFailed }
+        let patternParams = patternParameters(frameNumber: frameNumber, time: time)
 
-        // Pass 1: the canvas.
-        var backgroundTexture: (texture: MTLTexture, backing: CVMetalTexture)?
-        if let background { backgroundTexture = texture(from: background) }
-
-        let canvasPass = MTLRenderPassDescriptor()
-        canvasPass.colorAttachments[0].texture = canvasTexture
-        canvasPass.colorAttachments[0].loadAction = .clear
-        canvasPass.colorAttachments[0].clearColor = MTLClearColorMake(0.05, 0.05, 0.07, 1)
-        canvasPass.colorAttachments[0].storeAction = .store
-        guard let canvasEncoder = command.makeRenderCommandEncoder(descriptor: canvasPass) else {
+        // Master composition.
+        let masterPass = MTLRenderPassDescriptor()
+        masterPass.colorAttachments[0].texture = canvasTexture
+        masterPass.colorAttachments[0].loadAction = .clear
+        masterPass.colorAttachments[0].clearColor = MTLClearColorMake(0.05, 0.05, 0.07, 1)
+        masterPass.colorAttachments[0].storeAction = .store
+        guard let masterEncoder = command.makeRenderCommandEncoder(descriptor: masterPass) else {
             throw CompositorError.commandFailed
         }
-        if let backgroundTexture, let background {
-            let canvasAspect = Float(canvasWidth) / Float(canvasHeight)
-            let videoAspect = Float(CVPixelBufferGetWidth(background)) / Float(CVPixelBufferGetHeight(background))
-            var scale = canvasAspect > videoAspect
-                ? SIMD2<Float>(1, videoAspect / canvasAspect)
-                : SIMD2<Float>(canvasAspect / videoAspect, 1)
-            canvasEncoder.setRenderPipelineState(coverPipeline)
-            canvasEncoder.setFragmentTexture(backgroundTexture.texture, index: 0)
-            canvasEncoder.setFragmentBytes(&scale, length: MemoryLayout<SIMD2<Float>>.size, index: 0)
-            canvasEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        for layer in master {
+            draw(layer, encoder: masterEncoder, width: canvasWidth, height: canvasHeight, pattern: patternParams)
         }
-        if pattern {
-            var p = [Float](repeating: 0, count: 8 + 4 * screens.count)
-            p[0] = Float(canvasWidth)
-            p[1] = Float(canvasHeight)
-            p[2] = Float(time)
-            p[3] = Float(bitPattern: UInt32(screens.count))
-            p[4] = Float(bitPattern: frameNumber)
-            for (i, s) in screens.enumerated() {
-                p[8 + i * 4] = Float(s.x)
-                p[9 + i * 4] = Float(s.y)
-                p[10 + i * 4] = Float(s.width)
-                p[11 + i * 4] = Float(s.height)
-            }
-            canvasEncoder.setRenderPipelineState(patternPipeline)
-            canvasEncoder.setFragmentBytes(&p, length: p.count * MemoryLayout<Float>.size, index: 0)
-            canvasEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-        }
-        canvasEncoder.endEncoding()
+        masterEncoder.endEncoding()
 
-        // Pass 2..: one packed frame per screen.
+        // One composition per screen, then its packed output frame.
         var frames: [CVPixelBuffer] = []
-        var keepAlive: [CVMetalTexture] = []
-        for screen in screens {
+        var backings: [CVMetalTexture] = []
+        for (i, region) in screens.enumerated() {
+            let screenPass = MTLRenderPassDescriptor()
+            screenPass.colorAttachments[0].texture = screenTextures[i]
+            screenPass.colorAttachments[0].loadAction = .clear
+            screenPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+            screenPass.colorAttachments[0].storeAction = .store
+            guard let encoder = command.makeRenderCommandEncoder(descriptor: screenPass) else {
+                throw CompositorError.commandFailed
+            }
+            if drawn[i].showMaster {
+                // The slice of the master under this screen (1:1 when the screen is placed on whole pixels).
+                var p: [Float] = [Float(region.width) / Float(canvasWidth), Float(region.height) / Float(canvasHeight),
+                                  Float(region.x) / Float(canvasWidth), Float(region.y) / Float(canvasHeight), 1]
+                encoder.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(region.width),
+                                                height: Double(region.height), znear: 0, zfar: 1))
+                encoder.setRenderPipelineState(layerPipeline)
+                encoder.setFragmentTexture(canvasTexture, index: 0)
+                encoder.setFragmentBytes(&p, length: p.count * MemoryLayout<Float>.size, index: 0)
+                encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            }
+            for layer in drawn[i].layers {
+                draw(layer, encoder: encoder, width: region.width, height: region.height, pattern: nil)
+            }
+            encoder.endEncoding()
+
             var output: CVPixelBuffer?
             let status = CVPixelBufferPoolCreatePixelBuffer(nil, packedPool, &output)
             guard status == kCVReturnSuccess, let frame = output else { throw CompositorError.bufferFailed(status) }
-            guard let target = texture(from: frame) else { throw CompositorError.textureCacheFailed }
-
-            let pass = MTLRenderPassDescriptor()
-            pass.colorAttachments[0].texture = target.texture
-            pass.colorAttachments[0].loadAction = .dontCare
-            pass.colorAttachments[0].storeAction = .store
-            guard let encoder = command.makeRenderCommandEncoder(descriptor: pass) else {
+            guard let target = cvTexture(from: frame) else { throw CompositorError.textureCacheFailed }
+            let packPass = MTLRenderPassDescriptor()
+            packPass.colorAttachments[0].texture = target.texture
+            packPass.colorAttachments[0].loadAction = .dontCare
+            packPass.colorAttachments[0].storeAction = .store
+            guard let packEncoder = command.makeRenderCommandEncoder(descriptor: packPass) else {
                 throw CompositorError.commandFailed
             }
-            var p: [Float] = [Float(screen.x), Float(screen.y), Float(screen.width), Float(screen.height),
-                              Float(outputWidth), Float(outputHeight), Float(canvasWidth), Float(canvasHeight)]
-            encoder.setRenderPipelineState(packPipeline)
-            encoder.setFragmentTexture(canvasTexture, index: 0)
-            encoder.setFragmentBytes(&p, length: p.count * MemoryLayout<Float>.size, index: 0)
-            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-            encoder.endEncoding()
+            var q: [Float] = [Float(outputWidth), Float(outputHeight)]
+            packEncoder.setRenderPipelineState(packPipeline)
+            packEncoder.setFragmentTexture(screenTextures[i], index: 0)
+            packEncoder.setFragmentBytes(&q, length: q.count * MemoryLayout<Float>.size, index: 0)
+            packEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            packEncoder.endEncoding()
             frames.append(frame)
-            keepAlive.append(target.backing)
+            backings.append(target.backing)
         }
 
-        let backing = backgroundTexture?.backing
         let delivered = frames
-        let textures = keepAlive
+        let keepAlive = backings
         command.addCompletedHandler { buffer in
             let gpuMs = (buffer.gpuEndTime - buffer.gpuStartTime) * 1000.0
             completion(delivered, gpuMs)
-            withExtendedLifetime((textures, backing)) {}
+            withExtendedLifetime((keepAlive, master, drawn)) {}
         }
         command.commit()
 

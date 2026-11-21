@@ -1,6 +1,7 @@
 import Dispatch
 import Foundation
 import Engine
+import Metal
 
 // StageEngine: the output process.
 //
@@ -19,10 +20,13 @@ import Engine
 //   With no output the frames are discarded (a pure render-loop test).
 //
 //   Canvas test:  --canvas WxH --decklink A,B,C [--screens "x,y,w,h;x,y,w,h;..."] [--video FILE] [--no-pattern]
+//                 [--screen-text] [--no-master 2,3]
 //     Renders one big canvas (for example 5760x1080 or 6000x1920) and sends a 1920x1080 screen cut from it
 //     to every SDI output (the first output sets the pace). Without --screens the screens sit side by side
 //     from the left edge. A test pattern (grid, numbered borders, frame counters, a bar sweeping across the
-//     whole canvas) is drawn over the optional --video, which is scaled to cover the canvas.
+//     whole canvas) is drawn over the optional --video, which is scaled to cover the canvas (the master).
+//     --screen-text gives every screen its own text layer (on top of the master); --no-master 2 switches
+//     the master off on screen 2, so it shows only its own layers.
 //
 //   Options: --seconds N  --warmup N  --depth N (SDI queue, default 4)  --report-every N
 //
@@ -112,22 +116,57 @@ if let canvasText = value(after: "--canvas") {
             exit(1)
         }
 
-        var source: FrameSource?
+        // Master composition: an optional video covering the whole canvas, and the test pattern.
+        var master: [CompositionLayer] = []
         if let videoPath = value(after: "--video") {
             guard FileManager.default.isReadableFile(atPath: videoPath) else {
                 print("Cannot open \(videoPath) (see the note about protected folders in the usage text).")
                 exit(1)
             }
-            source = try await VideoLoopSource.open(url: URL(fileURLWithPath: videoPath))
+            let video = try await VideoLoopSource.open(url: URL(fileURLWithPath: videoPath))
+            master.append(CompositionLayer(name: "Background", content: .video(video), fit: .cover))
         }
+        if !arguments.contains("--no-pattern") {
+            master.append(CompositionLayer(name: "Test pattern", content: .pattern))
+        }
+
+        // One composition per screen. --no-master 2,3 turns the master off on those screens (1-based);
+        // --screen-text adds a text layer to every screen that shows the screen number and time.
+        let noMaster = Set((value(after: "--no-master") ?? "").split(separator: ",").compactMap { Int($0) })
+        let wantText = arguments.contains("--screen-text")
+        let device = MTLCreateSystemDefaultDevice()
+        var screenTexts: [TextLayer] = []
+        var screenComps: [ScreenComposition] = []
+        for (i, region) in screens.enumerated() {
+            var layers: [CompositionLayer] = []
+            if wantText, let device {
+                let text = try TextLayer(device: device, width: region.width, height: region.height)
+                screenTexts.append(text)
+                layers.append(CompositionLayer(name: "Slides", content: .text(text)))
+            }
+            screenComps.append(ScreenComposition(name: "Screen \(i + 1)", region: region,
+                                                 showMaster: !noMaster.contains(i + 1), layers: layers))
+        }
+
         let depth = value(after: "--depth").flatMap(Int.init) ?? 6
         var sinks: [PacedOutputSink] = []
         for index in indexes { sinks.append(try DeckLinkOutputSink(deviceIndex: index, depth: depth)) }
 
-        let runner = try CanvasRunner(canvasWidth: canvasW, canvasHeight: canvasH, screens: screens,
-                                      sinks: sinks, source: source, pattern: !arguments.contains("--no-pattern"))
+        let runner = try CanvasRunner(canvasWidth: canvasW, canvasHeight: canvasH, master: master,
+                                      screens: screenComps, sinks: sinks)
+        if !screenTexts.isEmpty {
+            let texts = screenTexts
+            runner.willRender = { _, t in
+                for (i, text) in texts.enumerated() {
+                    text.update([TextLine(text: "SCREEN \(i + 1)", fontSize: 140, centerYFromTop: 480),
+                                 TextLine(text: "t = \(Int(t)) s", fontSize: 64, centerYFromTop: 620)])
+                }
+            }
+        }
         print("StageEngine canvas: \(canvasW)x\(canvasH) (\(String(format: "%.1f", Double(canvasW * canvasH) / 1_000_000)) MP), background: \(value(after: "--video") ?? "none")")
-        for (i, screen) in screens.enumerated() { print("  screen \(i + 1): \(screen) -> \(sinks[i].name)") }
+        for (i, screen) in screenComps.enumerated() {
+            print("  screen \(i + 1): \(screen.region) -> \(sinks[i].name)" + (screen.showMaster ? "" : "  (master off)"))
+        }
         print("  \(seconds) s (after \(warmup) s warm-up)")
         let report = try runner.run(seconds: seconds, warmup: warmup, reportEvery: reportEvery)
         print(report)

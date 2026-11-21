@@ -84,3 +84,19 @@ Each output shows a 1920x1080 cut of the canvas. The test pattern has a numbered
 white bar that crosses the whole canvas every 4 seconds. Placed side by side, the bar should move across the
 seams without a jump; a screen whose bar runs ahead or behind its neighbour shows the phase offset between cards.
 The report's `gpu` line is the whole frame (canvas plus every screen cut).
+
+### Compositions: master and per-screen layers
+
+The canvas follows the design notes: one **master** composition spans the whole canvas, and every screen has its
+**own composition** at the screen's size, drawn on top of the master slice beneath it. In code
+(`Packages/Engine/Sources/Engine/Composition.swift`) a `CompositionLayer` has a content (video source, text layer or
+the test pattern), a rectangle inside its composition, an opacity and a fit (stretch, cover, contain);
+a `ScreenComposition` has a canvas rectangle, a `showMaster` switch and its own layers.
+
+```
+# each screen gets its own text layer (screen number and time) on top of the master
+StageEngine --canvas 3970x1080 --decklink 4,0 --screens "0,0,1920,1080;1990,0,1920,1080" --screen-text --seconds 120
+
+# screen 2 shows only its own layers (master off): it should be black with just its text
+StageEngine --canvas 3970x1080 --decklink 4,0 --screens "0,0,1920,1080;1990,0,1920,1080" --screen-text --no-master 2 --seconds 120
+```

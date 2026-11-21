@@ -1,14 +1,20 @@
 import CoreVideo
 import Foundation
+import Metal
 
 /// Canvas test: renders one large canvas, cuts a virtual screen out of it for every output, and sends
 /// the screens to their SDI outputs. The first output sets the pace; the others follow it (they skip or
 /// repeat a frame if their own clock drifts), like `SpikeRunner`.
 public final class CanvasRunner: @unchecked Sendable {
     private let compositor: CanvasCompositor
-    private let source: FrameSource?
+    private let master: [CompositionLayer]
+    private let screens: [ScreenComposition]
+    private let sources: [FrameSource]
     private let sinks: [PacedOutputSink]
-    private let pattern: Bool
+
+    /// Called on the render thread just before each frame is drawn (frame number, time in seconds).
+    /// Use it to update text layers and other changing content.
+    public var willRender: ((UInt32, Double) -> Void)?
 
     private let renderLoopTiming: FrameTimingLogger
     private let gpuStats = RunningStats()
@@ -22,28 +28,42 @@ public final class CanvasRunner: @unchecked Sendable {
     private var followerRepeats: [Int]
 
     /// - Parameters:
-    ///   - sinks: one output per screen, in the same order (the first one sets the pace).
-    ///   - source: optional background video, scaled to cover the whole canvas.
-    public init(canvasWidth: Int, canvasHeight: Int, screens: [ScreenRegion], sinks: [PacedOutputSink],
-                source: FrameSource?, pattern: Bool = true) throws {
+    ///   - master: the master composition's layers, bottom to top (spans the whole canvas).
+    ///   - screens: one composition per screen, each with its own output in `sinks` (same order);
+    ///     the first output sets the pace.
+    public init(canvasWidth: Int, canvasHeight: Int, master: [CompositionLayer],
+                screens: [ScreenComposition], sinks: [PacedOutputSink]) throws {
         guard !sinks.isEmpty, screens.count == sinks.count else {
             throw CompositorError.pipelineFailed("Each screen needs exactly one output (\(screens.count) screens, \(sinks.count) outputs).")
         }
         for sink in sinks where sink.preferredFormat != .yuv8 {
             throw CompositorError.pipelineFailed("Canvas outputs must take 8-bit YUV frames.")
         }
-        compositor = try CanvasCompositor(canvasWidth: canvasWidth, canvasHeight: canvasHeight, screens: screens)
+        compositor = try CanvasCompositor(canvasWidth: canvasWidth, canvasHeight: canvasHeight,
+                                          screens: screens.map { $0.region })
+        self.master = master
+        self.screens = screens
         self.sinks = sinks
-        self.source = source
-        self.pattern = pattern
+
+        // Every distinct video source, started once and stopped at the end.
+        var seen = Set<ObjectIdentifier>()
+        var found: [FrameSource] = []
+        for layer in master + screens.flatMap({ $0.layers }) {
+            if case .video(let source) = layer.content, seen.insert(ObjectIdentifier(source)).inserted {
+                found.append(source)
+            }
+        }
+        sources = found
         followerSkips = Array(repeating: 0, count: sinks.count)
         followerRepeats = Array(repeating: 0, count: sinks.count)
         renderLoopTiming = FrameTimingLogger(targetFPS: sinks[0].frameRate)
     }
 
+    public var device: MTLDevice { compositor.device }
+
     public func run(seconds: Double, warmup: Double = 2.0, reportEvery: Double = 0) throws -> SpikeReport {
         for sink in sinks { try sink.start() }
-        source?.start()
+        for source in sources { source.start() }
         setStop(false)
 
         let lead = sinks[0]
@@ -102,7 +122,7 @@ public final class CanvasRunner: @unchecked Sendable {
 
         let status = statusLines(separator: "\n             ")
         for sink in sinks { sink.stop() }
-        source?.stop()
+        for source in sources { source.stop() }
 
         let gpu = gpuStats.snapshot
         let encode = encodeStats.snapshot
@@ -112,7 +132,7 @@ public final class CanvasRunner: @unchecked Sendable {
                            renderLoop: renderLoopTiming.summary(),
                            gpuMeanMs: gpu.mean, gpuMaxMs: gpu.max,
                            encodeMeanMs: encode.mean, encodeMaxMs: encode.max,
-                           skippedTicks: skippedFrames, videoUnderruns: source?.underruns ?? 0,
+                           skippedTicks: skippedFrames, videoUnderruns: sources.reduce(0) { $0 + $1.underruns },
                            renderErrors: errors, renderLoopLate: renderLoopTiming.lateEvents())
     }
 
@@ -129,6 +149,27 @@ public final class CanvasRunner: @unchecked Sendable {
         return lines.joined(separator: separator)
     }
 
+    /// This frame's pictures for a list of layers (hidden layers and sources without a frame yet are skipped).
+    private func resolve(_ layers: [CompositionLayer], time: Double) -> [CanvasLayerDraw] {
+        var draws: [CanvasLayerDraw] = []
+        for layer in layers where layer.isVisible {
+            switch layer.content {
+            case .pattern:
+                draws.append(CanvasLayerDraw.pattern(opacity: layer.opacity))
+            case .video(let source):
+                guard let buffer = source.frame(at: time), let texture = compositor.makeTexture(from: buffer) else { continue }
+                draws.append(CanvasLayerDraw(texture: texture,
+                                             contentWidth: CVPixelBufferGetWidth(buffer),
+                                             contentHeight: CVPixelBufferGetHeight(buffer),
+                                             rect: layer.rect, opacity: layer.opacity, fit: layer.fit))
+            case .text(let text):
+                draws.append(CanvasLayerDraw(texture: text.layer, contentWidth: text.width, contentHeight: text.height,
+                                             rect: layer.rect, opacity: layer.opacity, fit: layer.fit))
+            }
+        }
+        return draws
+    }
+
     private func setStop(_ value: Bool) { lock.lock(); stopFlag = value; lock.unlock() }
     private func stopRequested() -> Bool { lock.lock(); defer { lock.unlock() }; return stopFlag }
     private func isInFlight() -> Bool { lock.lock(); defer { lock.unlock() }; return inFlight }
@@ -140,9 +181,11 @@ public final class CanvasRunner: @unchecked Sendable {
         inFlight = true
         lock.unlock()
 
-        let background = source?.frame(at: time)
+        willRender?(number, time)
+        let masterDraws = resolve(master, time: time)
+        let screenDraws = screens.map { CanvasScreenDraw(showMaster: $0.showMaster, layers: resolve($0.layers, time: time)) }
         do {
-            try compositor.render(background: background, frameNumber: number, time: time, pattern: pattern) {
+            try compositor.render(master: masterDraws, screens: screenDraws, frameNumber: number, time: time) {
                 [self] frames, gpuMs in
                 gpuStats.add(gpuMs)
                 for (i, sink) in sinks.enumerated() where i < frames.count {

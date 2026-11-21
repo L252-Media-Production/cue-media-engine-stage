@@ -247,6 +247,7 @@ if hasInput {
             print("sdi input  : \(sdi.captureSummary)")
             print("sdi cadence: \(sdi.cadenceSummary)")
             print("sdi        : \(sdi.conversionSummary)")
+            print("sdi latency: \(sdi.stampSummary)")
         }
         if let ndi = ndiInput {
             print("ndi input  : \(ndi.sourceName) \(ndi.resolution), frames received=\(ndi.framesReceived)")

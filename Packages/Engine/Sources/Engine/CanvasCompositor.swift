@@ -187,6 +187,25 @@ public final class CanvasCompositor {
             }
         }
 
+        // Clock stamp: 16 bits (host uptime in milliseconds, wraps every 65.5 s), most significant first,
+        // in the row above the frame counter. A capture process on the same Mac reads it back to measure
+        // the latency of the loop without any camera.
+        uint stamp = as_type<uint>(p[6]);
+        for (uint i = 0; i < count; i++) {
+            float4 r = float4(p[8 + i * 4], p[9 + i * 4], p[10 + i * 4], p[11 + i * 4]);
+            if (px.x < r.x || px.x >= r.x + r.z || px.y < r.y || px.y >= r.y + r.w) continue;
+            float lx = px.x - r.x;
+            float ly = px.y - r.y;
+            if (ly >= r.w - 132.0 && ly < r.w - 92.0 && lx >= 16.0) {
+                float sx = lx - 16.0;
+                uint k = uint(sx / 48.0);
+                if (k < 16 && fmod(sx, 48.0) < 40.0) {
+                    bool on = ((stamp >> (15 - k)) & 1u) != 0u;
+                    c = over(c, on ? float3(1.0) : float3(0.0), 1.0);
+                }
+            }
+        }
+
         // Decimal frame number (last 4 digits) at the bottom right of every screen, easy to read in a video.
         for (uint i = 0; i < count; i++) {
             float4 r = float4(p[8 + i * 4], p[9 + i * 4], p[10 + i * 4], p[11 + i * 4]);
@@ -332,6 +351,7 @@ public final class CanvasCompositor {
         p[3] = Float(bitPattern: UInt32(screens.count))
         p[4] = Float(bitPattern: frameNumber)
         p[5] = 1
+        p[6] = Float(bitPattern: UInt32(truncatingIfNeeded: DispatchTime.now().uptimeNanoseconds / 1_000_000) & 0xFFFF)
         for (i, s) in screens.enumerated() {
             p[8 + i * 4] = Float(s.x)
             p[9 + i * 4] = Float(s.y)

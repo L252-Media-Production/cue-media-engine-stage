@@ -65,12 +65,54 @@ final class SDIFrameSource: FrameSource {
             repeated += 1          // queue ran dry: show the last frame again
             return cached
         }
-        let waitMs = Double(DispatchTime.now().uptimeNanoseconds &- bridge.lastPopArrivalNanos) / 1_000_000.0
+        let nowNanos = DispatchTime.now().uptimeNanoseconds
+        let waitMs = Double(nowNanos &- bridge.lastPopArrivalNanos) / 1_000_000.0
+        recordStamp(packed, arrivalNanos: bridge.lastPopArrivalNanos, nowNanos: nowNanos)
         waitSumMs += waitMs
         waitMaxMs = max(waitMaxMs, waitMs)
         waitCount += 1
         if let converted = unpacker.unpack(packed) { cached = converted }
         return cached
+    }
+
+    private var stampCount = 0
+    private var stampMissing = 0
+    private var loopSumMs = 0.0, loopMinMs = Double.infinity, loopMaxMs = 0.0
+    private var totalSumMs = 0.0, totalMaxMs = 0.0
+
+    /// Reads the clock stamp that `--canvas` draws (16 blocks at the bottom left of the first screen:
+    /// white = 1) from the packed frame. Block centre x = 36 + 48 k, y = 1080 - 112 = 968; luma of an
+    /// even pixel is byte 1 of its 4-byte "Cb Y0 Cr Y1" group. Gives the time from the source rendering
+    /// the frame to this frame arriving here (loop) and to it being rendered here (total).
+    private func recordStamp(_ packed: CVPixelBuffer, arrivalNanos: UInt64, nowNanos: UInt64) {
+        CVPixelBufferLockBaseAddress(packed, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(packed, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(packed) else { return }
+        let row = base.advanced(by: 968 * CVPixelBufferGetBytesPerRow(packed)).assumingMemoryBound(to: UInt8.self)
+        var stamp: UInt32 = 0
+        var bright = 0, dark = 0
+        for k in 0..<16 {
+            let luma = row[((36 + 48 * k) / 2) * 4 + 1]
+            if luma > 126 { stamp |= 1 << UInt32(15 - k); bright += 1 } else if luma < 70 { dark += 1 }
+        }
+        if bright + dark != 16 { stampMissing += 1; return }       // some block was neither black nor white
+        func ms(_ nanos: UInt64) -> Double { Double((nanos / 1_000_000) & 0xFFFF) }
+        let loop = (ms(arrivalNanos) - Double(stamp) + 65536).truncatingRemainder(dividingBy: 65536)
+        let total = (ms(nowNanos) - Double(stamp) + 65536).truncatingRemainder(dividingBy: 65536)
+        guard total < 5000 else { stampMissing += 1; return }      // not a stamp from this clock
+        stampCount += 1
+        loopSumMs += loop; loopMinMs = min(loopMinMs, loop); loopMaxMs = max(loopMaxMs, loop)
+        totalSumMs += total; totalMaxMs = max(totalMaxMs, total)
+    }
+
+    /// Latency read from the source's clock stamp. Empty when the source has none.
+    var stampSummary: String {
+        lock.lock()
+        defer { lock.unlock() }
+        guard stampCount > 0 else { return "no clock stamp seen (the source must be a --canvas run on this Mac); frames without a stamp: \(stampMissing)" }
+        let n = Double(stampCount)
+        return String(format: "source render to capture arrival: mean=%.1f min=%.1f max=%.1f ms; source render to render here: mean=%.1f max=%.1f ms (%d frames, %d without stamp)",
+                      loopSumMs / n, loopMinMs, loopMaxMs, totalSumMs / n, totalMaxMs, stampCount, stampMissing)
     }
 
     /// Frames kept queued between capture and output (about 16.7 ms each).

@@ -2,6 +2,9 @@ import XCTest
 
 /// Base class of the conformance tests: comparison helpers and the check that every case of a fixture file has a test.
 class FixtureTestCase: XCTestCase {
+    /// The engine under test (see `AudioSpecSubjects.current`).
+    var subject: AudioSpecSubject { AudioSpecSubjects.current }
+
     /// `actual` equals `expected` within `tolerance` (absolute). `what` names the row so a failure says which one.
     func assertClose(
         _ actual: Double, _ expected: Double, tolerance: Double, _ what: @autoclosure () -> String,

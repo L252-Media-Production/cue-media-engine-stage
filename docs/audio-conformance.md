@@ -73,6 +73,13 @@ Rules the harness follows (from the plan):
 - **Open: clipping.** The spec leaves clipping unspecified, so no fixture tests it. The harness refuses to build a signal that would clip 16 bits instead of choosing a policy.
 - **Source:** the fixtures in this repo come from the Python repo's commit `52d6eab` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
 
+## Engine types so far (slice 1: fades and crossfade)
+
+`AudioCore` holds the first engine types, pure Swift with no hardware: `Transport` (injected frame clock, pause freezes play time), `Fade`, `Deck`,
+`Mixer` (decks, crossfade, fade-out) and `CrossfadeSettings` (time precedence, own-time limits). Time moves only by `advance(frames:)`. Gains are ideal
+values; the 128-step quantising of the Python mixer is not reproduced. `AudioCoreSubject` maps the fixture questions of `fades.json` and `xfade.json`
+onto these types; the types do not follow Python's method names. The next slices (trim, fade-in at A, end actions) extend `Deck` and reuse `Transport`.
+
 ## When the Python side bumps the spec
 
 The Python rule is: a change to audio behaviour regenerates the fixtures and raises the spec version. Then, here:

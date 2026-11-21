@@ -5,3 +5,9 @@ public enum AudioCore {
     /// fail when a synced fixture says anything else. Change it only together with a new fixture sync.
     public static let implementedSpecVersion = 1
 }
+
+/// Constants of the spec's mixer format (docs/AUDIO-SPEC.md, "Decoding and rendering"): 48 kHz, 16-bit, stereo.
+public enum AudioFormat {
+    public static let sampleRate = 48_000
+    public static let channels = 2
+}

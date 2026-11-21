@@ -52,6 +52,11 @@ final class SDIFrameSource: FrameSource {
         if !primed {
             guard bridge.queuedFrames >= buffer else { return cached }
             primed = true
+            // Frames that piled up before the first render tick would otherwise stay in the queue for
+            // good (the drift trim below only acts above buffer + 1). Start at exactly `buffer` frames.
+            while bridge.queuedFrames > buffer {
+                if !bridge.dropOldestFrame() { break }
+            }
         }
         shown += 1
 

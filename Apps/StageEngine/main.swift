@@ -18,6 +18,12 @@ import Engine
 //                       --ndi-send NAME            send an NDI stream called NAME
 //   With no output the frames are discarded (a pure render-loop test).
 //
+//   Canvas test:  --canvas WxH --decklink A,B,C [--screens "x,y,w,h;x,y,w,h;..."] [--video FILE] [--no-pattern]
+//     Renders one big canvas (for example 5760x1080 or 6000x1920) and sends a 1920x1080 screen cut from it
+//     to every SDI output (the first output sets the pace). Without --screens the screens sit side by side
+//     from the left edge. A test pattern (grid, numbered borders, frame counters, a bar sweeping across the
+//     whole canvas) is drawn over the optional --video, which is scaled to cover the canvas.
+//
 //   Options: --seconds N  --warmup N  --depth N (SDI queue, default 4)  --report-every N
 //
 // In Xcode, set arguments under Product > Scheme > Edit Scheme > Run > Arguments.
@@ -60,6 +66,76 @@ if arguments.contains("--ndi-list") {
     let sources = NDIRuntime.findSourcesWaiting(wait)
     if sources.isEmpty { print("No NDI sources found. Is the sender running and on the same network?") }
     for source in sources { print("  \(source.name)   [\(source.address)]") }
+    exit(0)
+}
+
+if let canvasText = value(after: "--canvas") {
+    do {
+        let parts = canvasText.lowercased().split(separator: "x").compactMap { Int($0) }
+        guard parts.count == 2, parts[0] >= 64, parts[1] >= 64, parts[0] <= 16384, parts[1] <= 16384 else {
+            print("--canvas needs a size such as 5760x1080 or 6000x1920")
+            exit(1)
+        }
+        let canvasW = parts[0], canvasH = parts[1]
+        guard let indexText = value(after: "--decklink") else {
+            print("--canvas needs --decklink with one index per screen, for example --decklink 4,0")
+            exit(1)
+        }
+        let indexes = indexText.split(separator: ",").compactMap { Int($0) }
+        guard !indexes.isEmpty, indexes.count == indexText.split(separator: ",").count else {
+            print("--decklink needs device numbers, for example 4,0 (see --list-decklink)")
+            exit(1)
+        }
+
+        var screens: [ScreenRegion] = []
+        if let text = value(after: "--screens") {
+            for entry in text.split(separator: ";") {
+                let n = entry.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                guard n.count == 4, n[2] > 0, n[3] > 0, n[0] >= 0, n[1] >= 0,
+                      n[0] + n[2] <= canvasW, n[1] + n[3] <= canvasH else {
+                    print("Bad screen \"\(entry)\": use x,y,w,h inside the \(canvasW)x\(canvasH) canvas")
+                    exit(1)
+                }
+                screens.append(ScreenRegion(x: n[0], y: n[1], width: n[2], height: n[3]))
+            }
+        } else {
+            for i in 0..<indexes.count {
+                guard (i + 1) * 1920 <= canvasW, 1080 <= canvasH else {
+                    print("The \(canvasW)x\(canvasH) canvas has no room for \(indexes.count) screens of 1920x1080 side by side. Pass --screens.")
+                    exit(1)
+                }
+                screens.append(ScreenRegion(x: i * 1920, y: 0, width: 1920, height: 1080))
+            }
+        }
+        guard screens.count == indexes.count else {
+            print("\(screens.count) screens but \(indexes.count) outputs: they must match.")
+            exit(1)
+        }
+
+        var source: FrameSource?
+        if let videoPath = value(after: "--video") {
+            guard FileManager.default.isReadableFile(atPath: videoPath) else {
+                print("Cannot open \(videoPath) (see the note about protected folders in the usage text).")
+                exit(1)
+            }
+            source = try await VideoLoopSource.open(url: URL(fileURLWithPath: videoPath))
+        }
+        let depth = value(after: "--depth").flatMap(Int.init) ?? 6
+        var sinks: [PacedOutputSink] = []
+        for index in indexes { sinks.append(try DeckLinkOutputSink(deviceIndex: index, depth: depth)) }
+
+        let runner = try CanvasRunner(canvasWidth: canvasW, canvasHeight: canvasH, screens: screens,
+                                      sinks: sinks, source: source, pattern: !arguments.contains("--no-pattern"))
+        print("StageEngine canvas: \(canvasW)x\(canvasH) (\(String(format: "%.1f", Double(canvasW * canvasH) / 1_000_000)) MP), background: \(value(after: "--video") ?? "none")")
+        for (i, screen) in screens.enumerated() { print("  screen \(i + 1): \(screen) -> \(sinks[i].name)") }
+        print("  \(seconds) s (after \(warmup) s warm-up)")
+        let report = try runner.run(seconds: seconds, warmup: warmup, reportEvery: reportEvery)
+        print(report)
+    } catch {
+        print("StageEngine canvas failed: \(error.localizedDescription)")
+        print("  (\(error))")
+        exit(1)
+    }
     exit(0)
 }
 

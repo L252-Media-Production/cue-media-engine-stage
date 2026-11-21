@@ -67,3 +67,20 @@ Process B ends with `sdi input` (signal, detected format, frames captured, no-si
 `sdi cadence` (repeated and skipped input frames) and `sdi` (GPU unpack time) lines. The source and the output
 run on separate clocks, so an occasional repeated or skipped frame is expected until the clocks are locked;
 the interval between them shows how far apart the clocks run. Only 1920x1080 input is handled.
+
+## Canvas test (one big canvas, several screens)
+
+```
+# three 1080p screens side by side on a 5760x1080 canvas, three SDI outputs (first one sets the pace)
+StageEngine --canvas 5760x1080 --decklink 4,0,5 --depth 6 --seconds 300
+
+# a bigger canvas with a video covering it, screens placed by hand (x,y,w,h; separated by ;)
+StageEngine --canvas 6000x1920 --video "<file>" --decklink 4,0 \
+  --screens "0,0,1920,1080;1920,0,1920,1080" --seconds 300
+```
+
+Each output shows a 1920x1080 cut of the canvas. The test pattern has a numbered, coloured border per screen
+(screen N has N squares at the top left), a 12-bit binary frame counter at the bottom left of each screen, and a
+white bar that crosses the whole canvas every 4 seconds. Placed side by side, the bar should move across the
+seams without a jump; a screen whose bar runs ahead or behind its neighbour shows the phase offset between cards.
+The report's `gpu` line is the whole frame (canvas plus every screen cut).

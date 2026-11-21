@@ -35,6 +35,8 @@ final class SDIFrameSource: FrameSource {
     private var shown: UInt64 = 0
     private var repeated: UInt64 = 0
     private var skipped: UInt64 = 0
+    private var trimmed: UInt64 = 0
+    private var excessTicks = 0
     private var queueSum: UInt64 = 0
     private var waitSumMs = 0.0
     private var waitMaxMs = 0.0
@@ -63,6 +65,13 @@ final class SDIFrameSource: FrameSource {
         // Too deep: the capture clock is running ahead. Drop the oldest frames.
         while bridge.queuedFrames > buffer + 1 {
             if bridge.dropOldestFrame() { skipped += 1 } else { break }
+        }
+        // A single late render tick leaves one extra frame queued for good (pops equal arrivals, so the
+        // queue never shrinks by itself). If the queue stays above the target for 2 s, drop one frame.
+        if bridge.queuedFrames > buffer { excessTicks += 1 } else { excessTicks = 0 }
+        if excessTicks >= 120 {
+            if bridge.dropOldestFrame() { trimmed += 1 }
+            excessTicks = 0
         }
         queueSum += UInt64(max(0, bridge.queuedFrames))
 
@@ -138,8 +147,8 @@ final class SDIFrameSource: FrameSource {
         lock.lock()
         defer { lock.unlock() }
         let mean = shown > 0 ? Double(queueSum) / Double(shown) : 0
-        return String(format: "output frames=%llu repeated input frames=%llu skipped input frames=%llu (queue target %ld, mean depth %.2f, overflowed %llu)",
-                      shown, repeated, skipped, buffer, mean, bridge.framesOverflowed)
+        return String(format: "output frames=%llu repeated input frames=%llu skipped input frames=%llu trimmed=%llu (queue target %ld, mean depth %.2f, overflowed %llu)",
+                      shown, repeated, skipped, trimmed, buffer, mean, bridge.framesOverflowed)
     }
 
     var conversionSummary: String {

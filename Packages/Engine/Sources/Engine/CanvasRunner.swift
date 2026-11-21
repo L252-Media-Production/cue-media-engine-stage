@@ -70,6 +70,7 @@ public final class CanvasRunner: @unchecked Sendable {
         let frameDuration = 1.0 / lead.frameRate
         let finished = DispatchSemaphore(value: 0)
         let thread = Thread { [self] in
+            RealtimeThread.promoteCurrentThread()
             var n: UInt32 = 0
             while !stopRequested() {
                 guard lead.waitForRoom(timeoutMs: 100) else { continue }

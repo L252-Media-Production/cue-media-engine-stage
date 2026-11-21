@@ -102,6 +102,7 @@ public final class SpikeRunner: @unchecked Sendable {
         if let paced = output as? PacedOutputSink {
             let frameDuration = 1.0 / paced.frameRate
             let thread = Thread { [self] in
+                RealtimeThread.promoteCurrentThread()
                 var n = 0
                 while !stopRequested() {
                     guard paced.waitForRoom(timeoutMs: 100) else { continue }

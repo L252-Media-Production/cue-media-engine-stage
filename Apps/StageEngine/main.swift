@@ -18,6 +18,7 @@ import Metal
 //   Output (any mix):   --decklink INDEX[,INDEX..] SDI outputs, 1080p59.94; the first sets the pace
 //                       --ndi-send NAME            send an NDI stream called NAME
 //   With no output the frames are discarded (a pure render-loop test).
+//   --realtime                                     real-time scheduling for the render thread (fewer late ticks)
 //
 //   Canvas test:  --canvas WxH --decklink A,B,C [--screens "x,y,w,h;x,y,w,h;..."] [--video FILE] [--no-pattern]
 //                 [--screen-text] [--no-master 2,3]
@@ -45,6 +46,7 @@ func value(after flag: String) -> String? {
 let seconds = value(after: "--seconds").flatMap(Double.init) ?? 10.0
 let warmup = value(after: "--warmup").flatMap(Double.init) ?? 2.0
 let reportEvery = value(after: "--report-every").flatMap(Double.init) ?? 0
+RealtimeThread.enabled = arguments.contains("--realtime")   // real-time scheduling for the render thread
 
 if arguments.contains("--list-decklink") {
     let devices = DeckLinkOutputBridge.listDevices()

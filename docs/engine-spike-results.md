@@ -38,6 +38,9 @@ output, caused by a render-thread stall from redrawing text once a second.
   clock-drift event showed in 300 s; a longer run is needed to measure the real drift interval.
 - Starting a second StageEngine process while another runs can stall the first for 50-75 ms (lowest buffer 2/6,
   no card counter moved).
+- SmartView Duo (two 8 in, 800x480 panels): a canvas gap of 130 px between the two 1920x1080 screens (`--canvas 3970x1080
+  --screens "0,0,1920,1080;1990,0,1920,1080"`) made the sweeping bar look continuous across the bezel. The photo-based
+  estimate (340 px) was too large. 120 s run: both cards late=0 dropped=0, lowest buffer 5/6, GPU 0.62 ms mean.
 - The render-loop "late" counter reflects scheduling jitter that the card's buffer absorbs. Judge health by the
   card counters and `lowestBuffered`.
 
@@ -46,5 +49,5 @@ output, caused by a render-thread stall from redrawing text once a second.
 - 30 fps 4K clip, SmartView judder with 25 fps content, and the loop restart seam.
 - Soak with real service load (ProPresenter/CueME running alongside), and one longer than 4 hours.
 - SDI input over 30+ minutes (drift interval), and a real camera or ProPresenter feed instead of a loopback.
-- Seam check: how the sweeping bar looks across two adjacent displays fed from two cards (phase offset between cards).
+- Phase offset between cards: film both counters in slow motion (the 12-bit frame counter at the bottom left of each screen).
 - Genlock / reference input.

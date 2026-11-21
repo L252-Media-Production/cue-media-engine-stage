@@ -23,11 +23,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)startAndReturnError:(NSError * _Nullable * _Nullable)error;
 - (void)stop;
 
-/// The newest captured frame, or nil if none has arrived. The caller owns the returned reference.
-- (nullable CVPixelBufferRef)copyLatestFrame CF_RETURNS_RETAINED;
-
-/// Number of the newest captured frame (1 for the first). Frames with no signal are not counted.
-@property (nonatomic, readonly) uint64_t latestSequence;
+/// Captured frames wait in a short queue (oldest first). `popFrame` removes and returns the oldest,
+/// or nil if the queue is empty. The caller owns the returned reference.
+- (nullable CVPixelBufferRef)popFrame CF_RETURNS_RETAINED;
+/// Remove and release the oldest frame. Returns NO if the queue was empty.
+- (BOOL)dropOldestFrame;
+/// Frames currently waiting in the queue.
+@property (nonatomic, readonly) NSInteger queuedFrames;
+/// Frames discarded because the queue was full (nobody was taking them).
+@property (nonatomic, readonly) uint64_t framesOverflowed;
 /// Frames the card delivered with a valid signal.
 @property (nonatomic, readonly) uint64_t framesCaptured;
 /// Frames the card delivered flagged "no input source".

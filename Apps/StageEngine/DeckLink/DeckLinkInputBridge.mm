@@ -14,12 +14,14 @@ static NSError *DLInError(NSInteger code, NSString *message) {
 #if __has_include("DeckLinkAPI.h")
 
 #include <atomic>
+#include <deque>
 #include <mutex>
 #import "DeckLinkAPI.h"
 #import "DeckLinkAPI_v14_2_1.h"
 
 static const long kCaptureWidth = 1920;
 static const long kCaptureHeight = 1080;
+static const size_t kQueueLimit = 8;
 
 static NSString *InStringFromCF(CFStringRef s) {
     if (!s) return @"";
@@ -102,11 +104,10 @@ private:
     CVPixelBufferPoolRef _pool;
 
     std::atomic<bool> _running;
-    std::mutex _frameLock;            // guards _latest and _sequence
-    CVPixelBufferRef _latest;
-    uint64_t _sequence;
+    std::mutex _frameLock;            // guards _queue
+    std::deque<CVPixelBufferRef> _queue;
 
-    std::atomic<uint64_t> _captured, _noSignal, _rejected, _formatChanges;
+    std::atomic<uint64_t> _captured, _noSignal, _rejected, _formatChanges, _overflowed;
     std::atomic<bool> _signal, _unsupported;
     std::mutex _modeLock;
     NSString *_modeName;
@@ -120,12 +121,10 @@ private:
     if (!self) return nil;
 
     _running = false;
-    _latest = nullptr;
-    _sequence = 0;
-    _captured = _noSignal = _rejected = _formatChanges = 0;
+    _captured = _noSignal = _rejected = _formatChanges = _overflowed = 0;
     _signal = false;
     _unsupported = false;
-    _modeName = @"";
+    _modeName = @"1080p59.94 (initial mode, no change reported)";
 
     _deckLink = InDeviceAtIndex(index);
     if (!_deckLink) {
@@ -259,27 +258,47 @@ private:
     }
     CVPixelBufferUnlockBaseAddress(buffer, 0);
 
-    CVPixelBufferRef old = nullptr;
+    CVPixelBufferRef overflow = nullptr;
     {
         std::lock_guard<std::mutex> guard(_frameLock);
-        old = _latest;
-        _latest = buffer;
-        _sequence++;
+        _queue.push_back(buffer);
+        if (_queue.size() > kQueueLimit) {
+            overflow = _queue.front();
+            _queue.pop_front();
+        }
     }
-    if (old) CVPixelBufferRelease(old);
+    if (overflow) {
+        CVPixelBufferRelease(overflow);
+        _overflowed++;
+    }
     _captured++;
 }
 
-- (nullable CVPixelBufferRef)copyLatestFrame {
+- (nullable CVPixelBufferRef)popFrame {
     std::lock_guard<std::mutex> guard(_frameLock);
-    if (!_latest) return nullptr;
-    return CVPixelBufferRetain(_latest);
+    if (_queue.empty()) return nullptr;
+    CVPixelBufferRef frame = _queue.front();   // the queue's reference passes to the caller
+    _queue.pop_front();
+    return frame;
 }
 
-- (uint64_t)latestSequence {
-    std::lock_guard<std::mutex> guard(_frameLock);
-    return _sequence;
+- (BOOL)dropOldestFrame {
+    CVPixelBufferRef frame = nullptr;
+    {
+        std::lock_guard<std::mutex> guard(_frameLock);
+        if (_queue.empty()) return NO;
+        frame = _queue.front();
+        _queue.pop_front();
+    }
+    CVPixelBufferRelease(frame);
+    return YES;
 }
+
+- (NSInteger)queuedFrames {
+    std::lock_guard<std::mutex> guard(_frameLock);
+    return (NSInteger)_queue.size();
+}
+- (uint64_t)framesOverflowed { return _overflowed; }
 - (uint64_t)framesCaptured { return _captured; }
 - (uint64_t)framesNoSignal { return _noSignal; }
 - (uint64_t)framesRejected { return _rejected; }
@@ -293,7 +312,8 @@ private:
 
 - (void)dealloc {
     [self stop];
-    if (_latest) CVPixelBufferRelease(_latest);
+    for (CVPixelBufferRef frame : _queue) CVPixelBufferRelease(frame);
+    _queue.clear();
     if (_pool) CVPixelBufferPoolRelease(_pool);
     if (_input) _input->Release();
     if (_deckLink) _deckLink->Release();
@@ -311,8 +331,10 @@ private:
 }
 - (BOOL)startAndReturnError:(NSError **)error { return NO; }
 - (void)stop {}
-- (nullable CVPixelBufferRef)copyLatestFrame { return nullptr; }
-- (uint64_t)latestSequence { return 0; }
+- (nullable CVPixelBufferRef)popFrame { return nullptr; }
+- (BOOL)dropOldestFrame { return NO; }
+- (NSInteger)queuedFrames { return 0; }
+- (uint64_t)framesOverflowed { return 0; }
 - (uint64_t)framesCaptured { return 0; }
 - (uint64_t)framesNoSignal { return 0; }
 - (uint64_t)framesRejected { return 0; }

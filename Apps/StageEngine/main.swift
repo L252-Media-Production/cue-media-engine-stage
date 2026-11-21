@@ -13,7 +13,7 @@ import Engine
 //                       --ndi-in TEXT [--ndi-raw]  the NDI source whose name contains TEXT
 //                                                  (frame-synced to our output; --ndi-raw skips that)
 //                       --sdi-in INDEX             capture SDI on a DeckLink connector set to Input
-//                                                  (1080p, 4:2:2; see --list-decklink for input=yes)
+//                                                  (1080p, 4:2:2); --sdi-buffer N frames of jitter queue (default 2)
 //   Output (any mix):   --decklink INDEX[,INDEX..] SDI outputs, 1080p59.94; the first sets the pace
 //                       --ndi-send NAME            send an NDI stream called NAME
 //   With no output the frames are discarded (a pure render-loop test).
@@ -77,7 +77,7 @@ if hasInput {
                 print("--sdi-in needs a device number (see --list-decklink, input=yes)")
                 exit(1)
             }
-            let sdi = try SDIFrameSource(deviceIndex: index)
+            let sdi = try SDIFrameSource(deviceIndex: index, buffer: value(after: "--sdi-buffer").flatMap(Int.init) ?? 2)
             sdiInput = sdi
             source = sdi
             inputLabel = "SDI in: \(sdi.deviceName) (index \(index))"

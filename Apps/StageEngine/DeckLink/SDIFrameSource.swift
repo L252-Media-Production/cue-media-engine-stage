@@ -13,8 +13,9 @@ final class SDIFrameSource: FrameSource {
     var deviceName: String { bridge.deviceName }
     var framesCaptured: UInt64 { bridge.framesCaptured }
 
-    init(deviceIndex: Int) throws {
+    init(deviceIndex: Int, buffer: Int = 2) throws {
         bridge = try DeckLinkInputBridge(deviceIndex: deviceIndex)
+        self.buffer = max(1, buffer)
         self.unpacker = try YUV422Unpacker()
     }
 
@@ -29,31 +30,44 @@ final class SDIFrameSource: FrameSource {
     func stop() { bridge.stop() }
 
     private let lock = NSLock()
-    private var lastSequence: UInt64 = 0
+    private var primed = false
     private var cached: CVPixelBuffer?
     private var shown: UInt64 = 0
     private var repeated: UInt64 = 0
     private var skipped: UInt64 = 0
+    private var queueSum: UInt64 = 0
 
+    /// Captured frames are taken in order, one per output frame. The queue is kept near `buffer` frames
+    /// deep: that depth absorbs the timing jitter between the capture clock and the render loop (taking
+    /// "the newest frame" instead makes jitter show up as a repeated frame followed by a skipped one).
+    /// A frame is repeated only when the queue runs empty and skipped only when it grows too deep, which
+    /// happens when the two clocks drift apart.
     func frame(at t: Double) -> CVPixelBuffer? {
-        let sequence = bridge.latestSequence
-        guard sequence != 0 else { return nil }
-
         lock.lock()
         defer { lock.unlock() }
+
+        if !primed {
+            guard bridge.queuedFrames >= buffer else { return cached }
+            primed = true
+        }
         shown += 1
-        if sequence == lastSequence {
-            repeated += 1
+
+        // Too deep: the capture clock is running ahead. Drop the oldest frames.
+        while bridge.queuedFrames > buffer + 1 {
+            if bridge.dropOldestFrame() { skipped += 1 } else { break }
+        }
+        queueSum += UInt64(max(0, bridge.queuedFrames))
+
+        guard let packed = bridge.popFrame() else {
+            repeated += 1          // queue ran dry: show the last frame again
             return cached
         }
-        if lastSequence != 0, sequence > lastSequence + 1 {
-            skipped += sequence - lastSequence - 1
-        }
-        guard let packed = bridge.copyLatestFrame() else { return cached }
-        lastSequence = sequence
         if let converted = unpacker.unpack(packed) { cached = converted }
         return cached
     }
+
+    /// Frames kept queued between capture and output (about 16.7 ms each).
+    let buffer: Int
 
     /// One line about the capture: signal, format, frame counts.
     var captureSummary: String {
@@ -69,7 +83,9 @@ final class SDIFrameSource: FrameSource {
     var cadenceSummary: String {
         lock.lock()
         defer { lock.unlock() }
-        return "output frames=\(shown) repeated input frames=\(repeated) skipped input frames=\(skipped)"
+        let mean = shown > 0 ? Double(queueSum) / Double(shown) : 0
+        return String(format: "output frames=%llu repeated input frames=%llu skipped input frames=%llu (queue target %ld, mean depth %.2f, overflowed %llu)",
+                      shown, repeated, skipped, buffer, mean, bridge.framesOverflowed)
     }
 
     var conversionSummary: String {

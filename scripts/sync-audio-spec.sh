@@ -2,18 +2,28 @@
 # Copies the audio spec fixtures of the Python Cue Media Engine into the AudioCoreTests resources.
 #
 #   scripts/sync-audio-spec.sh <path-to-python-repo>
+#   scripts/sync-audio-spec.sh --doc-only <path-to-python-repo> [<commit>]
+#
+# Both also copy the Python docs/AUDIO-SPEC.md to docs/audio-spec-<N>.md here, under a read-only header naming the Python commit. --doc-only copies
+# nothing else: it reads the spec text of <commit> (default HEAD) with `git show` and records it as spec_doc_commit in the fixtures' SOURCE.txt.
 #
 # Reads the Python repo only. Refuses a Python working tree that is not clean (the fixtures are generated files, and a dirty tree can hold a
 # half-finished regeneration). Writes Packages/Engine/Tests/AudioCoreTests/Fixtures/spec-<N>/ where N is
 # the number on the first line of docs/AUDIO-SPEC.md ("Spec version: N (...)"). See docs/audio-conformance.md.
 set -euo pipefail
 
-if [ $# -ne 1 ]; then
-    echo "usage: $0 <path-to-python-repo>" >&2
+doc_only=0
+if [ "${1:-}" = "--doc-only" ]; then
+    doc_only=1
+    shift
+fi
+if [ $# -lt 1 ] || { [ $doc_only -eq 0 ] && [ $# -ne 1 ]; } || [ $# -gt 2 ]; then
+    echo "usage: $0 <path-to-python-repo> | --doc-only <path-to-python-repo> [<commit>]" >&2
     exit 2
 fi
 
 src="$1"
+doc_ref="${2:-HEAD}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 fixtures_root="$root/Packages/Engine/Tests/AudioCoreTests/Fixtures"
 
@@ -30,6 +40,30 @@ if [ -n "$(git -C "$src" status --porcelain --untracked-files=all)" ]; then
     exit 1
 fi
 commit="$(git -C "$src" rev-parse HEAD)"
+
+# Writes docs/audio-spec-<version>.md from the Python spec text at <ref>, under a read-only header.
+write_spec_doc() {
+    local ref="$1" ref_commit text
+    ref_commit="$(git -C "$src" rev-parse --verify "$ref^{commit}")" || { echo "error: no commit $ref in $src" >&2; exit 1; }
+    text="$(git -C "$src" show "$ref_commit:docs/AUDIO-SPEC.md")" || { echo "error: docs/AUDIO-SPEC.md not in $ref_commit" >&2; exit 1; }
+    local v
+    v="$(printf '%s\n' "$text" | head -n 1 | tr -d '\r' | sed -n 's/^Spec version: \([0-9][0-9]*\).*/\1/p')"
+    [ -n "$v" ] || { echo "error: first line of the spec at $ref_commit is not 'Spec version: N'" >&2; exit 1; }
+    { printf 'Read-only copy. Source: Python repo %s. Do not edit.\n\n' "$ref_commit"; printf '%s\n' "$text"; } > "$root/docs/audio-spec-$v.md"
+    echo "spec text of $ref_commit -> docs/audio-spec-$v.md"
+    SPEC_DOC_VERSION="$v"
+    SPEC_DOC_COMMIT="$ref_commit"
+}
+
+if [ $doc_only -eq 1 ]; then
+    write_spec_doc "$doc_ref"
+    stamp="$fixtures_root/spec-$SPEC_DOC_VERSION/SOURCE.txt"
+    [ -f "$stamp" ] || { echo "error: $stamp not found; sync the fixtures first" >&2; exit 1; }
+    grep -v '^spec_doc_commit:' "$stamp" > "$stamp.tmp"
+    echo "spec_doc_commit: $SPEC_DOC_COMMIT" >> "$stamp.tmp"
+    mv "$stamp.tmp" "$stamp"
+    exit 0
+fi
 
 first_line="$(head -n 1 "$spec" | tr -d '\r')"
 version="$(printf '%s\n' "$first_line" | sed -n 's/^Spec version: \([0-9][0-9]*\).*/\1/p')"
@@ -70,6 +104,8 @@ printf '%s\n' "$version" > "$dest/SPEC_VERSION"
     echo "spec_version: $version"
 } > "$dest/SOURCE.txt"
 
+write_spec_doc "$commit"
+echo "spec_doc_commit: $SPEC_DOC_COMMIT" >> "$dest/SOURCE.txt"
 echo "synced spec $version -> ${dest#$root/}"
 echo "  python commit $commit"
 echo "  ${#jsons[@]} fixture files, renders.json, ${#wavs[@]} WAVs"

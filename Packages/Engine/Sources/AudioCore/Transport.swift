@@ -28,6 +28,8 @@ public struct Transport: Equatable {
     /// Whole frames in `seconds` (rounded to the nearest frame).
     public func frames(seconds: Double) -> Int64 { Int64((seconds * Double(sampleRate)).rounded()) }
 
+    public func seconds(frames: Int64) -> Double { Double(frames) / Double(sampleRate) }
+
     /// Whole frames in `milliseconds` (rounded to the nearest frame).
     public func frames(milliseconds: Int) -> Int64 { frames(seconds: Double(milliseconds) / 1000) }
 }

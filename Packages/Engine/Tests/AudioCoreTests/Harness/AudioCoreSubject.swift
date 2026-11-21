@@ -3,7 +3,7 @@ import AudioCore
 /// The slice of the spec that AudioCore implements so far, as pure functions. Everything else is still pending
 /// (the protocol's default), so those tests are skipped until the transport port provides it.
 ///
-/// Implemented: the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
+/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
 /// `duck_key`, `duck_curve` (hold on / off), `duck_smooth`, `input_target_db`.
 struct AudioCoreSubject: AudioSpecSubject {
     func fadeGain(_ direction: FadeDirection, x: Double) throws -> Double {
@@ -86,6 +86,143 @@ struct AudioCoreSubject: AudioSpecSubject {
         let ms = CrossfadeSettings(masterMs: masterMs).timeMs(ownMs: ownMs)
         let new = mixer.start(crossfadeMs: ms)
         return mixer.deck(new)?.fade?.lengthSeconds(sampleRate: mixer.transport.sampleRate) ?? 0
+    }
+
+    // MARK: trim.json
+
+    private func trim(_ f: TrimFields) -> Trim {
+        Trim(inPoint: f.inPoint, outPoint: f.outPoint, endsWithCut: f.end == "cut", fadeOutMs: f.fadeMs, fadeInMs: f.fadeInMs, fadesInAtStart: f.start == "fade")
+    }
+
+    private func fields(_ t: Trim) -> TrimFields {
+        TrimFields(inPoint: t.inPoint, outPoint: t.outPoint, end: t.endsWithCut ? "cut" : nil, fadeMs: t.fadeOutMs, fadeInMs: t.fadeInMs, start: t.fadesInAtStart ? "fade" : nil)
+    }
+
+    private func policy(_ c: TrimConfig) -> TrimPolicy {
+        TrimPolicy(defaultFadeOutMs: c.defaultFadeOutMs, defaultFadeInMs: c.defaultFadeInMs)
+    }
+
+    /// An edge written as text in the fixtures. Anything but fade and cut cannot be represented, so the edit is refused.
+    private func edge(_ text: String?) -> Change<TrimEdge>? {
+        switch text {
+        case nil: return .keep
+        case "fade": return .set(.fade)
+        case "cut": return .set(.cut)
+        default: return nil
+        }
+    }
+
+    func trimRange(stored: TrimFields, fileDurationS: Double) throws -> TrimRange {
+        let w = trim(stored).window(fileLength: fileDurationS)
+        return TrimRange(a: w.start, b: w.end)
+    }
+
+    func setTrim(_ f: TrimFields, config: TrimConfig) throws -> TrimOutcome {
+        var t = Trim()
+        var edit = TrimEdit()
+        f.inPoint.map { edit.inPoint = .set($0) }
+        f.outPoint.map { edit.outPoint = .set($0) }
+        f.fadeMs.map { edit.fadeOutMs = .set($0) }
+        f.fadeInMs.map { edit.fadeInMs = .set($0) }
+        var accepted = false
+        if let end = edge(f.end), let start = edge(f.start) {
+            edit.endEdge = end
+            edit.startEdge = start
+            accepted = t.apply(edit, fileLength: config.fileDurationS)
+        }
+        let w = t.window(fileLength: config.fileDurationS)
+        let p = policy(config)
+        return TrimOutcome(
+            accepted: accepted, stored: fields(t), range: TrimRange(a: w.start, b: w.end), durEffS: Trim.round2(w.length),
+            fadeOutMs: t.fadeOutMs(policy: p), fadeInMsEff: t.fadeInMsEffective(policy: p), fadeInAppliedMs: t.fadeInAppliedMs(policy: p))
+    }
+
+    func startDeck(trim t: TrimFields, offsetS: Double, config: TrimConfig) throws -> DeckStart {
+        let plan = TrackPlan(trim: trim(t), policy: policy(config), fileLength: config.fileDurationS, offsetSeconds: offsetS)
+        return DeckStart(
+            baseS: plan.seconds(plan.baseFrames), loS: plan.seconds(plan.loFrames), hiS: plan.seconds(plan.hiFrames),
+            durationS: plan.seconds(plan.firstPassFrames), endFadeMs: plan.endFadeMs, fadeInMs: plan.fadeInMs,
+            startVol: plan.startGain, fresh: plan.isFresh)
+    }
+
+    /// Starts the track from its beginning and runs the mixer `atS` seconds.
+    private func run(_ t: TrimFields, _ config: TrimConfig, forS atS: Double) -> (mixer: Mixer, deck: Deck.ID) {
+        var mixer = Mixer()
+        let plan = TrackPlan(trim: trim(t), policy: policy(config), fileLength: config.fileDurationS)
+        let id = mixer.start(plan)
+        mixer.advance(frames: mixer.transport.frames(seconds: atS))
+        return (mixer, id)
+    }
+
+    func trimEndFade(trim t: TrimFields, config: TrimConfig, atS: Double) throws -> FadeSample {
+        let r = run(t, config, forS: atS)
+        let now = r.mixer.transport.playFrame
+        return FadeSample(vol: r.mixer.gain(of: r.deck) ?? 0, fading: r.mixer.deck(r.deck)?.isFadingOutAtB(at: now) ?? false)
+    }
+
+    func trimEndOutcome(trim t: TrimFields, config: TrimConfig, afterS: Double) throws -> (ended: Bool, nothingLive: Bool) {
+        let r = run(t, config, forS: afterS)
+        return (r.mixer.deck(r.deck)?.isPlaying == false, r.mixer.live == nil)
+    }
+
+    // MARK: end_actions.json
+
+    private func trackEnd(_ a: EndAction) -> TrackEnd {
+        switch a {
+        case .default: return .followPlayMode
+        case .once: return .twice
+        case .loop: return .loop
+        case .stop: return .stop
+        }
+    }
+
+    private func endAction(_ e: TrackEnd) -> EndAction {
+        switch e {
+        case .followPlayMode: return .default
+        case .twice: return .once
+        case .loop: return .loop
+        case .stop: return .stop
+        }
+    }
+
+    func endActionDeckStart(_ action: EndAction) throws -> EndActionDeckStart {
+        let end = trackEnd(action)
+        return EndActionDeckStart(passes: end.passes ?? 1, loop: end == .loop)
+    }
+
+    /// One track alone, as long as the scenario says, with no trim. Runs to `atS`; the end action is switched at `switchOff.atS` on the way.
+    private func play(_ s: EndActionScenario, upTo atS: Double) throws -> (mixer: Mixer, deck: Deck.ID) {
+        var mixer = Mixer()
+        let plan = TrackPlan(trim: Trim(), policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), fileLength: s.trackLengthS, end: trackEnd(s.endAction))
+        let id = mixer.start(plan)
+        var now = 0.0
+        if let sw = s.switchOff, sw.atS <= atS {
+            mixer.advance(frames: mixer.transport.frames(seconds: sw.atS))
+            now = sw.atS
+            // Only "the running pass is the last one" is specified: the end action goes back to a single pass.
+            guard trackEnd(sw.to).passes == 1 else { throw pending("switching an end action on while the track plays") }
+            mixer.finishCurrentPass(of: id)
+        }
+        mixer.advance(frames: mixer.transport.frames(seconds: atS - now))
+        return (mixer, id)
+    }
+
+    func endActionState(_ s: EndActionScenario, atS: Double) throws -> EndActionState {
+        let r = try play(s, upTo: atS)
+        let now = r.mixer.transport.playFrame
+        guard let deck = r.mixer.deck(r.deck), deck.isPlaying else { return EndActionState(live: false, passNo: nil, remainingS: nil) }
+        let pass = deck.pass(at: now)
+        return EndActionState(live: true, passNo: pass?.number, remainingS: pass.map { r.mixer.transport.seconds(frames: $0.remainingFrames) })
+    }
+
+    func endActionEndTimeS(_ s: EndActionScenario) throws -> Double? {
+        let r = try play(s, upTo: s.switchOff?.atS ?? 0)
+        guard let end = r.mixer.deck(r.deck)?.playback?.endFrame else { return nil }
+        return Double(end) / Double(r.mixer.transport.sampleRate)
+    }
+
+    func nextEndAction(after action: EndAction) throws -> EndAction {
+        endAction(trackEnd(action).next)
     }
 
     func backgroundMultiplier(reductionDb: Double) throws -> Double {

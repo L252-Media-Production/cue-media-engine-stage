@@ -80,6 +80,17 @@ Rules the harness follows (from the plan):
 values; the 128-step quantising of the Python mixer is not reproduced. `AudioCoreSubject` maps the fixture questions of `fades.json` and `xfade.json`
 onto these types; the types do not follow Python's method names. The next slices (trim, fade-in at A, end actions) extend `Deck` and reuse `Transport`.
 
+## Engine types, slice 2 (trim, fades at A and B, passes, end actions)
+
+`Trim` (stored A, B, edges, fade lengths; `apply(_:fileLength:)` refuses a bad edit and changes nothing), `TrimPolicy`, `TrackPlan` (a window of the
+file in frames, never a copy of audio; fades at both edges; `TrackEnd`), `Playback` (passes, remaining time and the out-fade derived by arithmetic from the
+play frame) and `Mixer.ended` (decks that ended, at the exact frame). The spec text is copied to `docs/audio-spec-1.md` by `scripts/sync-audio-spec.sh`.
+
+Rules the fixtures show but the spec text does not state (taken from the fixtures, with the Python source read only to confirm the numbers):
+a window under 0.5 s falls back to B = end of file (A kept); points round to 0.01 s, an In under 0.01 s or an Out within 0.01 s of the end is not stored;
+a fade length must be 100...10000 ms (fixtures only bracket it) and is held to the part that plays; the out-fade runs only in the last pass of a deck that
+ends (never while looping); "fresh" means the start is at or before A; a loop keeps reporting pass 1, also after it is switched off.
+
 ## When the Python side bumps the spec
 
 The Python rule is: a change to audio behaviour regenerates the fixtures and raises the spec version. Then, here:

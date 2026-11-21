@@ -415,8 +415,7 @@ struct PlayModesCases: Decodable {
 
     struct NextInOrderRow: Decodable {
         let mode: String
-        /// Missing in the row "stop, track 1 set to loop".
-        let fromTrack: [Int]?
+        let fromTrack: [Int]
         let nextInOrder: [[Int]]
 
         enum CodingKeys: String, CodingKey {
@@ -462,7 +461,7 @@ struct TriggerCase: Decodable {
         case toleranceS = "tolerance_s"
     }
 
-    struct Point: Decodable {
+    struct Point: Decodable, Equatable {
         let at: Double
         let file: String
         let enabled: Bool?
@@ -536,6 +535,7 @@ struct VoiceOver: Decodable, Equatable {
 struct DuckingCases: Decodable {
     let duckKey: KeyCase
     let duckCurve: Rows<CurveRow>
+    let duckCurveHoldPercentile: HoldPercentile
     let duckSmooth: Rows<SmoothRow>
     let backgroundGain: Rows<GainRow>
     let inputTargetDb: Rows<InputRow>
@@ -544,6 +544,7 @@ struct DuckingCases: Decodable {
     enum CodingKeys: String, CodingKey {
         case duckKey = "duck_key"
         case duckCurve = "duck_curve"
+        case duckCurveHoldPercentile = "duck_curve_hold_percentile"
         case duckSmooth = "duck_smooth"
         case backgroundGain = "background_gain"
         case inputTargetDb = "input_target_db"
@@ -565,6 +566,19 @@ struct DuckingCases: Decodable {
             case level, ratio, hold
             case thresholdDb = "threshold_db"
             case reductionDb = "reduction_db"
+        }
+    }
+
+    /// `_info_alternatives` (the depths of the 60th and 90th percentile) is prose and is not modelled.
+    struct HoldPercentile: Decodable {
+        let holdDepthDb: Double
+        let reductionDbHoldOff: [Double]
+        let reductionDbHoldOn: [Double]
+
+        enum CodingKeys: String, CodingKey {
+            case holdDepthDb = "hold_depth_db"
+            case reductionDbHoldOff = "reduction_db_hold_off"
+            case reductionDbHoldOn = "reduction_db_hold_on"
         }
     }
 
@@ -701,17 +715,18 @@ struct LevelMatchCases: Decodable {
         let measuredLufs: [Double?]
         let gainDb: [Double?]
         let gainLinear: [Double]
+        let typed: LevelMatchTyped
         let stored: Stored
 
         enum CodingKeys: String, CodingKey {
-            case setting, stored
+            case setting, typed, stored
             case measuredLufs = "measured_lufs"
             case gainDb = "gain_db"
             case gainLinear = "gain_linear"
         }
 
         struct Stored: Decodable {
-            let mode: String
+            let mode: LevelMatchMode
             let ref: String?
             let lufs: Double
         }

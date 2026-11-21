@@ -3,7 +3,8 @@
 #
 #   scripts/sync-audio-spec.sh <path-to-python-repo>
 #
-# Reads the Python repo only. Writes Packages/Engine/Tests/AudioCoreTests/Fixtures/spec-<N>/ where N is
+# Reads the Python repo only. Refuses a Python working tree that is not clean (the fixtures are generated files, and a dirty tree can hold a
+# half-finished regeneration). Writes Packages/Engine/Tests/AudioCoreTests/Fixtures/spec-<N>/ where N is
 # the number on the first line of docs/AUDIO-SPEC.md ("Spec version: N (...)"). See docs/audio-conformance.md.
 set -euo pipefail
 
@@ -20,6 +21,15 @@ spec="$src/docs/AUDIO-SPEC.md"
 golden="$src/tests/golden-audio"
 [ -f "$spec" ] || { echo "error: $spec not found (is this the Python repo?)" >&2; exit 1; }
 [ -d "$golden/fixtures" ] || { echo "error: $golden/fixtures not found" >&2; exit 1; }
+
+command -v git >/dev/null || { echo "error: git is required" >&2; exit 1; }
+git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: $src is not a git working tree" >&2; exit 1; }
+if [ -n "$(git -C "$src" status --porcelain --untracked-files=all)" ]; then
+    echo "error: the Python tree at $src is not clean; commit or stash first so the stamp names exactly what was copied." >&2
+    git -C "$src" status --short >&2
+    exit 1
+fi
+commit="$(git -C "$src" rev-parse HEAD)"
 
 first_line="$(head -n 1 "$spec" | tr -d '\r')"
 version="$(printf '%s\n' "$first_line" | sed -n 's/^Spec version: \([0-9][0-9]*\).*/\1/p')"
@@ -54,8 +64,14 @@ cp "$golden/renders/renders.json" "$dest/renders/"
 for w in "${wavs[@]}"; do cp "$golden/renders/$w" "$dest/renders/"; done
 printf '%s\n' "$first_line" > "$dest/AUDIO-SPEC-LINE1.txt"
 printf '%s\n' "$version" > "$dest/SPEC_VERSION"
+# The stamp: which Python commit these fixtures were copied from. Read by SourceStampTests.
+{
+    echo "python_commit: $commit"
+    echo "spec_version: $version"
+} > "$dest/SOURCE.txt"
 
 echo "synced spec $version -> ${dest#$root/}"
+echo "  python commit $commit"
 echo "  ${#jsons[@]} fixture files, renders.json, ${#wavs[@]} WAVs"
 
 others=()

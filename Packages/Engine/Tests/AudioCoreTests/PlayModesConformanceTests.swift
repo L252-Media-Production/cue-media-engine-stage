@@ -1,23 +1,44 @@
 import XCTest
 
-/// play_modes.json. Playlist A has 3 tracks, B has 2; track indices are in playlist 0.
+/// play_modes.json. The playlists, the one under test and every input come from the cases' `scenario`; track indices are in the playlist under test.
 /// Shuffle: only the listed properties are checked, never a sequence (it depends on the Python version and its seed).
 final class PlayModesConformanceTests: FixtureTestCase {
     private func fixture() throws -> Fixture<PlayModesCases> { try FixtureLoader.load("play_modes") }
-    private let trackCounts = [3, 2]
 
     func testAllCasesHaveATest() throws {
-        try assertCoversAllCases(of: "play_modes", known: ["after_a_track_ends", "next_in_order", "shuffle_bag"])
+        try assertCoversAllCases(of: "play_modes")
+    }
+
+    /// Track count of each playlist, in the order of the file (A = 0, B = 1), and the index of the playlist under test.
+    private func playlists(_ s: Scenario) throws -> (trackCounts: [Int], underTest: Int) {
+        let lists = try s.object("playlists")
+        let counts = try lists.keys.map { try lists.strings($0).count }
+        let underTest = try s.int("playlist_under_test")
+        guard counts.indices.contains(underTest) else {
+            throw FixtureReadError(file: s.file, caseName: s.caseName, message: "scenario.playlist_under_test \(underTest) is not one of the \(counts.count) playlists")
+        }
+        return (counts, underTest)
     }
 
     func testAfterATrackEnds() throws {
-        for row in try fixture().cases.afterATrackEnds.rows {
+        let fc = try fixtureCase("play_modes", "after_a_track_ends")
+        let s = try fc.scenario()
+        let (trackCounts, underTest) = try playlists(s)
+        let modes: [PlayMode] = try s.strings("play_modes").map { try s.named($0, at: "play_modes") }
+        let actions: [EndAction] = try s.strings("end_actions").map { try s.named($0, at: "end_actions") }
+        let tracks = try s.ints("from_tracks")
+        let rows = try fixture().cases.afterATrackEnds.rows
+
+        // The rows are exactly the combinations the scenario lists.
+        let expectedKeys = Set(modes.flatMap { m in actions.flatMap { a in tracks.map { "\(m.rawValue)|\(a.rawValue)|\($0)" } } })
+        XCTAssertEqual(Set(rows.map { "\($0.mode)|\($0.endAction)|\($0.track)" }), expectedKeys, "after_a_track_ends: rows differ from play_modes x end_actions x from_tracks")
+        XCTAssertEqual(rows.count, expectedKeys.count, "after_a_track_ends: duplicate rows")
+
+        for row in rows {
             let what = "after_a_track_ends mode=\(row.mode) end_action=\(row.endAction) track=\(row.track)"
-            guard let mode = PlayMode(rawValue: row.mode), let action = EndAction(rawValue: row.endAction) else {
-                XCTFail("\(what): unknown mode or end action")
-                continue
-            }
-            let got = try subject.successor(mode: mode, endAction: action, playlistTrackCounts: trackCounts, from: (0, row.track))
+            let mode: PlayMode = try s.named(row.mode, at: "row mode")
+            let action: EndAction = try s.named(row.endAction, at: "row end_action")
+            let got = try subject.successor(mode: mode, endAction: action, playlistTrackCounts: trackCounts, from: (underTest, row.track))
             switch row.after {
             case .stopped:
                 XCTAssertEqual(got, .stopped, what)
@@ -39,53 +60,85 @@ final class PlayModesConformanceTests: FixtureTestCase {
     }
 
     func testNextInOrder() throws {
+        let fc = try fixtureCase("play_modes", "next_in_order")
+        let s = try fc.scenario()
+        let (trackCounts, underTest) = try playlists(s)
         for row in try fixture().cases.nextInOrder.rows {
             let what = "next_in_order '\(row.mode)'"
-            // The third row has no `from_track` and its mode and loop flag are written in the label: "stop, track 1 set to loop".
-            let mode: PlayMode
+            // The row label names the inputs: `row_inputs` holds the play mode and the end action of any track that has its own.
+            let input = try s.row("row_inputs", label: row.mode)
+            let mode: PlayMode = try input.named("play_mode")
             var looping = Set<Int>()
-            if let m = PlayMode(rawValue: row.mode) {
-                mode = m
-            } else if row.mode == "stop, track 1 set to loop" {
-                mode = .stop
-                looping = [1]
-            } else {
-                XCTFail("\(what): unknown mode: add it to the harness")
-                continue
+            for key in input.keys where key.hasPrefix("end_action_of_track_") {
+                guard let index = Int(key.dropFirst("end_action_of_track_".count)) else {
+                    throw FixtureReadError(file: s.file, caseName: s.caseName, message: "\(input.path).\(key): the track number is not a number")
+                }
+                let action: EndAction = try input.named(key)
+                if action == .loop { looping.insert(index) }
             }
-            let from = row.fromTrack ?? [0, 1, 2]
-            XCTAssertEqual(from.count, row.nextInOrder.count, "\(what): from_track and next_in_order differ in length")
-            for (track, expected) in zip(from, row.nextInOrder) {
-                let got = try subject.nextInOrder(mode: mode, fromTrack: track, trackCount: 3, loopingTracks: looping)
+            XCTAssertEqual(row.fromTrack.count, row.nextInOrder.count, "\(what): from_track and next_in_order differ in length")
+            for (track, expected) in zip(row.fromTrack, row.nextInOrder) {
+                let got = try subject.nextInOrder(mode: mode, fromTrack: track, trackCount: trackCounts[underTest], loopingTracks: looping)
                 XCTAssertEqual(got, expected, "\(what) from track \(track)")
             }
         }
     }
 
-    /// The properties that can be seen from a series of draws on a playlist of 3 tracks, starting after track 0.
+    private struct ShuffleSetup {
+        var trackCount: Int
+        var start: Int
+        var sequenceDraws: Int
+        var fairShareDraws: Int
+    }
+
+    private func shuffleSetup() throws -> ShuffleSetup {
+        let s = try fixtureCase("play_modes", "shuffle_bag").scenario()
+        let (counts, underTest) = try playlists(s)
+        return ShuffleSetup(
+            trackCount: counts[underTest], start: try s.int("start_track"),
+            sequenceDraws: try s.int("draws_for_sequence"), fairShareDraws: try s.int("draws_for_fair_share"))
+    }
+
+    /// The range of a fair share is part of the key name (`..._300_draws_60_to_140`); the number of draws must be the scenario's.
+    private func fairShareRange(_ key: String, draws: Int) throws -> ClosedRange<Int> {
+        let parts = key.split(separator: "_")
+        guard parts.count >= 5, parts[parts.count - 2] == "to", parts[parts.count - 4] == "draws",
+              let lo = Int(parts[parts.count - 3]), let hi = Int(parts[parts.count - 1]), let n = Int(parts[parts.count - 5])
+        else { throw FixtureReadError(file: "play_modes", caseName: "shuffle_bag", message: "cannot read the fair-share range from the key \(key)") }
+        XCTAssertEqual(n, draws, "shuffle_bag: \(key) names \(n) draws but draws_for_fair_share is \(draws)")
+        return lo...hi
+    }
+
+    /// The properties that can be seen from a series of draws on the playlist, starting after the start track.
     func testShuffleBagDrawProperties() throws {
         let bag = try fixture().cases.shuffleBag
-        let start = 0
-        let draws = try subject.shuffleDraws(trackCount: 3, startTrack: start, count: 300)
-        XCTAssertEqual(draws.count, 300, "shuffle_bag: number of draws")
+        let setup = try shuffleSetup()
+        let sequence = try subject.shuffleDraws(trackCount: setup.trackCount, startTrack: setup.start, count: setup.sequenceDraws)
+        XCTAssertEqual(sequence.count, setup.sequenceDraws, "shuffle_bag: number of draws")
 
-        let neverTwice = zip([start] + draws, draws).allSatisfy { $0 != $1 }
+        let neverTwice = zip([setup.start] + sequence, sequence).allSatisfy { $0 != $1 }
         XCTAssertEqual(neverTwice, bag.neverTheSameTrackTwiceInARow, "shuffle_bag never_the_same_track_twice_in_a_row")
 
-        let inPlaylist = draws.allSatisfy { (0..<3).contains($0) }
+        let inPlaylist = sequence.allSatisfy { (0..<setup.trackCount).contains($0) }
         XCTAssertEqual(inPlaylist, bag.everyDrawIsATrackOfThePlaylist, "shuffle_bag every_draw_is_a_track_of_the_playlist")
 
-        let firstRound = draws.count >= 2 && Set(draws[0..<2]) == [1, 2]
+        // The first round, from the start track, is a permutation of all the other tracks.
+        let others = Set(0..<setup.trackCount).subtracting([setup.start])
+        let round = sequence.prefix(others.count)
+        let firstRound = round.count == others.count && Set(round) == others
         XCTAssertEqual(firstRound, bag.firstRoundFromTrack0IsAPermutationOfTracks1And2, "shuffle_bag first_round_from_track_0_is_a_permutation_of_tracks_1_and_2")
 
-        let counts = (0..<3).map { t in draws.filter { $0 == t }.count }
-        let fair = counts.allSatisfy { (60...140).contains($0) }
+        let many = try subject.shuffleDraws(trackCount: setup.trackCount, startTrack: setup.start, count: setup.fairShareDraws)
+        let range = try fairShareRange("each_track_gets_a_fair_share_of_300_draws_60_to_140", draws: setup.fairShareDraws)
+        let counts = (0..<setup.trackCount).map { t in many.filter { $0 == t }.count }
+        let fair = counts.allSatisfy { range.contains($0) }
         XCTAssertEqual(fair, bag.eachTrackGetsAFairShareOf300Draws60To140, "shuffle_bag each_track_gets_a_fair_share_of_300_draws_60_to_140 (counts \(counts))")
     }
 
     func testShuffleBagTracksLeftAfterOneDraw() throws {
         let bag = try fixture().cases.shuffleBag
-        let left = try subject.shuffleTracksLeftAfterOneDraw(trackCount: 3, startTrack: 0)
+        let setup = try shuffleSetup()
+        let left = try subject.shuffleTracksLeftAfterOneDraw(trackCount: setup.trackCount, startTrack: setup.start)
         XCTAssertEqual(left, bag.tracksLeftInTheRoundAfterOneDrawFromTrack0, "shuffle_bag tracks_left_in_the_round_after_one_draw_from_track_0")
     }
 

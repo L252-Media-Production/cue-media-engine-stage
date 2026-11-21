@@ -42,11 +42,39 @@ class FixtureTestCase: XCTestCase {
         }
     }
 
-    /// Fails when the fixture file has a case this harness has no test for (a sync brought something new),
-    /// or when a case the harness expects is gone.
-    func assertCoversAllCases(of file: String, known: Set<String>, line: UInt = #line) throws {
-        let found = try FixtureLoader.caseNames(file)
-        XCTAssertEqual(found.subtracting(known), [], "\(file).json has cases with no test: add them to the harness", line: line)
+    /// Fails when the fixture file has a case this harness has no entry for (a sync brought something new),
+    /// or when a case the harness expects is gone. The names come from `FixtureSchema`.
+    func assertCoversAllCases(of file: String, line: UInt = #line) throws {
+        let found = Set(try FixtureDocument.load(file).caseNames)
+        let known = FixtureSchema.caseNames(file)
+        XCTAssertEqual(found.subtracting(known), [], "\(file).json has cases with no test: add them to FixtureSchema and the harness", line: line)
         XCTAssertEqual(known.subtracting(found), [], "\(file).json lost cases the harness tests", line: line)
+    }
+
+    /// A case of a fixture file: raw JSON, the scenario it was generated from and the tolerance that applies to it.
+    func fixtureCase(_ file: String, _ name: String) throws -> FixtureCase {
+        try FixtureDocument.load(file).case(name)
+    }
+
+    /// `actual` equals `expected` within the tolerance of the case (the case's own `tolerance`, else the file's).
+    func assertClose(
+        _ actual: Double, _ expected: Double, in c: FixtureCase, _ what: @autoclosure () -> String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertClose(actual, expected, tolerance: c.tolerance, "\(c.name): \(what())", file: file, line: line)
+    }
+
+    func assertClose(
+        _ actual: Double?, _ expected: Double?, in c: FixtureCase, _ what: @autoclosure () -> String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertClose(actual, expected, tolerance: c.tolerance, "\(c.name): \(what())", file: file, line: line)
+    }
+
+    func assertClose(
+        _ actual: [Double], _ expected: [Double], in c: FixtureCase, _ what: @autoclosure () -> String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertClose(actual, expected, tolerance: c.tolerance, "\(c.name): \(what())", file: file, line: line)
     }
 }

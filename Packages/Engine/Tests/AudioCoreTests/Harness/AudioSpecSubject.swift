@@ -70,19 +70,25 @@ enum EndAction: String, CaseIterable {
     case `default`, once, loop, stop
 }
 
-enum PlayMode: String {
+enum PlayMode: String, CaseIterable {
     case stop
     case loopPlaylist = "loop_playlist"
     case nextPlaylist = "next_playlist"
     case shuffle
 }
 
-/// One track playing alone on a playlist whose play mode is `stop`.
+/// One track playing alone on a playlist, started with `endAction`.
 struct EndActionScenario: Equatable {
     var trackLengthS: Double
+    var playMode: PlayMode
     var endAction: EndAction
-    /// The end action is set back to `default` at this time (nil: never).
-    var switchedToDefaultAtS: Double?
+    /// The end action is changed at `atS` seconds after the start (nil: never).
+    var switchOff: Switch?
+
+    struct Switch: Equatable {
+        var to: EndAction
+        var atS: Double
+    }
 }
 
 struct EndActionState: Equatable {
@@ -109,8 +115,7 @@ struct TriggerScenario {
     var fileDurationS: Double
     /// Length of each voice-over file by name.
     var voiceOverLengthsS: [String: Double]
-    /// The track's end action is `loop`.
-    var loop: Bool
+    var endAction: EndAction
     /// Seek the live track to `toS` (a position in the file) at `atS` seconds of play.
     var seek: (atS: Double, toS: Double)?
     /// Run the scenario this long.
@@ -127,6 +132,14 @@ struct DuckLoopRequest {
     var voiceOver: VoiceOver
     var stepS: Double
     var lookAheadS: Double
+    /// The background deck plays from t = 0 and is this long.
+    var backgroundLengthS: Double
+    /// The voice-over starts on top this long after the background (`voiceOver.startsAtS`).
+    var backgroundAloneS: Double
+    /// The loop ticks once every this many steps.
+    var tickEverySteps: Int
+    /// The loop runs at most this many steps.
+    var maxSteps: Int
     /// How many rows to return (the fixture's length): the start of the series is the background deck at t = 0.
     var sampleCount: Int
 }
@@ -141,7 +154,7 @@ struct DuckLoopSeries {
     var bgMultiplier: [Double]
 }
 
-enum LevelMatchMode: String {
+enum LevelMatchMode: String, Decodable, CaseIterable {
     case off, track, lufs
 }
 
@@ -152,21 +165,59 @@ struct LevelMatchResult: Equatable {
     var linear: Double
 }
 
-/// The situations in which the fixtures read `resume.json`.
-enum ResumeRecordScenario {
-    case playing(trackPT: [Int], id: String, atS: Double)
-    case paused(trackPT: [Int], id: String, atS: Double, waitedS: Double)
-    case afterDeliberateStop
-    case whileFadingOut
+/// What the level-match setting of a playlist is as TYPED: `track` names the reference by track index, `lufs` is the target as typed.
+struct LevelMatchTyped: Decodable, Equatable {
+    var mode: LevelMatchMode
+    var ref: Int?
+    var lufs: Double?
 }
 
-struct ResumeEnvironment {
-    /// Playlists as lists of library file ids.
-    var playlists: [[String]]
-    var fileDurationS: Double
+/// What is kept of it. `ref` is the reference track's file. `lufs` is the kept target; it only means something in `lufs` mode.
+struct LevelMatchStored: Equatable {
+    var mode: LevelMatchMode
+    var ref: String?
+    var lufs: Double
+}
+
+/// The range a fixed LUFS target is held to (`lufs_clamp_db` of the scenario).
+struct LufsClamp: Equatable {
+    var min: Double
+    var max: Double
+    var step: Double
+}
+
+/// The player settings the resume scenarios run with.
+struct ResumeConfig: Equatable {
+    var onStart: Bool
     var maxAgeS: Double
+    var saveIntervalS: Double
+}
+
+/// The library and the settings a resume scenario runs in.
+struct ResumeEnvironment {
+    /// The playlist as library file ids (there is one).
+    var playlist: [String]
+    /// Length of each library file in seconds.
+    var fileLengthsS: [String: Double]
+    var config: ResumeConfig
     /// Trims by file id.
     var trims: [String: TrimFields]
+}
+
+/// How the fixtures bring the player into the state `resume.json` is written from.
+struct ResumeSituation: Equatable {
+    var playTrack: Int
+    /// Position in the file when the record is written.
+    var atS: Double
+    var paused: Bool
+    /// The clock when the record is written (a paused track keeps its position while the clock runs on). nil: right at `atS`.
+    var clockAtSaveS: Double?
+    var then: Then?
+
+    enum Then: Equatable {
+        case stopAll
+        case fadeOut(ms: Int)
+    }
 }
 
 struct ResumeOutcome {
@@ -257,6 +308,9 @@ protocol AudioSpecSubject {
     /// RMS (0...1, louder channel) of each whole 10 ms of interleaved 48 kHz 16-bit stereo.
     func duckKey(pcm: [Int16]) throws -> [Double]
     func duckCurve(key: [Double], level: Double, ratio: Double, thresholdDb: Double, hold: Bool) throws -> [Double]
+    /// The depth (dB) the hold keeps from the first to the last active window: a PERCENTILE of the active reductions. The real engine must use
+    /// one function for this in `duckCurve` and in `duckLoop`; only the fixture of this method can tell the 60th, 75th and 90th percentile apart.
+    func duckHoldDepthDb(key: [Double], level: Double, ratio: Double, thresholdDb: Double) throws -> Double
     func duckSmooth(gr: Double, target: Double, dt: Double, attackMs: Double, releaseMs: Double) throws -> Double
     /// `10^(-gr/20)`.
     func backgroundMultiplier(reductionDb: Double) throws -> Double
@@ -267,6 +321,8 @@ protocol AudioSpecSubject {
     // levelmatch.json
     /// Integrated loudness (BS.1770) of interleaved 48 kHz 16-bit stereo; nil = silent or shorter than 0.4 s.
     func measureLufs(pcm: [Int16]) throws -> Double?
+    /// `set_norm`: what is kept of what was typed (a LUFS target is clamped to the range and rounded to the step; a reference is kept by file name).
+    func storeLevelMatch(typed: LevelMatchTyped, playlist: [String], clamp: LufsClamp) throws -> LevelMatchStored
     /// `min(0, target - measured)` dB for one track. `targetLufs` is the fixed target (lufs mode) or the reference track's loudness (track mode).
     func levelMatchGain(mode: LevelMatchMode, targetLufs: Double?, measuredLufs: Double?) throws -> LevelMatchResult
     /// The gain of a deck that is already playing, right after the setting changed.
@@ -274,7 +330,7 @@ protocol AudioSpecSubject {
 
     // resume_flow.json
     /// What `resume.json` holds in a situation; nil = no file.
-    func resumeRecord(_ scenario: ResumeRecordScenario) throws -> ResumeRecord?
+    func resumeRecord(_ situation: ResumeSituation, environment: ResumeEnvironment) throws -> ResumeRecord?
     /// Start-up with a saved record that is `ageS` old.
     func tryResume(record: ResumeRecord, ageS: Double, environment: ResumeEnvironment) throws -> ResumeOutcome
 }
@@ -325,16 +381,18 @@ extension AudioSpecSubject {
 
     func duckKey(pcm: [Int16]) throws -> [Double] { throw pending("duck_key") }
     func duckCurve(key: [Double], level: Double, ratio: Double, thresholdDb: Double, hold: Bool) throws -> [Double] { throw pending("duck_curve") }
+    func duckHoldDepthDb(key: [Double], level: Double, ratio: Double, thresholdDb: Double) throws -> Double { throw pending("duck_curve hold percentile") }
     func duckSmooth(gr: Double, target: Double, dt: Double, attackMs: Double, releaseMs: Double) throws -> Double { throw pending("duck_smooth") }
     func backgroundMultiplier(reductionDb: Double) throws -> Double { throw pending("background gain multiplier") }
     func inputTargetDb(rms: Double, gainDb: Double, ratio: Double, thresholdDb: Double) throws -> Double { throw pending("input_target_db") }
     func duckLoop(_ request: DuckLoopRequest) throws -> DuckLoopSeries { throw pending("duck_loop series") }
 
     func measureLufs(pcm: [Int16]) throws -> Double? { throw pending("LUFS measurement (BS.1770)") }
+    func storeLevelMatch(typed: LevelMatchTyped, playlist: [String], clamp: LufsClamp) throws -> LevelMatchStored { throw pending("level-match setting limits") }
     func levelMatchGain(mode: LevelMatchMode, targetLufs: Double?, measuredLufs: Double?) throws -> LevelMatchResult { throw pending("level-match gain") }
     func liveDeckGain(mode: LevelMatchMode, targetLufs: Double?, trackLufs: Double?) throws -> Double { throw pending("level match applied to a live deck") }
 
-    func resumeRecord(_ scenario: ResumeRecordScenario) throws -> ResumeRecord? { throw pending("resume record") }
+    func resumeRecord(_ situation: ResumeSituation, environment: ResumeEnvironment) throws -> ResumeRecord? { throw pending("resume record") }
     func tryResume(record: ResumeRecord, ageS: Double, environment: ResumeEnvironment) throws -> ResumeOutcome { throw pending("try_resume") }
 }
 

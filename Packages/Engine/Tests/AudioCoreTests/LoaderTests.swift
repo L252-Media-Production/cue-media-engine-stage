@@ -21,8 +21,7 @@ final class LoaderTests: FixtureTestCase {
             let tolerance = try XCTUnwrap(object["tolerance"] as? Double, "\(file): tolerance")
             XCTAssertGreaterThan(tolerance, 0, file)
         }
-        let levelmatch = try FixtureLoader.load("levelmatch", as: LevelMatchCases.self)
-        XCTAssertNotNil(levelmatch.toleranceLufs, "levelmatch.json has tolerance_lufs")
+        XCTAssertGreaterThan(try FixtureDocument.load("levelmatch").topNumber("tolerance_lufs"), 0, "levelmatch.json has tolerance_lufs")
     }
 
     func testInfoKeysAreIgnored() throws {
@@ -33,7 +32,7 @@ final class LoaderTests: FixtureTestCase {
     }
 
     func testTriggerCaseNamesDoNotIncludeInfoKeys() throws {
-        let names = try FixtureLoader.caseNames("triggers")
+        let names = Set(try FixtureDocument.load("triggers").caseNames)
         XCTAssertFalse(names.contains { $0.hasPrefix("_info") })
         XCTAssertEqual(names.count, 11)
     }

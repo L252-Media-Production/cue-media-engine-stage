@@ -5,12 +5,14 @@ final class XfadeConformanceTests: FixtureTestCase {
     private func fixture() throws -> Fixture<XfadeCases> { try FixtureLoader.load("xfade") }
 
     func testAllCasesHaveATest() throws {
-        try assertCoversAllCases(of: "xfade", known: ["precedence", "own_time_limits", "play_default_uses_it"])
+        try assertCoversAllCases(of: "xfade")
     }
 
     func testPrecedence() throws {
+        let master = try fixtureCase("xfade", "precedence").scenario().int("master_crossfade_ms")
         for row in try fixture().cases.precedence.rows {
-            let ms = try subject.crossfadeMs(explicitMs: row.explicitMs, ownMs: row.ownMs, masterMs: row.masterMs)
+            XCTAssertEqual(row.masterMs, master, "precedence: \(row.label): master_ms of the row and master_crossfade_ms of the scenario differ")
+            let ms = try subject.crossfadeMs(explicitMs: row.explicitMs, ownMs: row.ownMs, masterMs: master)
             XCTAssertEqual(ms, row.resultMs, "precedence: \(row.label)")
         }
     }
@@ -23,20 +25,18 @@ final class XfadeConformanceTests: FixtureTestCase {
         }
     }
 
-    /// The rows carry only a label; the inputs (master 3000 ms, own time none / 1500 ms) are read off the label and the case text.
+    /// The inputs of each row (the track's own time, null = none) are in `row_inputs` of the scenario, keyed by the row label.
     func testPlayDefaultUsesIt() throws {
-        let f = try fixture()
-        let inputs: [String: (own: Int?, master: Int)] = [
-            "master": (nil, 3000),
-            "own 1.5 s": (1500, 3000),
-        ]
-        for row in f.cases.playDefaultUsesIt.rows {
-            guard let input = inputs[row.label] else {
-                XCTFail("play_default_uses_it: unknown row '\(row.label)': add its inputs to the harness")
-                continue
-            }
-            let len = try subject.playDefaultFadeLengthS(ownMs: input.own, masterMs: input.master)
-            assertClose(len, row.fadeLenS, tolerance: f.tolerance, "play_default_uses_it: \(row.label)")
+        let c = try fixtureCase("xfade", "play_default_uses_it")
+        let scenario = try c.scenario()
+        let master = try scenario.int("master_crossfade_ms")
+        let transition = try scenario.string("default_transition")
+        XCTAssertEqual(transition, "crossfade", "play_default_uses_it: the harness asks about default_transition crossfade only")
+        for row in try fixture().cases.playDefaultUsesIt.rows {
+            let input = try scenario.row("row_inputs", label: row.label)
+            let ownS = try input.optionalDouble("own_time_s")
+            let len = try subject.playDefaultFadeLengthS(ownMs: ownS.map { Int(($0 * 1000).rounded()) }, masterMs: master)
+            assertClose(len, row.fadeLenS, in: c, "\(row.label)")
         }
     }
 }

@@ -4,115 +4,157 @@ import XCTest
 final class DuckingConformanceTests: FixtureTestCase {
     private func fixture() throws -> Fixture<DuckingCases> { try FixtureLoader.load("ducking") }
 
-    /// Per 10 ms: 5 silent, 10 at (16384, 8192), 5 at (3277, 0), 5 silent, 3 at (1000, 16384). It is written in the `_info` text of
-    /// duck_key (which a consumer ignores) and in generate.py, so it lives here.
-    private static let stimulus: [(left: Int16, right: Int16)] =
-        Array(repeating: (0, 0), count: 5) + Array(repeating: (16384, 8192), count: 10) + Array(repeating: (3277, 0), count: 5)
-        + Array(repeating: (0, 0), count: 5) + Array(repeating: (1000, 16384), count: 3)
-
-    private static var stimulusPCM: [Int16] {
-        stimulus.flatMap { window in (0..<480).flatMap { _ in [window.left, window.right] } }
+    /// One run of 10 ms windows that each hold ONE constant sample value per channel (the `windows` of a scenario).
+    private struct Window {
+        let count: Int
+        let left: Int16
+        let right: Int16
     }
 
-    /// The exact key of the stimulus (constant windows: the RMS of a constant is its absolute value). The fixture's `key` is rounded to
-    /// 6 decimals, which is too coarse to feed duck_curve (it would move the result by more than the tolerance), so curve rows start from this.
-    private static var exactKey: [Double] {
-        stimulus.map { max(abs(Double($0.left)), abs(Double($0.right))) / 32768 }
+    /// The windows of a scenario, after checking that its window length is the spec's 10 ms.
+    private func windows(_ s: Scenario) throws -> (list: [Window], frames: Int) {
+        let frames = try s.int("window_samples")
+        if s.has("window_s") {
+            XCTAssertEqual(try s.double("window_s"), Double(frames) / Double(AudioSpec.sampleRate), "\(s.caseName): window_s and window_samples disagree")
+            XCTAssertEqual(try s.double("window_s"), AudioSpec.controlStepS, "\(s.caseName): the window is not the spec's 10 ms control step")
+        }
+        let list = try s.objects("windows").map { w -> Window in
+            guard let l = Int16(exactly: try w.int("left")), let r = Int16(exactly: try w.int("right")) else {
+                throw FixtureReadError(file: s.file, caseName: s.caseName, message: "\(w.path): a sample value does not fit 16 bits (the spec leaves clipping unspecified)")
+            }
+            return Window(count: try w.int("windows"), left: l, right: r)
+        }
+        return (list, frames)
+    }
+
+    private func pcm(_ s: Scenario) throws -> [Int16] {
+        let (list, frames) = try windows(s)
+        return list.flatMap { w in (0..<(w.count * frames)).flatMap { _ in [w.left, w.right] } }
+    }
+
+    /// The exact key of the windows (the RMS of a constant is its absolute value, the louder channel counts). The fixture's `key` is rounded to
+    /// 6 decimals, which is too coarse to feed duck_curve, so curve cases start from this.
+    private func exactKey(_ s: Scenario) throws -> [Double] {
+        try windows(s).list.flatMap { w in
+            Array(repeating: max(abs(Double(w.left)), abs(Double(w.right))) / 32768, count: w.count)
+        }
     }
 
     func testAllCasesHaveATest() throws {
-        try assertCoversAllCases(of: "ducking", known: [
-            "duck_key", "duck_curve", "duck_smooth", "background_gain", "input_target_db", "duck_loop",
-        ])
-        let f = try fixture()
-        XCTAssertEqual(Set(f.cases.duckLoop.cases.values.keys), ["production_defaults_hold_on", "slow_attack_hold_off"], "duck_loop cases")
+        try assertCoversAllCases(of: "ducking")
+        let nested = try fixtureCase("ducking", "duck_loop").nestedCases().map { $0.name.replacingOccurrences(of: "duck_loop/", with: "") }
+        XCTAssertEqual(Set(nested), Set(FixtureSchema.duckLoopCases.keys), "duck_loop cases")
     }
 
     func testDuckKey() throws {
-        let f = try fixture()
-        let key = try subject.duckKey(pcm: Self.stimulusPCM)
-        assertClose(key, f.cases.duckKey.key, tolerance: f.tolerance, "duck_key")
+        let c = try fixtureCase("ducking", "duck_key")
+        let key = try subject.duckKey(pcm: try pcm(c.scenario()))
+        assertClose(key, try fixture().cases.duckKey.key, in: c, "key")
     }
-
-    /// The Python player computes the key in float32 (`np.float32`, a sequential sum of 480 squares), so a key that is not a power-of-two
-    /// fraction carries about 1e-6 of relative noise. In duck_curve that moves the reduction by up to ~1.2e-5 dB, more than the file's
-    /// `tolerance` (2e-6), for the windows at (3277, 0). The windows at 16384 / 8192 are exact and match to the file's tolerance.
-    /// This allowance is added to the file's tolerance for duck_curve rows ONLY. It belongs to the Python fixture, not to the contract:
-    /// remove it when the Python side computes the key in float64 or the file's tolerance for ducking is widened (docs/audio-conformance.md).
-    private static let pythonFloat32KeyNoiseDb = 2e-5
 
     func testDuckCurve() throws {
-        let f = try fixture()
-        let input = Self.exactKey
-        for (i, row) in f.cases.duckCurve.rows.enumerated() {
-            let what = "duck_curve row \(i) level=\(row.level) ratio=\(row.ratio) threshold=\(row.thresholdDb) hold=\(row.hold)"
+        let c = try fixtureCase("ducking", "duck_curve")
+        let input = try exactKey(c.scenario())
+        for (i, row) in try fixture().cases.duckCurve.rows.enumerated() {
+            let what = "row \(i) level=\(row.level) ratio=\(row.ratio) threshold=\(row.thresholdDb) hold=\(row.hold)"
             let got = try subject.duckCurve(key: input, level: row.level, ratio: row.ratio, thresholdDb: row.thresholdDb, hold: row.hold)
-            assertClose(got, row.reductionDb, tolerance: f.tolerance + Self.pythonFloat32KeyNoiseDb, what)
+            assertClose(got, row.reductionDb, in: c, what)
         }
     }
 
-    /// `gr` starts at 0 and takes one step per row with `dt` seconds.
+    /// The ramp has targets from 0 to about 25 dB, so the hold depth tells the 60th, 75th and 90th percentile apart (`_info_alternatives`).
+    func testDuckCurveHoldPercentile() throws {
+        let c = try fixtureCase("ducking", "duck_curve_hold_percentile")
+        let s = try c.scenario()
+        let key = try exactKey(s)
+        let level = try s.double("level"), ratio = try s.double("ratio"), threshold = try s.double("threshold_db")
+        let expected = try fixture().cases.duckCurveHoldPercentile
+        let depth = try subject.duckHoldDepthDb(key: key, level: level, ratio: ratio, thresholdDb: threshold)
+        assertClose(depth, expected.holdDepthDb, in: c, "hold_depth_db")
+        let off = try subject.duckCurve(key: key, level: level, ratio: ratio, thresholdDb: threshold, hold: false)
+        assertClose(off, expected.reductionDbHoldOff, in: c, "reduction_db_hold_off")
+        let on = try subject.duckCurve(key: key, level: level, ratio: ratio, thresholdDb: threshold, hold: true)
+        assertClose(on, expected.reductionDbHoldOn, in: c, "reduction_db_hold_on")
+    }
+
+    /// `gr` starts at the scenario's `initial_gr_db` and takes one step per row with `dt_s` seconds.
     func testDuckSmooth() throws {
-        let f = try fixture()
-        for (i, row) in f.cases.duckSmooth.rows.enumerated() {
-            let what = "duck_smooth row \(i) attack=\(row.attackMs) release=\(row.releaseMs)"
+        let c = try fixtureCase("ducking", "duck_smooth")
+        let s = try c.scenario()
+        let dt = try s.double("dt_s")
+        let initial = try s.double("initial_gr_db")
+        for (i, row) in try fixture().cases.duckSmooth.rows.enumerated() {
+            let what = "row \(i) attack=\(row.attackMs) release=\(row.releaseMs)"
             let targets = row.targetDb.values
             XCTAssertEqual(targets.count, row.grDb.count, "\(what): target and gr lengths")
-            var gr = 0.0
+            XCTAssertEqual(row.dtS, dt, "\(what): dt_s of the row and of the scenario differ")
+            var gr = initial
             var series = [Double]()
             for target in targets {
-                gr = try subject.duckSmooth(gr: gr, target: target, dt: row.dtS, attackMs: row.attackMs, releaseMs: row.releaseMs)
+                gr = try subject.duckSmooth(gr: gr, target: target, dt: dt, attackMs: row.attackMs, releaseMs: row.releaseMs)
                 series.append(gr)
             }
-            assertClose(series, row.grDb, tolerance: f.tolerance, what)
+            assertClose(series, row.grDb, in: c, what)
         }
     }
-
     func testBackgroundGain() throws {
-        let f = try fixture()
-        for row in f.cases.backgroundGain.rows {
+        let c = try fixtureCase("ducking", "background_gain")
+        for row in try fixture().cases.backgroundGain.rows {
             let m = try subject.backgroundMultiplier(reductionDb: row.grDb)
-            assertClose(m, row.multiplier, tolerance: f.tolerance, "background_gain gr=\(row.grDb) dB")
+            assertClose(m, row.multiplier, in: c, "gr=\(row.grDb) dB")
         }
     }
 
     func testInputTargetDb() throws {
-        let f = try fixture()
-        for row in f.cases.inputTargetDb.rows {
+        let c = try fixtureCase("ducking", "input_target_db")
+        for row in try fixture().cases.inputTargetDb.rows {
             let got = try subject.inputTargetDb(rms: row.rms, gainDb: row.gainDb, ratio: row.ratio, thresholdDb: row.thresholdDb)
-            assertClose(got, row.reductionDb, tolerance: f.tolerance, "input_target_db rms=\(row.rms) gain=\(row.gainDb) ratio=\(row.ratio) threshold=\(row.thresholdDb)")
+            assertClose(got, row.reductionDb, in: c, "rms=\(row.rms) gain=\(row.gainDb) ratio=\(row.ratio) threshold=\(row.thresholdDb)")
         }
     }
 
     func testDuckLoopProductionDefaultsHoldOn() throws { try checkLoop("production_defaults_hold_on") }
     func testDuckLoopSlowAttackHoldOff() throws { try checkLoop("slow_attack_hold_off") }
 
-    /// Rows are matched by INDEX, not by time: two rows share t = 0.5 (index 49 is the last background-only sample, index 50 the voice-over starting).
-    /// `bg_multiplier` may trail 10^(-gr/20) by 0.0005 in the Python player (it only writes the multiplier when it moved by more than that).
-    /// That write threshold is a quirk, not contract (AUDIO-SPEC quirk 9), so this column is compared within `tolerance + 0.0005`.
+    /// Rows are matched by INDEX, not by time: two rows share t = 0.5 (the last background-only sample and the voice-over starting).
+    /// Every column, `bg_multiplier` included, is compared within the tolerance of the case.
     private func checkLoop(_ name: String) throws {
+        let parent = try fixtureCase("ducking", "duck_loop")
+        let fc = try parent.nested(name)
+        let ps = try parent.scenario()
         let f = try fixture()
         let c = try XCTUnwrap(f.cases.duckLoop.cases.values[name], "duck_loop has no case \(name)")
         let s = c.samples
         let n = s.tS.count
         XCTAssertEqual([s.topPosS.count, s.targetDb.count, s.grDb.count, s.bgMultiplier.count], Array(repeating: n, count: 4), "\(name): columns differ in length")
-        XCTAssertEqual(s.tS[49], s.tS[50], "\(name): rows 49 and 50 are meant to share t")
 
-        let request = DuckLoopRequest(settings: c.settings, voiceOver: c.voiceOver, stepS: c.stepS, lookAheadS: c.lookAheadS, sampleCount: n)
+        let step = try ps.double("step_s")
+        let aloneS = try ps.double("background_alone_s")
+        XCTAssertEqual(c.stepS, step, "\(name): step_s of the case and of the scenario differ")
+        XCTAssertEqual(c.voiceOver.startsAtS, aloneS, "\(name): the voice-over does not start after background_alone_s")
+        let background = try ps.object("background")
+        XCTAssertEqual(c.voiceOver.file, try ps.object("voice_over").string("file"), "\(name): voice-over file")
+        let lastBackgroundOnly = Int((aloneS / step).rounded()) - 1
+        XCTAssertTrue(s.tS.indices.contains(lastBackgroundOnly + 1), "\(name): too few rows")
+        XCTAssertEqual(s.tS[lastBackgroundOnly], s.tS[lastBackgroundOnly + 1], "\(name): rows \(lastBackgroundOnly) and \(lastBackgroundOnly + 1) are meant to share t")
+
+        let request = DuckLoopRequest(
+            settings: c.settings, voiceOver: c.voiceOver, stepS: step, lookAheadS: c.lookAheadS,
+            backgroundLengthS: try background.double("length_s"), backgroundAloneS: aloneS,
+            tickEverySteps: try ps.int("tick_every_steps"), maxSteps: try ps.int("max_steps"), sampleCount: n)
         let got = try subject.duckLoop(request)
         XCTAssertEqual(got.tS.count, n, "\(name): rows")
         guard [got.topPosS.count, got.targetDb.count, got.grDb.count, got.bgMultiplier.count] == Array(repeating: n, count: 4), got.tS.count == n else {
             return XCTFail("\(name): the series do not have \(n) rows")
         }
-        let multiplierTolerance = f.tolerance + 0.0005
         for i in 0..<n {
-            assertClose(got.tS[i], s.tS[i], tolerance: f.tolerance, "\(name) row \(i) t_s")
-            assertClose(got.topPosS[i], s.topPosS[i], tolerance: f.tolerance, "\(name) row \(i) top_pos_s")
-            assertClose(got.targetDb[i], s.targetDb[i], tolerance: f.tolerance, "\(name) row \(i) target_db")
-            assertClose(got.grDb[i], s.grDb[i], tolerance: f.tolerance, "\(name) row \(i) gr_db")
-            assertClose(got.bgMultiplier[i], s.bgMultiplier[i], tolerance: multiplierTolerance, "\(name) row \(i) bg_multiplier")
+            assertClose(got.tS[i], s.tS[i], in: fc, "row \(i) t_s")
+            assertClose(got.topPosS[i], s.topPosS[i], in: fc, "row \(i) top_pos_s")
+            assertClose(got.targetDb[i], s.targetDb[i], in: fc, "row \(i) target_db")
+            assertClose(got.grDb[i], s.grDb[i], in: fc, "row \(i) gr_db")
+            assertClose(got.bgMultiplier[i], s.bgMultiplier[i], in: fc, "row \(i) bg_multiplier")
         }
-        assertClose(got.grDb.max() ?? 0, c.peakReductionDb, tolerance: f.tolerance, "\(name) peak_reduction_db")
-        assertClose(got.bgMultiplier.last ?? 0, c.finalMultiplier, tolerance: multiplierTolerance, "\(name) final_multiplier")
+        assertClose(got.grDb.max() ?? 0, c.peakReductionDb, in: fc, "peak_reduction_db")
+        assertClose(got.bgMultiplier.last ?? 0, c.finalMultiplier, in: fc, "final_multiplier")
     }
 }

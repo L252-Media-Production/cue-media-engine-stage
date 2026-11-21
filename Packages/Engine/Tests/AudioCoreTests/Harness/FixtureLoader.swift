@@ -6,6 +6,11 @@ enum AudioSpec {
     /// The spec version this code implements. Every fixture must say the same.
     static var pinnedVersion: Int { AudioCore.implementedSpecVersion }
 
+    /// Constants of the spec itself (docs/AUDIO-SPEC.md), not of any one fixture: 48 kHz, 16-bit, stereo, and the 10 ms control step.
+    static let sampleRate = 48_000
+    static let channels = 2
+    static let controlStepS = 0.01
+
     static let fixtureFiles = [
         "fades", "xfade", "trim", "end_actions", "play_modes", "triggers", "ducking", "levelmatch", "resume_flow",
     ]
@@ -43,20 +48,16 @@ enum FixtureError: Error, CustomStringConvertible {
     }
 }
 
-/// The envelope shared by every fixture file. `_info*` keys and `about` are ignored.
+/// The envelope shared by every fixture file, for the typed ROWS of the cases. `_info*` keys and `about` are ignored.
+/// It carries no tolerance on purpose: a tolerance belongs to a case (`FixtureCase.tolerance`, which honours a case-level override).
 struct Fixture<Cases: Decodable>: Decodable {
     let specVersion: Int
     let name: String
-    let tolerance: Double
-    /// Only levelmatch.json has it.
-    let toleranceLufs: Double?
     let cases: Cases
 
     enum CodingKeys: String, CodingKey {
         case specVersion = "spec_version"
-        case name, tolerance
-        case toleranceLufs = "tolerance_lufs"
-        case cases
+        case name, cases
     }
 }
 
@@ -83,16 +84,6 @@ enum FixtureLoader {
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         else { return nil }
         return object["spec_version"] as? Int
-    }
-
-    /// Case names of a fixture file as written in the JSON (`_info*` keys left out). Used to notice cases the harness does not know.
-    static func caseNames(_ file: String) throws -> Set<String> {
-        let url = AudioSpec.fixtureURL(file)
-        guard let data = try? Data(contentsOf: url) else { throw FixtureError.missing(url.path) }
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let cases = object["cases"] as? [String: Any]
-        else { return [] }
-        return Set(cases.keys.filter { !$0.hasPrefix("_info") })
     }
 }
 

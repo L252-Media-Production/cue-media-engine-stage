@@ -1,32 +1,10 @@
 import XCTest
 
 /// triggers.json. Fire times are compared with `ideal_fires` within `tolerance_s`, never with `fires` (the Python measurement includes its 50 ms tick).
-///
-/// The JSON holds the triggers and the trim of each case but not the rest of the scenario. That comes from generate.py (read-only):
-/// the main track is 120 s, `vo.wav` 3 s and `vo2.wav` 8 s, and each case runs for a fixed time, with an end action of loop or a seek where noted.
+/// Everything the scenario needs (track and voice-over lengths, end action, trim, seek, triggers, run time) comes from the case's `scenario`.
 final class TriggersConformanceTests: FixtureTestCase {
-    private struct Setup {
-        var runForS: Double
-        var loop = false
-        var seek: (atS: Double, toS: Double)?
-    }
-
-    private static let setups: [String: Setup] = [
-        "simple": Setup(runForS: 14),
-        "two_in_order": Setup(runForS: 25),
-        "disabled": Setup(runForS: 8),
-        "trim_in_after_trigger": Setup(runForS: 6),
-        "trim_out_before_trigger": Setup(runForS: 10),
-        "trigger_inside_trim": Setup(runForS: 10),
-        "seek_over_does_not_fire": Setup(runForS: 14, seek: (1.0, 20.0)),
-        "seek_back_rearms": Setup(runForS: 26, seek: (14.0, 2.0)),
-        "loop_fires_every_pass": Setup(runForS: 14, loop: true),
-        "once_flag": Setup(runForS: 14, loop: true),
-        "top_already_playing_skips": Setup(runForS: 14),
-    ]
-
     func testAllCasesHaveATest() throws {
-        try assertCoversAllCases(of: "triggers", known: Set(Self.setups.keys))
+        try assertCoversAllCases(of: "triggers")
     }
 
     func testSimple() throws { try run("simple") }
@@ -44,12 +22,21 @@ final class TriggersConformanceTests: FixtureTestCase {
     private func run(_ name: String) throws {
         let f: Fixture<InfoFilteredDictionary<TriggerCase>> = try FixtureLoader.load("triggers")
         let c = try XCTUnwrap(f.cases.values[name], "triggers.json has no case \(name)")
-        let setup = try XCTUnwrap(Self.setups[name], "no setup for case \(name): add it to the harness")
+        let s = try fixtureCase("triggers", name).scenario()
+
+        let triggers: [TriggerCase.Point] = try s.decode("triggers")
+        let trim: TrimFields = try s.decode("trim")
+        XCTAssertEqual(triggers, c.triggers, "\(name): triggers of the case and of its scenario differ")
+        XCTAssertEqual(trim, c.trim, "\(name): trim of the case and of its scenario differ")
+        let mainLength = try s.double("main_track_length_s")
+        XCTAssertEqual(try s.number("library_s", named: try s.string("main_track")), mainLength, "\(name): main_track_length_s is not the main track's library length")
+        var seek: (atS: Double, toS: Double)?
+        if let o = try s.optionalObject("seek") { seek = (try o.double("at_s"), try o.double("to_s")) }
 
         let scenario = TriggerScenario(
-            triggers: c.triggers, trim: c.trim, fileDurationS: 120,
-            voiceOverLengthsS: ["vo.wav": 3, "vo2.wav": 8],
-            loop: setup.loop, seek: setup.seek, runForS: setup.runForS
+            triggers: triggers, trim: trim, fileDurationS: mainLength,
+            voiceOverLengthsS: Dictionary(uniqueKeysWithValues: try s.numbersByName("voice_over_lengths_s").map { ($0.name, $0.value) }),
+            endAction: try s.named("end_action"), seek: seek, runForS: try s.double("run_s")
         )
         let fires = try subject.triggerFireTimes(scenario).sorted { $0.tS < $1.tS }
         XCTAssertEqual(fires.count, c.idealFires.count, "\(name): number of fires (got \(fires.map(\.tS)), ideal \(c.idealFires.map(\.tS)))")

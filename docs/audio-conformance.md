@@ -10,7 +10,7 @@ Everything lives in the Engine package and needs neither Desktop Video nor the N
 |---|---|
 | `Packages/Engine/Sources/AudioCore/` | Pure maths (no state, no I/O, `Double`). Depends on nothing. |
 | `Packages/Engine/Tests/AudioCoreTests/` | The harness and the tests. |
-| `Packages/Engine/Tests/AudioCoreTests/Fixtures/spec-<N>/` | The synced fixtures of spec version N, plus `SPEC_VERSION` and `AUDIO-SPEC-LINE1.txt`. |
+| `Packages/Engine/Tests/AudioCoreTests/Fixtures/spec-<N>/` | The synced fixtures of spec version N, plus `SPEC_VERSION`, `AUDIO-SPEC-LINE1.txt` and `SOURCE.txt` (the Python commit they were copied from). |
 | `scripts/sync-audio-spec.sh` | Copies the fixtures from the Python repo. |
 
 ## Sync the fixtures
@@ -20,8 +20,13 @@ scripts/sync-audio-spec.sh /path/to/cue-media-engine
 ```
 
 It reads the Python repo (never writes to it) and replaces `Fixtures/spec-<N>/`, where N is the number on the first line of the Python
-`docs/AUDIO-SPEC.md` (`Spec version: N (...)`). It refuses to copy when any file says another `spec_version`. Commit the result (about 1.5 MB).
-Sync from a clean, committed state of the Python repo: the fixtures are generated files and a working tree can hold a half-finished regeneration.
+`docs/AUDIO-SPEC.md` (`Spec version: N (...)`). It refuses to copy when any file says another `spec_version`, and it refuses a Python working tree that is not clean (untracked files count): the fixtures are
+generated files and a dirty tree can hold a half-finished regeneration. It writes `Fixtures/spec-<N>/SOURCE.txt` with `python_commit` (full hash of the Python
+HEAD) and `spec_version`; `FixtureGuardTests` fails when the stamp is missing or its version differs from the fixtures. Commit the result (about 1.5 MB).
+
+The fixtures are self-describing: every case has a `scenario` object with the inputs it was generated from, and the harness reads them from there (a missing
+key fails with the file, case and key). `FixtureSchema` lists every key the harness reads or ignores on purpose; a new key in a fixture fails
+`testNoFixtureKeyIsUnknown` until someone decides which it is.
 
 ## Run
 
@@ -47,19 +52,26 @@ Every method the protocol lists that is not overridden defaults to "pending".
 
 Rules the harness follows (from the plan):
 
-- Gains are compared within the file's `tolerance` (`tolerance_lufs` for LUFS, `tolerance_s` for times). Nothing is hard-coded, except the two documented
-  allowances below. The fixtures hold the ideal `Deck.vol`, not a quantised mixer volume.
+- Tolerances come from the fixtures. A `tolerance` on a case overrides the file's for that case and the cases nested in it (`duck_curve` and
+  `duck_curve_hold_percentile` carry 2e-5 dB). `assertClose(_:_:in:)` applies it. There is no special allowance in the harness; if a case ever needs one, the
+  fixture gets its own tolerance on the Python side. The fixtures hold the ideal `Deck.vol`, not a quantised mixer volume.
 - Trigger and end times are compared with the `ideal_*` values, never with the measured Python values (they include the 50 ms tick).
 - Shuffle: only the listed properties are checked, never the sequence.
 - `duck_loop` rows are matched by index, not by time (two rows share t = 0.5).
 - The quirks table of `AUDIO-SPEC.md` is not reproduced. Clipping is not in the spec and is not tested.
 - The WAV renders are not used yet. `renders.json` is loaded and its version checked; an envelope comparison comes with the real mixer.
 
-Two allowances on top of a file tolerance, both on one column and both named in the code:
+## Design notes
 
-- `duck_loop` `bg_multiplier`: `tolerance + 0.0005` (Python only writes the multiplier when it moved by more than that; quirk 9).
-- `duck_curve` reductions: `tolerance + 2e-5` dB (`pythonFloat32KeyNoiseDb`). The Python key is float32 and its noise is larger than the file's 2e-6 on quiet windows.
-  Remove it when the Python side computes the key in float64 or widens the tolerance.
+- **`AudioSpecSubject` is a test-side adapter** over the real Stage types. The engine must not expose it, conform to it in production code, or take on the
+  shape of Python's API (`set_trim`, `try_resume`, ...). The adapter translates a fixture question into whatever Stage's types offer.
+- **`resume_flow` is adapted, not copied.** Stage has no `resume.json`; it autosaves show state. Keep the behaviour the fixture states (what is restored, the age
+  limit, a resumed start never fades in, a deliberate stop or a running fade-out leaves nothing to resume) and map it onto the show-state autosave.
+- **`duck_loop` must call the same hold-percentile function as `duck_curve`.** The `duck_loop` fixture cannot tell the 60th, 75th and 90th percentile apart;
+  only `duck_curve_hold_percentile` can (its `_info_alternatives` lists the three depths). The test for it is pending on the subject until the engine
+  provides `duckHoldDepthDb`.
+- **Open: clipping.** The spec leaves clipping unspecified, so no fixture tests it. The harness refuses to build a signal that would clip 16 bits instead of choosing a policy.
+- **Source:** the fixtures in this repo come from the Python repo's commit `52d6eab` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
 
 ## When the Python side bumps the spec
 

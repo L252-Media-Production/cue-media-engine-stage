@@ -1,0 +1,3 @@
+python_commit: 3d7cd36d5ca2d208b841a615f730fb8432b41034
+spec_version: 1
+spec_doc_commit: 3d7cd36d5ca2d208b841a615f730fb8432b41034

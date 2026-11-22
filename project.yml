@@ -1,0 +1,66 @@
+# XcodeGen spec. Generate the Xcode project with:
+#   brew install xcodegen
+#   xcodegen generate
+# The generated CueMEStage.xcodeproj is not committed.
+name: CueMEStage
+
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+packages:
+  Engine:
+    path: Packages/Engine
+
+targets:
+  CueMEStage:
+    type: application
+    platform: macOS
+    sources:
+      - Apps/CueMEStage
+    dependencies:
+      - package: Engine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: CueME Stage
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright L252 Media Production
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+
+  StageEngine:
+    type: tool
+    platform: macOS
+    sources:
+      - Apps/StageEngine
+      # The DeckLink SDK dispatch file loads Blackmagic's driver framework at run time. The 14.2.1
+      # dispatch is used on purpose: it works with Desktop Video 14.x to 16.x drivers (see docs/sdk-setup.md).
+      # Not committed; present only when the SDK has been copied into vendor/.
+      - path: vendor/DeckLinkSDK/include/DeckLinkAPIDispatch_v14_2_1.cpp
+        optional: true
+    dependencies:
+      - package: Engine
+      - sdk: CoreVideo.framework
+      - sdk: CoreFoundation.framework
+    settings:
+      base:
+        PRODUCT_NAME: StageEngine
+        SWIFT_OBJC_BRIDGING_HEADER: Apps/StageEngine/DeckLink/StageEngine-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/vendor/DeckLinkSDK/include
+          - $(SRCROOT)/vendor/NDISDK/include
+          - $(SRCROOT)/Apps/StageEngine/NDI
+          - $(SRCROOT)/Apps/StageEngine/DeckLink
+        CLANG_ENABLE_OBJC_ARC: YES
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        # Hardened runtime blocks loading Blackmagic's driver framework (different signer).
+        # For distribution this needs the disable-library-validation entitlement instead.
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_STYLE: Automatic

@@ -154,6 +154,12 @@ Allocation: `advance`, `TriggerWatch.observe` / `nextEvent` and the firing check
 fired trigger, on top of one per track start. `TriggerWatch.init` allocates its fixed `dueSince` storage once per player; `TriggerList.add`, `PlaylistPlayer.addTrigger` / `removeTrigger` / `setTrigger`
 and `TriggerWatch.remap` are setup paths. `fired` is preallocated (capacity 32, extra fires counted in `droppedFires`).
 
+## Engine types, slice 5 (fixed deck pool)
+
+`Mixer` keeps its decks in a fixed pool (16 slots, allocated once) addressed by `DeckID` handles with generations; ended decks are recycled oldest first and `DeckEnded` carries the last gain;
+`EngineCounters` (`droppedEnds`, `droppedFires`, `poolExhausted`) replaces the loose counters as the thing to read. Behaviour of fades, trim, passes, playlists and triggers is unchanged. See
+`docs/audio-engine-realtime.md` for the real-time rules, the setup-path allocations and what is not proven.
+
 ## When the Python side bumps the spec
 
 The Python rule is: a change to audio behaviour regenerates the fixtures and raises the spec version. Then, here:

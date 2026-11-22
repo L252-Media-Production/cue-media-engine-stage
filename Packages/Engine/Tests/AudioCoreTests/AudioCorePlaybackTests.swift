@@ -14,7 +14,7 @@ final class AudioCorePlaybackTests: XCTestCase {
         var m = Mixer(sampleRate: rate)
         let id = m.start(plan())
         m.advance(frames: 5000)
-        XCTAssertEqual(m.ended, [Mixer.DeckEnded(deck: id, frame: 2000)])
+        XCTAssertEqual(m.ended, [Mixer.DeckEnded(deck: id, frame: 2000, lastGain: 1)])   // the record now carries the last gain
         XCTAssertEqual(m.deck(id)?.endedAtFrame, 2000)
         m.advance(frames: 1)
         XCTAssertTrue(m.ended.isEmpty, "an end is reported once")

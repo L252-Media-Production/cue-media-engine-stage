@@ -1,7 +1,23 @@
 /// One playing sound as far as the gain is concerned: a level and at most one running fade. The next slices (trim window, passes,
 /// end actions) add their state here; the clock is always the `Transport`'s play frame.
+/// A handle to a deck in the mixer's pool. The slot is reused after a deck has ended, so the handle carries a generation: a handle to a deck whose slot has
+/// been reused is refused (the lookups return nil), never read as the new deck. A handle is only made by the mixer.
+public struct DeckID: Hashable, CustomStringConvertible {
+    let slot: Int32
+    /// 0 is never issued: `DeckID.none` is the handle of a start that was refused.
+    let generation: UInt32
+
+    /// The handle of no deck. Every lookup refuses it.
+    public static let none = DeckID(slot: -1, generation: 0)
+
+    /// False for `none`, which is what `Mixer.start` returns when the pool is full.
+    public var isValid: Bool { generation != 0 }
+
+    public var description: String { isValid ? "deck#\(slot).\(generation)" : "deck#none" }
+}
+
 public struct Deck: Equatable, Identifiable {
-    public typealias ID = Int
+    public typealias ID = DeckID
 
     public let id: ID
     /// The gain when no fade is running (the spec's `Deck.vol`, as an ideal value: it is not quantised).
@@ -12,6 +28,8 @@ public struct Deck: Equatable, Identifiable {
     public private(set) var isPlaying = true
     /// The play frame at which the deck ended, exactly (not the frame at which anyone noticed). nil while it plays.
     public private(set) var endedAtFrame: Int64?
+    /// The gain of the last frame the deck played (the frame before `endedAtFrame`); 0 until it ended. The mixer copies it into the ended record.
+    public private(set) var lastGain = 0.0
     /// The track window, passes and fades at A and B. nil: a deck that plays without end (slice 1).
     public private(set) var playback: Playback?
 
@@ -50,12 +68,17 @@ public struct Deck: Equatable, Identifiable {
     mutating func settle(at frame: Int64) {
         guard isPlaying else { return }
         var endedAt: Int64?
+        if let f = fade, f.isFinished(at: frame), endsWhenFadeEnds { endedAt = f.startFrame + f.lengthFrames }
+        if let e = playback?.endFrame, frame >= e { endedAt = Swift.min(endedAt ?? e, e) }
+        // The last gain is read while the fade that ran is still in place.
+        if let t = endedAt {
+            let last = Swift.max(t - 1, playback?.startFrame ?? (t - 1))
+            lastGain = (fade?.gain(at: last) ?? level) * (playback?.edgeGain(at: last) ?? 1)
+        }
         if let f = fade, f.isFinished(at: frame) {
             level = f.to
             fade = nil
-            if endsWhenFadeEnds { endedAt = f.startFrame + f.lengthFrames }
         }
-        if let e = playback?.endFrame, frame >= e { endedAt = Swift.min(endedAt ?? e, e) }
         if let t = endedAt {
             isPlaying = false
             endedAtFrame = t
@@ -77,6 +100,7 @@ public struct Deck: Equatable, Identifiable {
 
     /// Removes the deck at once (a cut).
     mutating func stop(at frame: Int64) {
+        lastGain = gain(at: frame)
         level = 0
         fade = nil
         isPlaying = false

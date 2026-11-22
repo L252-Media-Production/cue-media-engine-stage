@@ -43,6 +43,14 @@ public struct PlaylistPlayer<Random: RandomSource> {
     public private(set) var fired: [Fired] = []
     /// Fires that did not fit in `fired` (they still happened: see `Deck.isTop` decks of the mixer).
     public private(set) var droppedFires = 0
+    private var totalDroppedFires = 0
+
+    /// Everything the engine gave up on, since the player was made: ends and starts from the mixer, fires from this player.
+    public var counters: EngineCounters {
+        var c = mixer.counters
+        c.droppedFires = totalDroppedFires
+        return c
+    }
 
     /// The most tracks one `advance` starts. A playlist whose tracks are shorter than a frame would otherwise never let time move.
     public static var maxStartsPerAdvance: Int { 64 }
@@ -164,11 +172,16 @@ public struct PlaylistPlayer<Random: RandomSource> {
                 // A voice has no trim and no fade-in, and plays one pass.
                 let plan = TrackPlan(trim: Trim(), policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), fileLength: length, sampleRate: mixer.transport.sampleRate)
                 let id = mixer.startOnTop(plan)
+                guard id.isValid else {      // the pool is full (counted by the mixer): the point is given up on
+                    watch.clearDue(i)
+                    continue
+                }
                 topDeck = id
                 if fired.count < Self.firedCapacity {
                     fired.append(Fired(trigger: t.id, target: t.target, deck: id, frame: now))
                 } else {
                     droppedFires += 1
+                    totalDroppedFires += 1
                 }
                 ducking.voiceStarted(id, over: c.deck, atFrame: now)
                 watch.clearDue(i)
@@ -185,8 +198,11 @@ public struct PlaylistPlayer<Random: RandomSource> {
         let t = playlists[position.playlist].tracks[position.track]
         let plan = TrackPlan(trim: t.trim, policy: policy, fileLength: t.lengthSeconds, end: t.end, sampleRate: mixer.transport.sampleRate)
         clearFired()
-        releaseVoice()
+        let voice = isVoiceOnTop ? topDeck : nil
         let id = mixer.start(plan, crossfadeMs: crossfadeMs)
+        guard id.isValid else { return false }       // the pool is full (counted by the mixer); nothing changed
+        if let v = voice { ducking.voiceEnded(v, atFrame: mixer.transport.playFrame) }
+        topDeck = nil
         current = Current(position: position, track: t.id, deck: id)
         if let pb = mixer.deck(id)?.playback { watch.begin(pb, t.triggers, at: mixer.transport.playFrame) }
         serviceTriggers()      // a point at A fires on the first frame
@@ -268,9 +284,9 @@ public struct PlaylistPlayer<Random: RandomSource> {
         case .stopped:
             current = nil
         case .same:
-            play(from)
+            if !play(from) { current = nil }       // refused (pool full): nothing plays on
         case .track(let next):
-            play(next)
+            if !play(next) { current = nil }
         }
     }
 }

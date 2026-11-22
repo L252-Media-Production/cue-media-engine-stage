@@ -126,5 +126,9 @@ final class OperatorModelTests: XCTestCase {
         XCTAssertEqual(BottomTab.allCases.map { Shortcuts.tab($0).key.character }, ["1", "2", "3", "4", "5"])
         XCTAssertEqual(Set(Shortcuts.all).count, Shortcuts.all.count, "no shortcut is used twice")
         XCTAssertEqual(Shortcuts.unmodified, [Shortcuts.goLive, Shortcuts.nextSlide, Shortcuts.previousSlide])
+        XCTAssertEqual(Shortcuts.outputSetup, KeyboardShortcut("o", modifiers: [.command, .shift]))
+        XCTAssertEqual(Shortcuts.visuals, KeyboardShortcut("v", modifiers: [.command, .shift]))
+        XCTAssertTrue(Shortcuts.all.contains(Shortcuts.outputSetup))
+        XCTAssertTrue(Shortcuts.all.contains(Shortcuts.visuals))
     }
 }

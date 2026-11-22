@@ -100,9 +100,34 @@ struct StageMenuCommands: Commands {
         }
 
         CommandMenu("Output") {
-            Button("Screens…") {}.disabled(true)
-            Button("Outputs…") {}.disabled(true)
-            Button("Stage Display…") {}.disabled(true)
+            Button("Output Setup…") { ui.showOutputSetup = true }
+                .keyboardShortcut(Shortcuts.outputSetup)
+            Button("Visuals…") {}
+                .keyboardShortcut(Shortcuts.visuals)
+                .disabled(true)
+            Divider()
+            Menu("Monitor") {
+                ForEach(store.state.outputScreens) { screen in Button(screen.name) {} }
+            }
+            .disabled(true)
+            Menu("Test Pattern") {
+                let model = TestPatternMenuModel(state: store.state)
+                ForEach(TestPattern.allCases, id: \.self) { pattern in
+                    Menu(pattern.title) {
+                        ForEach(Array(model.targets.enumerated()), id: \.offset) { _, entry in
+                            Toggle(entry.title, isOn: Binding(
+                                get: { model.isActive(entry.target, pattern) },
+                                set: { _ in store.send(model.command(entry.target, pattern)) }
+                            ))
+                        }
+                    }
+                }
+                Divider()
+                Button("Off") { store.send(.hideTestPattern) }
+                    .disabled(!model.canTurnOff)
+            }
+            Divider()
+            Button("Restart Engine…") {}.disabled(true)
         }
     }
 }

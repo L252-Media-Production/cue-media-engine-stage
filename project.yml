@@ -17,6 +17,8 @@ settings:
 packages:
   Engine:
     path: Packages/Engine
+  StageKit:
+    path: Packages/StageKit
 
 targets:
   CueMEStage:
@@ -26,6 +28,7 @@ targets:
       - Apps/CueMEStage
     dependencies:
       - package: Engine
+      - package: StageKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage

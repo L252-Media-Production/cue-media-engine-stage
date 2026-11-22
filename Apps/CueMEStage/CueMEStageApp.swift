@@ -2,22 +2,17 @@ import SwiftUI
 
 @main
 struct CueMEStageApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
-}
+    // TODO(ipc): swap the mock for the StageEngine IPC client once it exists. Nothing else changes.
+    @State private var store = StageStore.mock()
 
-struct ContentView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Text("CueME Stage")
-                .font(.largeTitle)
-            Text("Operator UI placeholder. The engine spike runs in StageEngine.")
-                .foregroundStyle(.secondary)
+    var body: some Scene {
+        WindowGroup("CueME Stage") {
+            OperatorView(store: store)
+                .modifier(Themed())
+                .frame(minWidth: 1000, minHeight: 620)
         }
-        .padding(40)
-        .frame(minWidth: 480, minHeight: 280)
+        .commands {
+            StageMenuCommands(store: store)
+        }
     }
 }

@@ -253,6 +253,17 @@ public struct Mixer {
         }
     }
 
+    /// Fades one deck down to 0 over `milliseconds` and removes it; 0 is a cut. Does nothing for a stale handle.
+    public mutating func fadeOut(_ id: Deck.ID, milliseconds: Int) {
+        guard let i = index(of: id), slots[i].deck?.isPlaying == true else { return }
+        let length = transport.frames(milliseconds: milliseconds)
+        if length > 0 {
+            slots[i].deck?.fade(.down, to: 0, at: transport.playFrame, lengthFrames: length, endsDeck: true)
+        } else {
+            slots[i].deck?.stop(at: transport.playFrame)
+        }
+    }
+
     /// The running pass of a deck becomes its last: it ends at the end of that pass (a looping or twice-played track whose end action was switched off).
     public mutating func finishCurrentPass(of id: Deck.ID) {
         guard let i = index(of: id) else { return }

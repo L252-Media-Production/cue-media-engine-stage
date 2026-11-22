@@ -54,7 +54,8 @@ and `PlaylistPlayer.droppedFires` are the same events for the last call only. No
 May call (after the setup above): `PlaylistPlayer.advance(frames:)` in steps of the block size; `play`, `stop`, `seekLive`, `skipNextTrigger`, `pause`, `resume` if the commands reach the callback through a
 queue that is itself lock-free and allocation-free (that queue does not exist yet); reading `Mixer.live`, `playingCount`, `deck(_:)`, `gain(of:)`, `ended`, `fired`, `counters`.
 
-May not call: anything in the list of remaining allocations above; `Mixer.decks`; anything that touches a file, the decode cache, a log, or an object with a lock. The readiness answer (`TargetReadiness`)
+May not call: anything in the list of remaining allocations above; anything of the resume slice (`Resume`, `PlaylistPlayer.resumeRecord` / `startResume`,
+`ResumeController`, a `ResumeStore`, a `WallClock`: control thread only, see `docs/audio-conformance.md` "Slice 8"); `Mixer.decks`; anything that touches a file, the decode cache, a log, or an object with a lock. The readiness answer (`TargetReadiness`)
 and the ducking hook (`DuckingHook`) are called from `advance`: their real implementations must obey the same rules (a readiness answer reads a flag the decoder thread has set; it never decodes or waits).
 
 ## Risks that look relevant for the audio thread (not measured)

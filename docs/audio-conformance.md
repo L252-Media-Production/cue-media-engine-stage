@@ -67,8 +67,8 @@ Rules the harness follows (from the plan):
 
 - **`AudioSpecSubject` is a test-side adapter** over the real Stage types. The engine must not expose it, conform to it in production code, or take on the
   shape of Python's API (`set_trim`, `try_resume`, ...). The adapter translates a fixture question into whatever Stage's types offer.
-- **`resume_flow` is adapted, not copied.** Stage has no `resume.json`; it autosaves show state. Keep the behaviour the fixture states (what is restored, the age
-  limit, a resumed start never fades in, a deliberate stop or a running fade-out leaves nothing to resume) and map it onto the show-state autosave.
+- **`resume_flow` is adapted, not copied.** Stage keeps the behaviour the fixture states (what is restored, the age limit, a resumed start never fades in, a
+  deliberate stop or a running fade-out leaves nothing to resume) behind its own types (`ResumeRecord`, `Resume.plan`, `ResumeStore`); see "Slice 8: resume" below.
 - **`duck_loop` must call the same hold-percentile function as `duck_curve`.** The `duck_loop` fixture cannot tell the 60th, 75th and 90th percentile apart;
   only `duck_curve_hold_percentile` can (its `_info_alternatives` lists the three depths). The engine has one function for both
   (`Ducking.holdDepthDb`, used by `Ducking.curve`).
@@ -235,6 +235,42 @@ floor is pinned (above). To compare row by row anyway, the test adapter (`AudioC
 
 What the fixtures do not pin about the engine's loop: the engine applies a factor one step AFTER the step that computed it, so its audible look-ahead is 10 ms (it reads 20 ms ahead and applies 10 ms later); Python with a positive phase applies at once and anticipates by 20 ms
 (the on-grid rows of the fixtures, by rounding noise, anticipate by 10 ms like the engine). Whether Stage wants 20 ms audible (a 30 ms read) is open. Also not pinned: a second voice-over that starts exactly ON a control step (the engine runs that step with the first voice, Python with the second).
+
+## Slice 8: resume
+
+**Decision (owner, 2026-11-22): after an engine restart Stage resumes playing audio**, with the semantics of the spec's "Resume" row and `resume_flow.json`.
+
+- **The record** (`ResumeRecord`, Codable: `pt`, `id`, `pos`, `paused`, the fields of Python's `resume.json` without its `saved` stamp): `pt` = `[playlist, track]`, `id` = the stable library
+  file id, `pos` = seconds in the FILE (a paused track keeps its position: the play frame is frozen), the paused flag. It records the track the show is on (the background track when a voice-over
+  is on top). Trigger voices are never recorded. Built by `PlaylistPlayer.resumeRecord(catalog:)` from `current`, `Mixer.deck`, `Deck.fade` and `Playback.filePositionFrames` (no new per-frame state).
+- **No record (nil, the store entry is removed)** when nothing plays, after a deliberate stop (`stop()`), and while a fade-out runs on the track (`fadeOut(milliseconds:)`, a down fade on its deck).
+- **At start-up** (`Resume.plan(record:ageSeconds:catalog:settings:)` -> `ResumeDecision`): the track starts at `pos` (paused if it was) unless the record is older than `resume_max_age_s`, its
+  file is in no playlist, or `pos` is not a number; such a record is dropped (`recordKept` false). The place is found again by id (`ResumeCatalog.position(of:recordedPt:)`), so an edited
+  playlist still resumes the right file. The age is `WallClock.nowSeconds - ResumeEntry.savedAt`: the frame clock does not survive a restart.
+- **A resumed start never fades in**: `PlaylistPlayer.startResume(_:)` goes through `play` (the same start path: trim window, loop and once gate, trigger arming, level match) with a cut
+  (`xfade_ms` 0) and `fadeIn: false` (start volume 1, fade-in 0), even when the track has a fade-in at A (`resume_inside_a_trim`).
+- **Settings** (`ResumeSettings`): `resume_on_start` (default true), `resume_max_age_s` (default 1800), `resume_save_s` (default 5).
+- **The periodic save** is a control-thread task. `Resume.isSaveDue(now:lastSave:settings:)` decides; `ResumeController.saveIfDue` writes the record or removes it. There is no timer in AudioCore.
+- **The store** (`ResumeStore`: `load`, `save`, `remove`; `InMemoryResumeStore` for tests). The file-backed store is integration work and must write atomically (temp file in the same
+  directory, flush, rename over the old one), be called from the control thread only (never from the render callback), and read a corrupt file as no record.
+
+Everything in `Resume.swift` is control side: it allocates and may reach a store; the render callback never calls it (`docs/audio-engine-realtime.md`).
+
+Choices where the fixtures are silent:
+
+| | Situation | Choice | Why |
+|---|---|---|---|
+| a | A record whose `pos` is <= 0.05 s (the fade-in threshold) | Starts like any start from the top (at A, `fresh`, points from A fire) but WITHOUT a fade-in | The fixture says a resumed start never fades in; the start path is the normal one, so up to 50 ms before A are not replayed exactly (a start from the top is at A) |
+| b | A crossfade runs when the record is built | The NEW track (the player's `current`), at its own position | The show has moved to it; the old one is fading away and would not be heard after a restart |
+| c | The file is in more than one playlist | The recorded playlist if it still holds the id (its recorded track if that still holds the id, else the first track there that does), otherwise the first playlist in order that holds it | Stays where the operator was whenever possible; deterministic otherwise |
+| d | A voice-over on top / a trigger voice running | The background track and its position; the voice never. In the engine a voice-over IS the trigger voice (one `topDeck`); if only the voice still plays (its background ended), nothing is recorded | The spec: "the background track when a top track is on"; voices are not resumable |
+
+Also decided here (not pinned): exactly `resume_max_age_s` still resumes (only "older than" is dropped); a negative age (the wall clock went back) counts as 0; `resume_on_start` off keeps the record
+(no start); a save interval that is not a positive number falls back to 5 s; a wall clock that went back makes a save due at once; the track's own out-fade at B is NOT a fade-out (the record is
+written); `pos` outside the window is held to it by the normal start path (a `pos` at or after B ends the track at once and what follows starts).
+
+Integration work, not in this slice: the file-backed store, the "resumed after restart" notice to the operator, and wiring `ResumeController` to a control-thread timer and the app's library ids.
+A possible later option, not part of this slice: a short declick ramp (5 to 10 ms) on the output stage for the first block after a resumed start.
 
 ## When the Python side bumps the spec
 

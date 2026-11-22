@@ -215,10 +215,12 @@ public struct PlaylistPlayer<Random: RandomSource> {
 
     /// Starts a track with a cut (the old deck and any voice on top are removed at once) or a crossfade (every deck, a voice on top included, fades out). Does nothing for a position that is not in the playlists.
     @discardableResult
-    public mutating func play(_ position: TrackPosition, crossfadeMs: Int = 0, offsetSeconds: Double = 0) -> Bool {
+    /// `fadeIn: false` drops the fade-in at A (a resumed start never fades in, whatever the trim says); the rest of the start is unchanged.
+    public mutating func play(_ position: TrackPosition, crossfadeMs: Int = 0, offsetSeconds: Double = 0, fadeIn: Bool = true) -> Bool {
         guard playlists.indices.contains(position.playlist), playlists[position.playlist].tracks.indices.contains(position.track) else { return false }
         let t = playlists[position.playlist].tracks[position.track]
-        let plan = TrackPlan(trim: t.trim, policy: policy, fileLength: t.lengthSeconds, offsetSeconds: offsetSeconds, end: t.end, sampleRate: mixer.transport.sampleRate)
+        var plan = TrackPlan(trim: t.trim, policy: policy, fileLength: t.lengthSeconds, offsetSeconds: offsetSeconds, end: t.end, sampleRate: mixer.transport.sampleRate)
+        if !fadeIn { plan = plan.withoutFadeIn() }
         clearFired()
         let voice = isVoiceOnTop ? topDeck : nil
         let id = mixer.start(plan, crossfadeMs: crossfadeMs)
@@ -235,6 +237,12 @@ public struct PlaylistPlayer<Random: RandomSource> {
         if let pb = mixer.deck(id)?.playback { watch.begin(pb, t.triggers, at: mixer.transport.playFrame) }
         serviceTriggers()      // a point at A fires on the first frame
         return true
+    }
+
+    /// Fades the track (and a voice on top) down to 0 over `milliseconds` and removes them; 0 is a cut. Setup and UI path.
+    public mutating func fadeOut(milliseconds: Int) {
+        if let c = current { mixer.fadeOut(c.deck, milliseconds: milliseconds) }
+        if let v = topDeck { mixer.fadeOut(v, milliseconds: milliseconds) }
     }
 
     public mutating func pause() { mixer.pause() }

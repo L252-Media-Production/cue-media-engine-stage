@@ -4,7 +4,7 @@ import AudioCore
 /// (the protocol's default), so those tests are skipped until the transport port provides it.
 ///
 /// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), integrated loudness and level match (levelmatch.json), play modes, next_in_order and the shuffle bag (play_modes.json, end_action_switched_mid_play), trigger points (triggers.json), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
-/// `duck_key`, `duck_curve` (hold on / off), `duck_smooth`, `input_target_db`.
+/// `duck_key`, `duck_curve` (hold on / off), `duck_smooth`, `input_target_db`, the resume record, plan and start (resume_flow.json).
 struct AudioCoreSubject: AudioSpecSubject {
     func fadeGain(_ direction: FadeDirection, x: Double) throws -> Double {
         let fade = Fade(direction: direction == .up ? .up : .down, from: direction == .up ? 0 : 1, to: direction == .up ? 1 : 0, startFrame: 0, lengthFrames: 1)
@@ -687,5 +687,52 @@ struct AudioCoreSubject: AudioSpecSubject {
 
     func inputTargetDb(rms: Double, gainDb: Double, ratio: Double, thresholdDb: Double) throws -> Double {
         Ducking.inputTargetDb(rms: rms, gainDb: gainDb, ratio: ratio, thresholdDb: thresholdDb)
+    }
+
+    // MARK: resume_flow.json
+
+    /// One playlist of the scenario's files: track i has `TrackID(i)`, the file's length and its trim (if the scenario gives one).
+    private func resumePlayer(_ env: ResumeEnvironment) throws -> PlaylistPlayer<SeededRandomSource> {
+        let tracks = try env.playlist.enumerated().map { i, file -> PlaylistTrack in
+            guard let length = env.fileLengthsS[file] else { throw FixtureReadError(file: "resume_flow", caseName: "scenario", message: "library_s has no entry for \(file)") }
+            return PlaylistTrack(id: TrackID(i), lengthSeconds: length, trim: env.trims[file].map(trim) ?? Trim())
+        }
+        return PlaylistPlayer(playlists: [Playlist(tracks: tracks)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1))
+    }
+
+    private func settings(_ c: ResumeConfig) -> ResumeSettings {
+        ResumeSettings(onStart: c.onStart, maxAgeSeconds: c.maxAgeS, saveSeconds: c.saveIntervalS)
+    }
+
+    func resumeRecord(_ situation: ResumeSituation, environment env: ResumeEnvironment) throws -> ResumeRecord? {
+        var player = try resumePlayer(env)
+        let catalog = ResumeCatalog(playlists: [env.playlist])
+        guard player.play(TrackPosition(playlist: 0, track: situation.playTrack)) else { throw pending("a track that does not start") }
+        let rate = player.mixer.transport.sampleRate
+        player.advance(frames: Int64((situation.atS * Double(rate)).rounded()))
+        if situation.paused { player.pause() }
+        if let clock = situation.clockAtSaveS, clock > situation.atS { player.advance(frames: Int64(((clock - situation.atS) * Double(rate)).rounded())) }
+        switch situation.then {
+        case nil: break
+        case .stopAll?: player.stop()
+        case .fadeOut(let ms)?: player.fadeOut(milliseconds: ms)
+        }
+        // The engine's record (AudioCore) is converted to the harness model of the fixture, which has the same four fields.
+        return player.resumeRecord(catalog: catalog).map { ResumeRecord(pt: $0.pt, id: $0.id, pos: $0.pos, paused: $0.paused) }
+    }
+
+    func tryResume(record: ResumeRecord, ageS: Double, environment env: ResumeEnvironment) throws -> ResumeOutcome {
+        let decision = Resume.plan(
+            record: .init(pt: record.pt, id: record.id, pos: record.pos, paused: record.paused), ageSeconds: ageS, catalog: ResumeCatalog(playlists: [env.playlist]), settings: settings(env.config))
+        guard let plan = decision.plan else { return ResumeOutcome(pending: nil, started: nil, recordKept: decision.recordKept) }
+        var player = try resumePlayer(env)
+        guard player.startResume(plan), let c = player.current, let deck = player.mixer.deck(c.deck), let p = deck.playback?.plan else { throw pending("a resumed track that does not start") }
+        func pt(_ position: TrackPosition) -> [Int] { [position.playlist, position.track] }
+        return ResumeOutcome(
+            pending: .init(pt: pt(plan.position), offsetS: plan.offsetSeconds, paused: plan.paused, xfadeMs: plan.crossfadeMs),
+            started: .init(
+                pt: pt(c.position), baseS: p.seconds(p.baseFrames), loS: p.seconds(p.loFrames), hiS: p.seconds(p.hiFrames),
+                paused: player.mixer.transport.isPaused, startVol: player.mixer.gain(of: c.deck) ?? 0, fadeInMs: p.fadeInMs, fresh: p.isFresh),
+            recordKept: decision.recordKept)
     }
 }

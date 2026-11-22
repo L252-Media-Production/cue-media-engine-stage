@@ -47,6 +47,7 @@ final class ResumeFlowConformanceTests: FixtureTestCase {
                 then: try then(input))
             let got = try subject.resumeRecord(situation, environment: env)
             let what = "'\(row.label)'"
+            print("RESUMECONF record \(what) expected \(String(describing: row.record)) got \(String(describing: got))")
             switch (got, row.record) {
             case (nil, nil):
                 break
@@ -67,6 +68,7 @@ final class ResumeFlowConformanceTests: FixtureTestCase {
         for row in try fixture().cases.tryResume.rows {
             let what = "'\(row.label)'"
             let out = try subject.tryResume(record: row.record, ageS: row.ageS, environment: env)
+            print("RESUMECONF try_resume \(what) kept \(out.recordKept) pending \(String(describing: out.pending)) started \(String(describing: out.started))")
             XCTAssertEqual(out.recordKept, row.recordKept, "try_resume \(what) record_kept")
 
             switch (out.pending, row.pending) {
@@ -105,6 +107,7 @@ final class ResumeFlowConformanceTests: FixtureTestCase {
         let out = try subject.tryResume(record: record, ageS: try s.double("age_s"), environment: env)
         let e = try fixture().cases.resumeInsideATrim.started
         guard let g = out.started else { return XCTFail("resume_inside_a_trim: nothing started") }
+        print("RESUMECONF resume_inside_a_trim started \(g)")
         assertClose(g.baseS, e.baseS, in: c, "base_s")
         assertClose(g.loS, e.loS, in: c, "lo_s")
         assertClose(g.hiS, e.hiS, in: c, "hi_s")

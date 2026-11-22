@@ -10,16 +10,17 @@ public struct TriggerID: Hashable {
 /// One trigger point of a track: when the playhead reaches `atSeconds` of the file, `target` plays on top of the track.
 public struct Trigger: Equatable {
     public var id: TriggerID
-    /// A position in the FILE, not relative to A.
+    /// A position in the FILE, not relative to A, to 1 ms.
     public var atSeconds: Double
     public var target: TrackID
     /// Fires in the first pass only (a loop or a second pass does not fire it again).
     public var once: Bool
     public var enabled: Bool
 
+    /// `atSeconds` is kept to 1 ms (the spec's resolution of a point).
     public init(id: TriggerID, atSeconds: Double, target: TrackID, once: Bool = false, enabled: Bool = true) {
         self.id = id
-        self.atSeconds = atSeconds
+        self.atSeconds = (atSeconds * 1000).rounded() / 1000
         self.target = target
         self.once = once
         self.enabled = enabled
@@ -105,11 +106,18 @@ public struct TriggerSettings: Equatable {
     /// How long a due trigger waits for a target that is still loading before it is given up on. NOT contract: neither the spec text nor a fixture says it
     /// (the Python player gives up after 30 s); it is Stage's own default until a decision is made.
     public var waitLimitSeconds = 30.0
+    /// The level a trigger voice plays at, in percent (`top_track_pct`): a plain volume of `percent / 100` (0...1), no fade-in. Only this level is implemented;
+    /// what the top-track level does to the other decks (ducking) belongs to the ducking slice.
+    public var topTrackPercent = 100.0
 
-    public init(armed: Bool = true, waitLimitSeconds: Double = 30) {
+    public init(armed: Bool = true, waitLimitSeconds: Double = 30, topTrackPercent: Double = 100) {
         self.armed = armed
         self.waitLimitSeconds = waitLimitSeconds
+        self.topTrackPercent = topTrackPercent
     }
+
+    /// The voice level as a gain, held to 0...1.
+    public var voiceLevel: Double { min(1, max(0, topTrackPercent / 100)) }
 }
 
 /// What one watched deck has done with the trigger points of its track. Bit `i` is the point at index `i` of the (sorted) `TriggerList`.
@@ -140,10 +148,11 @@ public struct TriggerWatch: Equatable {
 
     private func atFrame(_ t: Trigger, _ plan: TrackPlan) -> Int64 { Int64((t.atSeconds * Double(plan.sampleRate)).rounded()) }
 
-    /// Enabled and inside the part of the file the deck plays: a point before A, or at or after B, never fires.
+    /// Enabled and inside the part of the file the deck plays: `A - 1e-6 s <= at < B - 1e-6 s` (docs/audio-spec-1.md, "Trigger points"). A point 1 ms before A
+    /// never fires; one at A does; one at B never does. Compared in seconds, as the spec states it.
     private func isEligible(_ t: Trigger, _ plan: TrackPlan) -> Bool {
-        let at = atFrame(t, plan)
-        return t.enabled && at >= plan.loFrames && at < plan.hiFrames
+        let rate = Double(plan.sampleRate)
+        return t.enabled && t.atSeconds >= Double(plan.loFrames) / rate - 1e-6 && t.atSeconds < Double(plan.hiFrames) / rate - 1e-6
     }
 
     private mutating func firedUpTo(_ position: Int64, _ list: TriggerList, _ plan: TrackPlan) {
@@ -151,7 +160,8 @@ public struct TriggerWatch: Equatable {
         for i in list.items.indices where atFrame(list.items[i], plan) <= position { fired |= Self.bit(i) }
     }
 
-    /// A deck starts being watched. A start at A has everything ahead of it (a point at A itself fires); a start part-way in has everything behind it done.
+    /// A deck starts being watched. A start at A (`TrackPlan.startsAtA`) has everything ahead of it (a point at A itself fires); a start part-way in has
+    /// everything behind it done: a point behind the start never fires, one ahead fires when the playhead reaches it.
     /// Setup path in the sense that it runs when a deck starts; it allocates nothing.
     public mutating func begin(_ playback: Playback, _ list: TriggerList, at frame: Int64) {
         due = 0
@@ -159,7 +169,7 @@ public struct TriggerWatch: Equatable {
         passesBefore = 0
         passIndex = playback.passIndex(at: frame) ?? 0
         let pos = playback.filePositionFrames(at: frame) ?? playback.plan.baseFrames
-        if playback.plan.isFresh {
+        if playback.plan.startsAtA {
             lastFilePosition = playback.plan.loFrames - 1
             fired = 0
         } else {

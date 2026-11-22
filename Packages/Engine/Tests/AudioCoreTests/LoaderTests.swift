@@ -8,7 +8,7 @@ final class LoaderTests: FixtureTestCase {
         _ = try FixtureLoader.load("trim", as: TrimCases.self)
         _ = try FixtureLoader.load("end_actions", as: EndActionsCases.self)
         _ = try FixtureLoader.load("play_modes", as: PlayModesCases.self)
-        _ = try FixtureLoader.load("triggers", as: InfoFilteredDictionary<TriggerCase>.self)
+        _ = try FixtureDocument.load("triggers")   // the cases have different shapes (lists of fires, rows, deck snapshots): read raw, case by case
         _ = try FixtureLoader.load("ducking", as: DuckingCases.self)
         _ = try FixtureLoader.load("levelmatch", as: LevelMatchCases.self)
         _ = try FixtureLoader.load("resume_flow", as: ResumeCases.self)
@@ -34,6 +34,6 @@ final class LoaderTests: FixtureTestCase {
     func testTriggerCaseNamesDoNotIncludeInfoKeys() throws {
         let names = Set(try FixtureDocument.load("triggers").caseNames)
         XCTAssertFalse(names.contains { $0.hasPrefix("_info") })
-        XCTAssertEqual(names.count, 11)
+        XCTAssertEqual(names.count, 22)   // 11 cases of the first sync and the 11 trigger boundary cases of Python 1241963
     }
 }

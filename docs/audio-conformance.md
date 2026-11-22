@@ -72,7 +72,7 @@ Rules the harness follows (from the plan):
   only `duck_curve_hold_percentile` can (its `_info_alternatives` lists the three depths). The test for it is pending on the subject until the engine
   provides `duckHoldDepthDb`.
 - **Open: clipping.** The spec leaves clipping unspecified, so no fixture tests it. The harness refuses to build a signal that would clip 16 bits instead of choosing a policy.
-- **Source:** the fixtures in this repo come from the Python repo's commit `fb87930` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
+- **Source:** the fixtures in this repo come from the Python repo's commit `1241963` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
 
 ## Engine types so far (slice 1: fades and crossfade)
 
@@ -87,7 +87,7 @@ onto these types; the types do not follow Python's method names. The next slices
 file in frames, never a copy of audio; fades at both edges; `TrackEnd`), `Playback` (passes, remaining time and the out-fade derived by arithmetic from the
 play frame) and `Mixer.ended` (decks that ended, at the exact frame). The spec text is copied to `docs/audio-spec-1.md` by `scripts/sync-audio-spec.sh`.
 
-Rules that slice 2 took from the fixtures before the spec text stated them. Python commit `fb87930` pins each of them with a fixture case (and the spec text says them now), so
+Rules that slice 2 took from the fixtures before the spec text stated them. Python commit `1241963` pins each of them with a fixture case (and the spec text says them now), so
 there is no "implicit" list any more:
 
 | Rule | Pinned by (`trim.json` unless said) |
@@ -159,6 +159,22 @@ and `TriggerWatch.remap` are setup paths. `fired` is preallocated (capacity 32, 
 `Mixer` keeps its decks in a fixed pool (16 slots, allocated once) addressed by `DeckID` handles with generations; ended decks are recycled oldest first and `DeckEnded` carries the last gain;
 `EngineCounters` (`droppedEnds`, `droppedFires`, `poolExhausted`) replaces the loose counters as the thing to read. Behaviour of fades, trim, passes, playlists and triggers is unchanged. See
 `docs/audio-engine-realtime.md` for the real-time rules, the setup-path allocations and what is not proven.
+
+## Trigger boundary rules (Python 1241963)
+
+Synced to Python `1241963` (spec text: "Margins at A", "`once` = first PASS", "A new track started while a voice-over is on top", "Level and overlap", "A target that is not decoded yet"; quirks 13, 14 and 15 are not contract).
+Rules in the engine: a point is eligible when `A - 1e-6 s <= at < B - 1e-6 s`, `at` kept to 1 ms (`Trigger`); a start at A (an offset up to 0.05 s, or exactly on A: `TrackPlan.startsAtA`) fires every point from A on, a start part-way in has
+everything behind it done (a point behind it never fires, one ahead fires when reached; a point inside the first tick is undefined and not compared: `ideal_fired: null`); `once` means first pass: a seek keeps the pass count, so
+a seek back in pass 1 re-arms a once point, a seek over it and back leaves it unspent, and from pass 2 on it never fires again; a CUT removes the voice, the background and (later) the ducking state at once and the new track plays alone,
+a CROSSFADE fades every deck, the voice included, over the crossfade time (the voice stays "on top", occupies an outgoing pool slot and skips points reached meanwhile, until its fade ends; the ducking hook hears its end then); a target
+that is not ready makes the point wait and it fires on the first call after the target is ready; a target that never loads is given up on after `TriggerSettings.waitLimitSeconds` (Stage's own value, not contract); the voice plays at
+`TriggerSettings.topTrackPercent / 100` as a plain volume (no fade-in) and becomes the live deck.
+
+Compared by the harness: `ideal_fired` / `ideal_t_s` / `ideal_fires` within `tolerance_s`, `start_s` within `tolerance_by_key`, the decks of the new-track cases (which decks play, `live`, `top`, `vol`, `ending`) and the voice rows (`voice_vol`, `voice_is_live`,
+`voice_fading`, `background_decks`, `tops`, `voice`, `trigger_fires_so_far`). Not compared: Python's `fires`, `fired`, `first_fire_t_s`, `_info_python_*`, `ducked` and the ducking state (the ducking slice), `voice_gain` (level match is not in the engine, so no
+gain is applied to a trigger voice). `python_differs` rows are compared against `ideal_fired`, which is the contract; only the Python measurement is ignored.
+
+Left to the ducking slice: what the top-track level does to the other decks (the background multiplier, the `ducked` flag of the decks, the release after a crossfade, quirk 14).
 
 ## When the Python side bumps the spec
 

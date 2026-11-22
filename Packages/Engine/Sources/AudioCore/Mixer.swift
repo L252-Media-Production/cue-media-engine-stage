@@ -195,16 +195,16 @@ public struct Mixer {
         }, in: slot)
     }
 
-    /// Starts a deck on top of the ones that play (a trigger voice): nothing is stopped or faded. It starts at full level.
+    /// Starts a deck on top of the ones that play (a trigger voice): nothing is stopped or faded. It starts at `level` (a plain volume, 0...1).
     /// Real-time: it does not allocate. `DeckID.none` (and `counters.poolExhausted`) when the pool is full of decks that play.
     @discardableResult
-    public mutating func startOnTop(_ plan: TrackPlan) -> Deck.ID {
+    public mutating func startOnTop(_ plan: TrackPlan, level: Double = 1) -> Deck.ID {
         guard let slot = freeSlot() else {
             counters.poolExhausted += 1
             return .none
         }
         let now = transport.playFrame
-        return place({ Deck(id: $0, level: 1, playback: Playback(plan: plan, startFrame: now), isTop: true) }, in: slot)
+        return place({ Deck(id: $0, level: level, playback: Playback(plan: plan, startFrame: now), isTop: true) }, in: slot)
     }
 
     // MARK: changing decks

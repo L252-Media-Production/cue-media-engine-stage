@@ -327,54 +327,118 @@ struct AudioCoreSubject: AudioSpecSubject {
 
     // MARK: triggers.json
 
-    /// The test's answer to "can this target play": every voice-over of the scenario is decoded, with its length.
-    private struct FixtureReadiness: TargetReadiness {
+    /// The test's answer to "can this target play": every voice-over of the scenario is decoded, with its length, once the gate is open.
+    private final class FixtureReadiness: TargetReadiness {
         var lengths: [TrackID: Double]
+        var open: Bool
+
+        init(lengths: [TrackID: Double], open: Bool) {
+            self.lengths = lengths
+            self.open = open
+        }
 
         func state(of target: TrackID) -> TargetState {
-            lengths[target].map { .ready(lengthSeconds: $0) } ?? .missing
+            guard let length = lengths[target] else { return .missing }
+            return open ? .ready(lengthSeconds: length) : .loading
         }
     }
 
-    /// The main track is a one-track playlist with the scenario's trim, end action and trigger points; each voice-over file is a target. The player runs for
-    /// `runForS` (the seek, if any, at its time) and the fires are the voices that were started on top, at the frame they started.
-    func triggerFireTimes(_ s: TriggerScenario) throws -> [TriggerFire] {
-        let names = s.voiceOverLengthsS.keys.sorted()
-        var ids = [String: TrackID]()
+    private struct TriggerRun {
+        var fires: [TriggerFire] = []
+        var snapshots: [TriggerSnapshot] = []
+    }
+
+    /// Plays the scenario: the main track (with the trim, end action and trigger points), the seeks, the other track and the moment the targets are decoded
+    /// happen at their times; the player is read at `readAt`. Voice-over targets are the files of `voiceOverLengthsS`. Time is cut at every event, so the
+    /// result does not depend on a step.
+    private func runTrigger(_ s: TriggerScenario, readAt: [Double]) throws -> TriggerRun {
+        let voiceNames = s.voiceOverLengthsS.keys.sorted()
+        var targetIds = [String: TrackID]()
         var lengths = [TrackID: Double]()
-        for (i, name) in names.enumerated() {
-            ids[name] = TrackID(i + 1)
-            lengths[TrackID(i + 1)] = s.voiceOverLengthsS[name]
+        for (i, name) in voiceNames.enumerated() {
+            targetIds[name] = TrackID(100 + i)
+            lengths[TrackID(100 + i)] = s.voiceOverLengthsS[name]
         }
         var list = TriggerList()
         for (n, point) in s.triggers.enumerated() {
-            guard let target = ids[point.file] else { throw pending("a trigger whose target is not a voice-over of the scenario") }
+            guard let target = targetIds[point.file] else { throw pending("a trigger whose target is not a voice-over of the scenario") }
             list.add(Trigger(id: TriggerID(n), atSeconds: point.at, target: target, once: point.once ?? false, enabled: point.enabled ?? true))
         }
-        let main = PlaylistTrack(id: TrackID(0), lengthSeconds: s.fileDurationS, trim: trim(s.trim), end: trackEnd(s.endAction), triggers: list)
+        var tracks = [PlaylistTrack(id: TrackID(0), lengthSeconds: s.fileDurationS, trim: trim(s.trim), end: trackEnd(s.endAction), triggers: list)]
+        var trackNames = [s.mainName]
+        if let other = s.otherTrack {
+            tracks.append(PlaylistTrack(id: TrackID(1), lengthSeconds: other.lengthS))
+            trackNames.append(other.name)
+        }
+        let gate = FixtureReadiness(lengths: lengths, open: s.targetReady == .always)
         var player = PlaylistPlayer(
-            playlists: [Playlist(tracks: [main], mode: .stop)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0),
-            random: SeededRandomSource(seed: 1), readiness: FixtureReadiness(lengths: lengths))
-        var fires = [TriggerFire]()
+            playlists: [Playlist(tracks: tracks, mode: .stop)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0),
+            random: SeededRandomSource(seed: 1), readiness: gate, settings: TriggerSettings(armed: s.armed, topTrackPercent: s.topTrackPct))
+
+        var run = TriggerRun()
+        var deckNames = [Deck.ID: String]()
+        var firesSoFar = 0
         func collect() {
-            for f in player.fired { fires.append(TriggerFire(tS: player.mixer.transport.seconds(frames: f.frame), file: names[Int(f.target.raw) - 1])) }
+            for f in player.fired {
+                let name = voiceNames[Int(f.target.raw) - 100]
+                deckNames[f.deck] = name
+                firesSoFar += 1
+                run.fires.append(TriggerFire(tS: player.mixer.transport.seconds(frames: f.frame), file: name))
+            }
         }
-        player.play(TrackPosition(playlist: 0, track: 0))
-        collect()
-        let end = player.mixer.transport.frames(seconds: s.runForS)
-        if let seek = s.seek {
-            let at = player.mixer.transport.frames(seconds: seek.atS)
-            player.advance(frames: at)
+        func start(_ track: Int, crossfadeMs: Int, offset: Double) {
+            player.play(TrackPosition(playlist: 0, track: track), crossfadeMs: crossfadeMs, offsetSeconds: offset)
+            if let c = player.current { deckNames[c.deck] = trackNames[track] }
             collect()
-            player.seekLive(toSeconds: seek.toS)
-            collect()
-            player.advance(frames: end - at)
-        } else {
-            player.advance(frames: end)
         }
-        collect()
-        return fires
+        func snapshot(_ t: Double) {
+            let decks = player.mixer.decks.filter(\.isPlaying).map {
+                DeckView(name: deckNames[$0.id] ?? "?", top: $0.isTop, vol: $0.gain(at: player.mixer.transport.playFrame), ending: $0.endsWhenFadeEnds && $0.fade != nil, fading: $0.fade != nil)
+            }
+            run.snapshots.append(TriggerSnapshot(atS: t, liveName: player.mixer.live.flatMap { deckNames[$0.id] }, decks: decks, firesSoFar: firesSoFar))
+        }
+
+        enum Event { case ready, seek(Double), newTrack(Int), read }
+        var events: [(t: Double, order: Int, e: Event)] = []
+        if case .atS(let t) = s.targetReady { events.append((t, 0, .ready)) }
+        for seek in s.seeks { events.append((seek.atS, 1, .seek(seek.toS))) }
+        if let n = s.newTrack { events.append((n.atS, 1, .newTrack(n.crossfadeMs))) }
+        for t in readAt { events.append((t, 2, .read)) }
+        events.sort { ($0.t, $0.order) < ($1.t, $1.order) }
+
+        start(0, crossfadeMs: 0, offset: s.offsetS)
+        var frame: Int64 = 0
+        let rate = player.mixer.transport
+        for ev in events {
+            let target = rate.frames(seconds: ev.t)
+            if target > frame {
+                player.advance(frames: target - frame)
+                frame = target
+                collect()
+            }
+            switch ev.e {
+            case .ready: gate.open = true
+            case .seek(let to): player.seekLive(toSeconds: to); collect()
+            case .newTrack(let xf): start(1, crossfadeMs: xf, offset: 0)
+            case .read: snapshot(ev.t)
+            }
+        }
+        let end = rate.frames(seconds: s.runForS)
+        if end > frame {
+            player.advance(frames: end - frame)
+            collect()
+        }
+        return run
     }
+
+    func triggerFireTimes(_ s: TriggerScenario) throws -> [TriggerFire] {
+        try runTrigger(s, readAt: []).fires
+    }
+
+    func triggerSnapshots(_ s: TriggerScenario, at times: [Double]) throws -> [TriggerSnapshot] {
+        try runTrigger(s, readAt: times).snapshots
+    }
+
 
     func backgroundMultiplier(reductionDb: Double) throws -> Double {
         Ducking.backgroundMultiplier(reductionDb: reductionDb)

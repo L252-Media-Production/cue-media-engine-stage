@@ -39,6 +39,8 @@ public struct TrackPlan: Equatable {
     public private(set) var baseFrames: Int64
     /// The start was at A within `freshSeconds` (not a seek or a resume part-way in): the gate for a loop and a second pass.
     public private(set) var isFresh: Bool
+    /// The sound begins at A: the start was from the top (an offset up to `atStartOffsetSeconds`) or exactly on A. Trigger points from A on fire on such a start.
+    public private(set) var startsAtA: Bool
     /// Fade-in at A and fade-out ahead of B, in ms and frames. 0 = none (a cut).
     public let fadeInMs: Int
     public let fadeInFrames: Int64
@@ -78,6 +80,7 @@ public struct TrackPlan: Equatable {
         hiFrames = frames(w.end)
         baseFrames = frames(base)
         isFresh = fresh
+        startsAtA = fromTop || base == w.start
         fadeInMs = max(0, fadeIn)
         fadeInFrames = frames(Double(max(0, fadeIn)) / 1000)
         endFadeMs = endFade
@@ -92,6 +95,7 @@ public struct TrackPlan: Equatable {
         hiFrames = p.hiFrames
         baseFrames = p.baseFrames
         isFresh = p.isFresh
+        startsAtA = p.startsAtA
         self.fadeInMs = fadeInMs
         self.fadeInFrames = fadeInFrames
         endFadeMs = p.endFadeMs
@@ -104,6 +108,7 @@ public struct TrackPlan: Equatable {
         var p = TrackPlan(copying: self, fadeInMs: 0, fadeInFrames: 0)
         p.baseFrames = base
         p.isFresh = abs(seconds(base) - seconds(loFrames)) < Self.freshSeconds
+        p.startsAtA = base == loFrames
         return p
     }
 

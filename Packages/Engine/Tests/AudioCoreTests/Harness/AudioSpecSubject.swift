@@ -165,6 +165,13 @@ enum Successor: Equatable {
     case track(playlist: Int, track: Int)
 }
 
+/// When the voice-over targets are decoded, in seconds of play: from the start, at a time, or never.
+enum TargetReadyAt: Equatable {
+    case always
+    case atS(Double)
+    case never
+}
+
 struct TriggerScenario {
     var triggers: [TriggerCase.Point]
     var trim: TrimFields
@@ -172,10 +179,44 @@ struct TriggerScenario {
     /// Length of each voice-over file by name.
     var voiceOverLengthsS: [String: Double]
     var endAction: EndAction
-    /// Seek the live track to `toS` (a position in the file) at `atS` seconds of play.
-    var seek: (atS: Double, toS: Double)?
+    /// Seek the live track to `toS` (a position in the file) at `atS` seconds of play, in order.
+    var seeks: [(atS: Double, toS: Double)]
     /// Run the scenario this long.
     var runForS: Double
+    /// The name of the track the points belong to (the other tracks are named in `otherTrack`).
+    var mainName = "main"
+    /// The track starts at this position of the file (an offset in file seconds; 0 = from the top).
+    var offsetS = 0.0
+    var targetReady = TargetReadyAt.always
+    /// `top_track_pct`: the level of a trigger voice in percent.
+    var topTrackPct = 100.0
+    var armed = true
+    /// A second track of the playlist and the moment it is started (a cut when `crossfadeMs` is 0), while whatever plays goes on.
+    var otherTrack: (name: String, lengthS: Double)?
+    var newTrack: (atS: Double, crossfadeMs: Int)?
+}
+
+/// A deck as it is listed at a moment: a track by name, or a voice-over by its file name.
+struct DeckView: Equatable {
+    var name: String
+    var top: Bool
+    /// The gain of the deck now (the spec's `Deck.vol`).
+    var vol: Double
+    /// A fade-out is running that removes the deck when it is done.
+    var ending: Bool
+    /// Any fade is running.
+    var fading: Bool
+}
+
+/// What is playing at a moment of a trigger scenario.
+struct TriggerSnapshot: Equatable {
+    var atS: Double
+    /// The deck that is "the" live one.
+    var liveName: String?
+    /// The decks that play, in the order they started.
+    var decks: [DeckView]
+    /// How many trigger fires there were up to now.
+    var firesSoFar: Int
 }
 
 struct TriggerFire: Equatable {
@@ -364,6 +405,8 @@ protocol AudioSpecSubject {
     // triggers.json
     /// When trigger points fire (seconds after the start), each fire being a Play on Top.
     func triggerFireTimes(_ scenario: TriggerScenario) throws -> [TriggerFire]
+    /// The same run, read at the given times (seconds of play). A start or a seek that falls on the same time happens before the reading.
+    func triggerSnapshots(_ scenario: TriggerScenario, at times: [Double]) throws -> [TriggerSnapshot]
 
     // ducking.json
     /// RMS (0...1, louder channel) of each whole 10 ms of interleaved 48 kHz 16-bit stereo.
@@ -443,6 +486,7 @@ extension AudioSpecSubject {
     func shuffleForgetsRoundOnModeChange() throws -> Bool { throw pending("shuffle bag reset on mode change") }
 
     func triggerFireTimes(_ scenario: TriggerScenario) throws -> [TriggerFire] { throw pending("trigger point fire times") }
+    func triggerSnapshots(_ scenario: TriggerScenario, at times: [Double]) throws -> [TriggerSnapshot] { throw pending("the decks of a trigger scenario over time") }
 
     func duckKey(pcm: [Int16]) throws -> [Double] { throw pending("duck_key") }
     func duckCurve(key: [Double], level: Double, ratio: Double, thresholdDb: Double, hold: Bool) throws -> [Double] { throw pending("duck_curve") }

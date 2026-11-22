@@ -41,6 +41,18 @@ enum FixtureSchema {
             "triggers trim fires ideal_fires tolerance_s",
             scenario: "library_s main_track main_track_length_s voice_over_lengths_s end_action run_s trim seek triggers",
             ignored: "playlist steps tick_s")
+        // Cases with several seeks: `seek` is null in them and `seeks` lists the jumps.
+        let triggerSeeks = c(
+            "triggers trim fires ideal_fires tolerance_s",
+            scenario: "library_s main_track main_track_length_s voice_over_lengths_s end_action run_s trim seek seeks triggers",
+            ignored: "playlist steps tick_s")
+        let triggerTarget = c(
+            "triggers trim fires ideal_fires tolerance_s",
+            scenario: "library_s main_track main_track_length_s voice_over_lengths_s end_action run_s triggers target_decoded_at_s",
+            ignored: "playlist steps tick_s")
+        // The new track and the voice-over of these cases are read from the scenario; the ducking settings in `config` are not (ducking is not implemented).
+        let newTrack = c(
+            "rows at_12_5_s", scenario: "library_s playlist config end_action triggers new_track", ignored: "voice_over tick_s steps")
         let trimBase = "file_length_s config"
         let trimIgnored = "library_s playlist track_under_test"
         let storedRows = c("rows", scenario: trimBase, ignored: "\(trimIgnored) input")
@@ -130,7 +142,20 @@ enum FixtureSchema {
             "triggers": Dictionary(uniqueKeysWithValues: [
                 "simple", "two_in_order", "disabled", "trim_in_after_trigger", "trim_out_before_trigger", "trigger_inside_trim",
                 "seek_over_does_not_fire", "seek_back_rearms", "loop_fires_every_pass", "once_flag", "top_already_playing_skips",
-            ].map { ($0, trigger) }),
+            ].map { ($0, trigger) } + [
+                "once_seek_back_in_pass_1", "once_skipped_by_seek_forward_then_back", "once_loop_seek_back_in_lap_1", "once_loop_seek_back_in_lap_2",
+            ].map { ($0, triggerSeeks) } + [
+                ("target_ready_after_1s", triggerTarget),
+                ("target_never_ready", triggerTarget),
+                // Rows of `ideal_fired` (null = not compared); `fired`, `first_fire_t_s` and `python_differs` are what Python did and are not read.
+                ("point_at_or_near_A_start_at_A", c("tolerance_s rows", scenario: "library_s main_track main_track_length_s voice_over end_action run_s", ignored: "playlist tick_s input")),
+                ("point_near_A_start_with_offset", c(
+                    "tolerance_s rows", scenario: "library_s main_track main_track_length_s voice_over trim end_action run_s", ignored: "playlist tick_s input")),
+                ("voice_level_and_second_point", c(
+                    "rows", scenario: "library_s main_track main_track_length_s voice_over_lengths_s end_action triggers", ignored: "playlist steps tick_s config")),
+                ("new_track_cut_while_voice_on_top", newTrack),
+                ("new_track_crossfade_while_voice_on_top", newTrack),
+            ]),
             "ducking": [
                 "duck_key": c("key", scenario: curveWindows, ignored: "format input"),
                 "duck_curve": c("rows", scenario: curveWindows, ignored: "format input"),

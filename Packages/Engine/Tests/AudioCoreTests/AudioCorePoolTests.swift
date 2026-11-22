@@ -202,8 +202,9 @@ final class AudioCorePoolTests: XCTestCase {
             }
         }
         XCTAssertEqual(p.counters, EngineCounters())
-        // The old track and the voice on top fade out together while the new track plays and fires its own voice: four at once, the most this run reaches.
-        XCTAssertEqual(maxPlaying, 4)
+        // The old track and the voice on top fade out together while the new track plays: three at once. A point of the new track reached meanwhile is skipped
+        // (the fading voice is still on top), so there is no fourth. (Before the trigger boundary rules the voice was removed at once, and this run reached four.)
+        XCTAssertEqual(maxPlaying, 3)
         XCTAssertLessThan(maxPlaying, p.mixer.poolCapacity)
     }
 }

@@ -245,3 +245,205 @@ final class AudioCoreTriggerTests: XCTestCase {
         XCTAssertEqual(p.fired.map(\.frame), [1000])
     }
 }
+
+// MARK: trigger boundary rules (docs/audio-spec-1.md, "Trigger points")
+
+extension AudioCoreTriggerTests {
+    private struct Ready: TargetReadiness {
+        func state(of target: TrackID) -> TargetState { .ready(lengthSeconds: 8) }
+    }
+
+    private func twoTracks(pool: Int = Mixer.defaultPoolCapacity, triggers: [(Double, Bool)] = [(2, false)], end: TrackEnd = .followPlayMode, trim: Trim = Trim(), ducking: any DuckingHook = NoDucking())
+        -> PlaylistPlayer<SeededRandomSource> {
+        var list = TriggerList()
+        for (n, t) in triggers.enumerated() { list.add(Trigger(id: TriggerID(n), atSeconds: t.0, target: TrackID(100), once: t.1)) }
+        let tracks = [PlaylistTrack(id: TrackID(0), lengthSeconds: 60, trim: trim, end: end, triggers: list), PlaylistTrack(id: TrackID(1), lengthSeconds: 30)]
+        return PlaylistPlayer(
+            playlists: [Playlist(tracks: tracks, mode: .stop)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1),
+            mixer: Mixer(sampleRate: 1000, poolCapacity: pool), readiness: Ready(), ducking: ducking)
+    }
+
+    func testACrossfadeFadesTheVoiceOutWithTheOthersAndTheHookHearsItsEndThen() {
+        let rec = Recorder()
+        var p = twoTracks(ducking: rec)
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 4000)                                   // the voice (8 s) started at 2 s
+        let voice = p.topDeck!
+        p.play(TrackPosition(playlist: 0, track: 1), crossfadeMs: 1000)
+        XCTAssertEqual(p.topDeck, voice, "the voice is still on top while it fades out")
+        XCTAssertTrue(rec.ended.isEmpty, "not ended yet")
+        p.advance(frames: 500)
+        XCTAssertEqual(p.mixer.gain(of: voice)!, EqualPower.rampDown(x: 0.5), accuracy: 1e-12)
+        p.advance(frames: 500)
+        XCTAssertEqual(rec.ended.map(\.1), [5000], "ended at the exact frame its fade ended (4 s + 1 s)")
+        XCTAssertNil(p.topDeck)
+        XCTAssertEqual(p.mixer.playingCount, 1, "only the new track is left")
+    }
+
+    func testACutRemovesTheVoiceAtOnceAndTheNewTrackIsAlone() {
+        let rec = Recorder()
+        var p = twoTracks(ducking: rec)
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 4000)
+        p.play(TrackPosition(playlist: 0, track: 1))
+        XCTAssertNil(p.topDeck)
+        XCTAssertEqual(rec.ended.map(\.1), [4000])
+        XCTAssertEqual(p.mixer.playingCount, 1)
+        XCTAssertEqual(p.mixer.gain(of: p.current!.deck), 1)
+    }
+
+    func testAPointOfTheNewTrackReachedWhileTheOldVoiceFadesIsSkipped() {
+        var p = twoTracks(triggers: [(2, false)])
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 4000)
+        p.play(TrackPosition(playlist: 0, track: 0), crossfadeMs: 3000)    // the same track again: its point at 2 s comes 2 s in, the old voice fades until 3 s in
+        p.advance(frames: 2500)
+        XCTAssertEqual(p.mixer.decks.filter(\.isTop).count, 1, "no second voice while the first one fades")
+    }
+
+    func testACrossfadeWithAFullPoolIsRefusedAndTheVoiceKeepsPlaying() {
+        var p = twoTracks(pool: 2)
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 3000)                                   // the track and its voice fill both slots
+        XCTAssertFalse(p.play(TrackPosition(playlist: 0, track: 1), crossfadeMs: 1000))
+        XCTAssertEqual(p.counters.poolExhausted, 1)
+        XCTAssertNotNil(p.topDeck)
+        XCTAssertEqual(p.mixer.deck(p.topDeck!)?.fade == nil, true, "the refused crossfade faded nothing")
+        XCTAssertTrue(p.play(TrackPosition(playlist: 0, track: 1)), "a cut still works and frees both slots")
+        XCTAssertNil(p.topDeck)
+    }
+
+    func testTheFadingVoiceHoldsAnOutgoingSlotUntilItEnds() {
+        var p = twoTracks(pool: 3)
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 3000)
+        XCTAssertTrue(p.play(TrackPosition(playlist: 0, track: 1), crossfadeMs: 2000))    // old track, voice, new track: three slots
+        XCTAssertEqual(p.mixer.playingCount, 3)
+        XCTAssertFalse(p.play(TrackPosition(playlist: 0, track: 0), crossfadeMs: 2000), "a fourth deck does not fit")
+        p.advance(frames: 2000)
+        XCTAssertEqual(p.mixer.playingCount, 1)
+        XCTAssertTrue(p.play(TrackPosition(playlist: 0, track: 0), crossfadeMs: 2000), "the slots are free again")
+    }
+
+    func testTheVoiceLevelIsAPlainVolumeFromThePercentage() {
+        for (pct, level) in [(100.0, 1.0), (60, 0.6), (25, 0.25), (0, 0), (150, 1), (-5, 0)] {
+            var list = TriggerList()
+            list.add(Trigger(id: TriggerID(0), atSeconds: 1, target: TrackID(100)))
+            var p = PlaylistPlayer(
+                playlists: [Playlist(tracks: [PlaylistTrack(id: TrackID(0), lengthSeconds: 60, triggers: list)], mode: .stop)],
+                policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1), mixer: Mixer(sampleRate: 1000), readiness: Ready(),
+                settings: TriggerSettings(topTrackPercent: pct))
+            p.play(TrackPosition(playlist: 0, track: 0))
+            p.advance(frames: 1000)
+            XCTAssertEqual(p.mixer.gain(of: p.topDeck!)!, level, accuracy: 1e-12, "\(pct) %: no fade-in, a plain volume from the first frame")
+        }
+    }
+
+    /// The frame the only point of a track (In 2 s, Out 4 s) fires at, nil when it does not, for a start at `offset`; 1 ms frames, 1 s of play.
+    private func fireFrame(at: Double, offset: Double = 0, windowed: Bool = true) -> Int64? {
+        var trim = Trim()
+        trim.inPoint = 2
+        if windowed { trim.outPoint = 4 }
+        var list = TriggerList()
+        list.add(Trigger(id: TriggerID(0), atSeconds: at, target: TrackID(100)))
+        var p = PlaylistPlayer(
+            playlists: [Playlist(tracks: [PlaylistTrack(id: TrackID(0), lengthSeconds: 60, trim: trim, triggers: list)], mode: .stop)],
+            policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1), mixer: Mixer(sampleRate: 1000), readiness: Ready())
+        p.play(TrackPosition(playlist: 0, track: 0), offsetSeconds: offset)
+        var fired = p.fired.map(\.frame)
+        for _ in 0..<100 { p.advance(frames: 7); fired += p.fired.map(\.frame) }
+        return fired.first
+    }
+
+    func testAPointIsKeptTo1msAndEligibleFromAMinusAMicrosecond() {
+        XCTAssertEqual(Trigger(id: TriggerID(0), atSeconds: 2.0004, target: TrackID(1)).atSeconds, 2.0)
+        XCTAssertEqual(Trigger(id: TriggerID(0), atSeconds: 2.0006, target: TrackID(1)).atSeconds, 2.001)
+        XCTAssertNil(fireFrame(at: 1.999), "1 ms before A never fires")
+        XCTAssertEqual(fireFrame(at: 2.0), 0, "a point at A fires on the first frame")
+        XCTAssertEqual(fireFrame(at: 2.001), 1)
+        XCTAssertEqual(fireFrame(at: 2.049), 49)
+        XCTAssertNil(fireFrame(at: 4.0), "a point at B never fires (the run is too short to reach it anyway: B is 2 s in)")
+        XCTAssertEqual(fireFrame(at: 2.5), 500)
+    }
+
+    func testAPointAtBOrBeyondNeverFiresEvenWhenReached() {
+        var trim = Trim()
+        trim.outPoint = 1
+        var list = TriggerList()
+        list.add(Trigger(id: TriggerID(0), atSeconds: 1.0, target: TrackID(100), once: false))
+        list.add(Trigger(id: TriggerID(1), atSeconds: 0.999, target: TrackID(100)))
+        var p = PlaylistPlayer(
+            playlists: [Playlist(tracks: [PlaylistTrack(id: TrackID(0), lengthSeconds: 60, trim: trim, end: .loop, triggers: list)], mode: .stop)],
+            policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1), mixer: Mixer(sampleRate: 1000), readiness: Ready())
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 5000)
+        let starts = p.mixer.decks.filter(\.isTop).compactMap { $0.playback?.startFrame }
+        XCTAssertEqual(starts.first, 999, "only the point 1 ms before B")
+        XCTAssertFalse(starts.contains(1000))
+    }
+
+    func testAStartPartWayInHasBehindItDoneAndAStartExactlyOnAFiresFromA() {
+        XCTAssertEqual(fireFrame(at: 2.0, offset: 0, windowed: false), 0)
+        XCTAssertEqual(fireFrame(at: 2.02, offset: 0, windowed: false), 20)
+        XCTAssertEqual(fireFrame(at: 2.0, offset: 2.0, windowed: false), 0, "a start exactly on A is a start at A")
+        XCTAssertEqual(fireFrame(at: 2.055, offset: 2.0, windowed: false), 55)
+        XCTAssertNil(fireFrame(at: 2.0, offset: 2.05, windowed: false), "behind the start: never")
+        XCTAssertNil(fireFrame(at: 2.02, offset: 2.05, windowed: false), "behind the start: never, though the start is within 0.06 s of A")
+        XCTAssertEqual(fireFrame(at: 2.1, offset: 2.05, windowed: false), 50, "ahead: when the playhead reaches it")
+        XCTAssertNil(fireFrame(at: 2.0, offset: 2.061, windowed: false))
+        XCTAssertEqual(fireFrame(at: 2.3, offset: 2.061, windowed: false), 239)
+        XCTAssertNil(fireFrame(at: 2.1, offset: 2.2, windowed: false))
+    }
+
+    // MARK: once = first pass, not first time
+
+    /// A once point at 1 s of a looping 6 s window, with a seek back to 0 at `seekAt` s; the frames it fires at over 14 s, for a given step size.
+    /// A 3 s voice-over, as in the fixtures: over before a seek at 4.5 s.
+    private struct Short: TargetReadiness { func state(of target: TrackID) -> TargetState { .ready(lengthSeconds: 3) } }
+
+    private func onceRun(seekAt: Double?, step: Int64) -> [Int64] {
+        var trim = Trim()
+        trim.outPoint = 6
+        var list = TriggerList()
+        list.add(Trigger(id: TriggerID(0), atSeconds: 1, target: TrackID(100), once: true))
+        var p = PlaylistPlayer(
+            playlists: [Playlist(tracks: [PlaylistTrack(id: TrackID(0), lengthSeconds: 60, trim: trim, end: .loop, triggers: list)], mode: .stop)],
+            policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1), mixer: Mixer(sampleRate: 1000), readiness: Short())
+        p.play(TrackPosition(playlist: 0, track: 0))
+        var t: Int64 = 0
+        let seekFrame = seekAt.map { Int64($0 * 1000) }
+        var fires = p.fired.map(\.frame)
+        while t < 14_000 {
+            var s = min(step, 14_000 - t)
+            if let sf = seekFrame, t < sf { s = min(s, sf - t) }
+            p.advance(frames: s)
+            fires += p.fired.map(\.frame)
+            t += s
+            if t == seekFrame { p.seekLive(toSeconds: 0); fires += p.fired.map(\.frame) }
+        }
+        return fires
+    }
+
+    func testOnceMeansFirstPassAndTheResultDoesNotDependOnTheStep() {
+        for step: Int64 in [14_000, 1, 7, 480, 2400] {
+            XCTAssertEqual(onceRun(seekAt: nil, step: step), [1000], "step \(step): fires in pass 1 only")
+            XCTAssertEqual(onceRun(seekAt: 4.5, step: step), [1000, 5500], "step \(step): a seek back inside pass 1 re-arms it")
+            XCTAssertEqual(onceRun(seekAt: 7.5, step: step), [1000], "step \(step): pass 2 has begun: the point stays dead, the seek does not bring it back")
+        }
+    }
+
+    func testASeekOverAOncePointAndBackLeavesItUnspent() {
+        var list = TriggerList()
+        list.add(Trigger(id: TriggerID(0), atSeconds: 10, target: TrackID(100), once: true))
+        var p = PlaylistPlayer(
+            playlists: [Playlist(tracks: [PlaylistTrack(id: TrackID(0), lengthSeconds: 120, triggers: list)], mode: .stop)],
+            policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1), mixer: Mixer(sampleRate: 1000), readiness: Short())
+        p.play(TrackPosition(playlist: 0, track: 0))
+        p.advance(frames: 2000)
+        p.seekLive(toSeconds: 20)
+        p.advance(frames: 2000)
+        p.seekLive(toSeconds: 5)
+        p.advance(frames: 6000)
+        XCTAssertEqual(p.mixer.decks.filter(\.isTop).compactMap { $0.playback?.startFrame }, [9000])
+    }
+}

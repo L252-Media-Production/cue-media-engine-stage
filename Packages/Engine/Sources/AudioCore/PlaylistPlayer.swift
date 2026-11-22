@@ -171,7 +171,7 @@ public struct PlaylistPlayer<Random: RandomSource> {
             case .ready(let length):
                 // A voice has no trim and no fade-in, and plays one pass.
                 let plan = TrackPlan(trim: Trim(), policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), fileLength: length, sampleRate: mixer.transport.sampleRate)
-                let id = mixer.startOnTop(plan)
+                let id = mixer.startOnTop(plan, level: settings.voiceLevel)
                 guard id.isValid else {      // the pool is full (counted by the mixer): the point is given up on
                     watch.clearDue(i)
                     continue
@@ -191,18 +191,22 @@ public struct PlaylistPlayer<Random: RandomSource> {
 
     // MARK: playing
 
-    /// Starts a track with a cut (the old deck and any voice on top are removed at once). Does nothing for a position that is not in the playlists.
+    /// Starts a track with a cut (the old deck and any voice on top are removed at once) or a crossfade (every deck, a voice on top included, fades out). Does nothing for a position that is not in the playlists.
     @discardableResult
-    public mutating func play(_ position: TrackPosition, crossfadeMs: Int = 0) -> Bool {
+    public mutating func play(_ position: TrackPosition, crossfadeMs: Int = 0, offsetSeconds: Double = 0) -> Bool {
         guard playlists.indices.contains(position.playlist), playlists[position.playlist].tracks.indices.contains(position.track) else { return false }
         let t = playlists[position.playlist].tracks[position.track]
-        let plan = TrackPlan(trim: t.trim, policy: policy, fileLength: t.lengthSeconds, end: t.end, sampleRate: mixer.transport.sampleRate)
+        let plan = TrackPlan(trim: t.trim, policy: policy, fileLength: t.lengthSeconds, offsetSeconds: offsetSeconds, end: t.end, sampleRate: mixer.transport.sampleRate)
         clearFired()
         let voice = isVoiceOnTop ? topDeck : nil
         let id = mixer.start(plan, crossfadeMs: crossfadeMs)
         guard id.isValid else { return false }       // the pool is full (counted by the mixer); nothing changed
-        if let v = voice { ducking.voiceEnded(v, atFrame: mixer.transport.playFrame) }
-        topDeck = nil
+        // A cut removed the voice at once. A crossfade fades it out with every other deck: it stays "on top" (a point reached meanwhile is skipped, as with any
+        // voice) until its fade ends, and the hook hears about its end then, at the exact frame.
+        if let v = voice, mixer.deck(v)?.isPlaying != true {
+            ducking.voiceEnded(v, atFrame: mixer.transport.playFrame)
+            topDeck = nil
+        }
         current = Current(position: position, track: t.id, deck: id)
         if let pb = mixer.deck(id)?.playback { watch.begin(pb, t.triggers, at: mixer.transport.playFrame) }
         serviceTriggers()      // a point at A fires on the first frame

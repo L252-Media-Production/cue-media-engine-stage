@@ -60,11 +60,12 @@ struct ThemeTokens {
     // Type.
     static let monoPostScriptName = "JetBrainsMono-Regular"
 
-    // TODO(fonts): JetBrains Mono is not in the repo yet, so this falls back to the system monospaced font.
-    // To bundle it: add the .ttf files under Apps/CueMEStage/Resources/Fonts/ (check the OFL licence text is
-    // included) and register them at launch with CTFontManagerRegisterFontsForURL, or list the folder under
-    // ATSApplicationFontsPath in the Info.plist. Do not download it at build or run time.
-    static let hasJetBrainsMono = NSFont(name: monoPostScriptName, size: 12) != nil
+    /// JetBrains Mono is bundled (Resources/Fonts) and registered for this process before the first check, so this is
+    /// true in a normal build; the system monospaced font is the fallback if the files are missing.
+    static let hasJetBrainsMono: Bool = {
+        BundledFonts.registerOnce()
+        return NSFont(name: monoPostScriptName, size: 12) != nil
+    }()
 
     /// Monospaced type for timecodes, counters and levels.
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {

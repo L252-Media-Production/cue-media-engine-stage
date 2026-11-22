@@ -49,7 +49,8 @@ The common ones:
 
 Each run ends with a report of frame timing, GPU and CPU-encode time, skipped ticks and video underruns, plus
 the card's own late and dropped counters when SDI is used. Run the package tests (they include a Metal shader
-smoke test) with `swift test --package-path Packages/Engine`.
+smoke test) with `swift test --package-path Packages/Engine`. StageKit has its own package tests (`swift test --package-path Packages/StageKit`); the app's
+hosted tests (bundled fonts) run with `xcodebuild -project CueMEStage.xcodeproj -scheme CueMEStage test`.
 
 SDK and driver notes (including why the bridge uses the v14.2.1 DeckLink interfaces) are in
 [docs/sdk-setup.md](docs/sdk-setup.md).

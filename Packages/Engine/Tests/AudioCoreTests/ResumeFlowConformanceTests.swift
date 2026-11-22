@@ -22,16 +22,16 @@ final class ResumeFlowConformanceTests: FixtureTestCase {
             config: config, trims: trims)
     }
 
-    /// `then` is text in the scenario ("stop_all, save_resume", "fade_out(1000 ms), save_resume").
+    /// `then` is an object in the scenario: `{"action": "stop_all"}` or `{"action": "fade_out", "fade_ms": 1000}` (`then_text` is prose, not read).
     private func then(_ input: Scenario) throws -> ResumeSituation.Then? {
         guard input.has("then") else { return nil }
-        let text = try input.string("then")
-        if text.hasPrefix("stop_all") { return .stopAll }
-        if text.hasPrefix("fade_out("), let close = text.firstIndex(of: ")") {
-            let digits = text[text.index(text.startIndex, offsetBy: "fade_out(".count)..<close].prefix { $0.isNumber }
-            if let ms = Int(digits) { return .fadeOut(ms: ms) }
+        let then = try input.object("then")
+        switch try then.string("action") {
+        case "stop_all": return .stopAll
+        case "fade_out": return .fadeOut(ms: try then.int("fade_ms"))
+        case let other:
+            throw FixtureReadError(file: input.file, caseName: input.caseName, message: "\(then.path).action is \"\(other)\": add it to the harness")
         }
-        throw FixtureReadError(file: input.file, caseName: input.caseName, message: "\(input.path).then is \"\(text)\": add it to the harness")
     }
 
     func testRecord() throws {

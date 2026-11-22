@@ -29,6 +29,45 @@ final class EndActionsConformanceTests: FixtureTestCase {
         }
     }
 
+    /// 14 from / to / switch_at_s pairs, each run with the playlist mode `stop` and `loop_playlist` (2 tracks of 2 s). The measured `ended_at_s`
+    /// (a 0.25 s grid) is not read: the end is `ideal_ended_at_s`, the end of the pass running at the switch. "Switching to loop restarts the
+    /// track" is pinned as that end time plus the restart (`live_at_that_tick` track 0, pass 1), not as seamlessness.
+    func testEndActionSwitchedMidPlay() throws {
+        let fc = try fixtureCase("end_actions", "end_action_switched_mid_play")
+        let s = try fc.scenario()
+        let data = try fixture().cases.endActionSwitchedMidPlay
+        let playlist = try s.strings("playlist")
+        guard let first = playlist.first else {
+            throw FixtureReadError(file: s.file, caseName: s.caseName, message: "scenario.playlist is empty")
+        }
+        let modes: [PlayMode] = try s.strings("play_modes").map { try s.named($0, at: "play_modes") }
+        XCTAssertEqual(modes, [.stop, .loopPlaylist], "end_action_switched_mid_play: the rows hold one outcome for each of these modes")
+        let length = try s.number("library_s", named: first)
+
+        func outcome(_ row: EndActionsCases.SwitchedMidPlay.Row, _ mode: PlayMode) -> EndActionsCases.SwitchedMidPlay.Outcome {
+            mode == .stop ? row.playModeStop : row.playModeLoopPlaylist
+        }
+        for row in data.rows {
+            let from: EndAction = try s.named(row.from, at: "row from")
+            let to: EndAction = try s.named(row.to, at: "row to")
+            for mode in modes {
+                let scenario = EndActionScenario(
+                    trackLengthS: length, playMode: mode, endAction: from, switchOff: .init(to: to, atS: row.switchAtS))
+                let end = try subject.endActionEndTimeS(scenario)
+                assertClose(end, row.idealEndedAtS, tolerance: data.toleranceS, "\(row.from) -> \(row.to) at \(row.switchAtS) s, mode \(mode.rawValue): ideal_ended_at_s")
+            }
+        }
+        for row in data.rows {
+            let from: EndAction = try s.named(row.from, at: "row from")
+            let to: EndAction = try s.named(row.to, at: "row to")
+            for mode in modes {
+                let live = try subject.liveAfterEndActionSwitch(playMode: mode, from: from, to: to, atS: row.switchAtS)
+                let expected = outcome(row, mode).liveAtThatTick.map { LiveTrack(track: $0.track, passNo: $0.passNo) }
+                XCTAssertEqual(live, expected, "\(row.from) -> \(row.to) at \(row.switchAtS) s, mode \(mode.rawValue): live_at_that_tick")
+            }
+        }
+    }
+
     private func scenarioOf(_ s: Scenario) throws -> EndActionScenario {
         let playlist = try s.strings("playlist")
         guard let first = playlist.first, playlist.count == 1 else {
@@ -56,10 +95,7 @@ final class EndActionsConformanceTests: FixtureTestCase {
             XCTAssertEqual(d.passes, start.passes, "\(name) deck_at_start passes")
             XCTAssertEqual(d.loop, start.loop, "\(name) deck_at_start loop")
         }
-        // Every row is at a time the scenario samples. (The two "switched off" cases list 0.0 and 9.0 in rows_at_s but hold no rows there:
-        // the fixture's rows cover only part of the list, so the rows, not the list, decide which times are asked.)
-        let times = try s.doubles("rows_at_s")
-        XCTAssertEqual(Set(c.rows.map(\.tS)).subtracting(times), [], "\(name): rows at times that are not in the scenario's rows_at_s")
+        XCTAssertEqual(c.rows.map(\.tS), c.rowsAtS, "\(name): the rows are not at the case's rows_at_s")
         for row in c.rows {
             let t = row.tS
             let state = try subject.endActionState(scenario, atS: t)

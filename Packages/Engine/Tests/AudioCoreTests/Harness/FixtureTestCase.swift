@@ -77,4 +77,19 @@ class FixtureTestCase: XCTestCase {
     ) {
         assertClose(actual, expected, tolerance: c.tolerance, "\(c.name): \(what())", file: file, line: line)
     }
+
+    /// Like `assertClose(_:_:in:_:)` for a value whose key has its own tolerance (`tolerance_by_key`: positions and durations in file seconds).
+    func assertClose(
+        _ actual: Double, _ expected: Double, in c: FixtureCase, key: String, _ what: @autoclosure () -> String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertClose(actual, expected, tolerance: c.tolerance(forKey: key), "\(c.name): \(what())", file: file, line: line)
+    }
+
+    func assertClose(
+        _ actual: [Double], _ expected: [Double], in c: FixtureCase, key: String, _ what: @autoclosure () -> String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertClose(actual, expected, tolerance: c.tolerance(forKey: key), "\(c.name): \(what())", file: file, line: line)
+    }
 }

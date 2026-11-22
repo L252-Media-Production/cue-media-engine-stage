@@ -44,6 +44,40 @@ struct TrimRange: Equatable {
     var b: Double
 }
 
+/// One field of a `set_trim` call: not in the call (keep what is stored), null (clear it), or a value.
+enum SetField<Value: Equatable>: Equatable {
+    case absent
+    case clear
+    case value(Value)
+
+    static func read<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K, as type: Value.Type = Value.self) throws -> SetField<Value> where Value: Decodable {
+        guard c.contains(key) else { return .absent }
+        return try c.decodeNil(forKey: key) ? .clear : .value(try c.decode(Value.self, forKey: key))
+    }
+}
+
+/// What a `set_trim` call carries, as the fixtures write it (`set`). Lengths are as typed (99.4 ms is a valid thing to type).
+struct TrimSet: Decodable, Equatable {
+    var inPoint: SetField<Double> = .absent
+    var outPoint: SetField<Double> = .absent
+    var end: SetField<String> = .absent
+    var fadeMs: SetField<Double> = .absent
+    var fadeInMs: SetField<Double> = .absent
+    var start: SetField<String> = .absent
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: TrimFields.CodingKeys.self)
+        inPoint = try .read(c, .inPoint)
+        outPoint = try .read(c, .outPoint)
+        end = try .read(c, .end)
+        fadeMs = try .read(c, .fadeMs)
+        fadeInMs = try .read(c, .fadeInMs)
+        start = try .read(c, .start)
+    }
+}
+
 struct TrimOutcome {
     var accepted: Bool
     var stored: TrimFields
@@ -62,8 +96,20 @@ struct DeckStart {
     var durationS: Double
     var endFadeMs: Int
     var fadeInMs: Int
+    /// Length of the fade-in ramp in seconds (`fade_in_ramp_s`).
+    var fadeInRampS: Double
     var startVol: Double
     var fresh: Bool
+    /// The deck plays without end (`Deck.loop`).
+    var loop: Bool
+}
+
+/// How a track is started besides its trim and the offset.
+struct DeckStartContext: Equatable {
+    var endAction: EndAction = .default
+    var paused = false
+    /// A crossfade into the track of this length (0: none).
+    var crossfadeMs = 0
 }
 
 enum EndAction: String, CaseIterable {
@@ -84,6 +130,10 @@ struct EndActionScenario: Equatable {
     var endAction: EndAction
     /// The end action is changed at `atS` seconds after the start (nil: never).
     var switchOff: Switch?
+    /// The trim of the track (none: it plays the whole file) and the player's fade defaults.
+    var trim = TrimFields()
+    var defaultFadeOutMs = 0
+    var defaultFadeInMs = 0
 
     struct Switch: Equatable {
         var to: EndAction
@@ -103,6 +153,12 @@ struct EndActionDeckStart: Equatable {
 }
 
 /// What plays after a track ends. For shuffle the subject names the track it drew.
+/// What is live right after a track ended: which track of the playlist and which pass of it.
+struct LiveTrack: Equatable {
+    var track: Int
+    var passNo: Int
+}
+
 enum Successor: Equatable {
     case stopped
     case same
@@ -270,10 +326,10 @@ protocol AudioSpecSubject {
     // trim.json
     /// The (A, B) window of the file for data that is already stored (A held 0.5 s before the end; a window under 0.5 s falls back).
     func trimRange(stored: TrimFields, fileDurationS: Double) throws -> TrimRange
-    /// `set_trim` on a track with no trim: refuses a window under 0.5 s or a bad fade; what is stored; the derived window and fade lengths.
-    func setTrim(_ fields: TrimFields, config: TrimConfig) throws -> TrimOutcome
-    /// What starting a track (at file position `offsetS`; 0 = at the start) sets on its deck.
-    func startDeck(trim: TrimFields, offsetS: Double, config: TrimConfig) throws -> DeckStart
+    /// `set_trim` on a track that holds `previous` (empty: no trim): what is stored (or kept, when the call is refused), the derived window and fade lengths.
+    func setTrim(_ set: TrimSet, previous: TrimFields, config: TrimConfig) throws -> TrimOutcome
+    /// What starting a track (at file position `offsetS`; 0 = from the top) sets on its deck.
+    func startDeck(trim: TrimFields, offsetS: Double, config: TrimConfig, context: DeckStartContext) throws -> DeckStart
     /// The out-fade of a track with an Out point, `atS` seconds after it started at A.
     func trimEndFade(trim: TrimFields, config: TrimConfig, atS: Double) throws -> FadeSample
     /// After playing past B: did the track end by itself, and is nothing live any more?
@@ -285,6 +341,11 @@ protocol AudioSpecSubject {
     func endActionState(_ scenario: EndActionScenario, atS: Double) throws -> EndActionState
     /// When the track ends for good; nil = never.
     func endActionEndTimeS(_ scenario: EndActionScenario) throws -> Double?
+    /// The level of the deck (`Deck.vol`) and whether it still plays, `atS` seconds after the track started (the scenario's trim and end action apply).
+    func deckLevel(_ scenario: EndActionScenario, atS: Double) throws -> (vol: Double, live: Bool)
+    /// A 2 s track, number 0 of a two-track playlist in `playMode`, started with end action `from` and switched to `to` at `atS`: what is live
+    /// right after the deck of the running pass ended (nil: nothing).
+    func liveAfterEndActionSwitch(playMode: PlayMode, from: EndAction, to: EndAction, atS: Double) throws -> LiveTrack?
     /// What setting the end action without a value gives: default > once > loop > stop > default.
     func nextEndAction(after action: EndAction) throws -> EndAction
 
@@ -357,8 +418,8 @@ extension AudioSpecSubject {
     func playDefaultFadeLengthS(ownMs: Int?, masterMs: Int) throws -> Double { throw pending("play_default fade length") }
 
     func trimRange(stored: TrimFields, fileDurationS: Double) throws -> TrimRange { throw pending("trim window of stored data") }
-    func setTrim(_ fields: TrimFields, config: TrimConfig) throws -> TrimOutcome { throw pending("set_trim rules and fade lengths") }
-    func startDeck(trim: TrimFields, offsetS: Double, config: TrimConfig) throws -> DeckStart { throw pending("deck start (window, fades)") }
+    func setTrim(_ set: TrimSet, previous: TrimFields, config: TrimConfig) throws -> TrimOutcome { throw pending("set_trim rules and fade lengths") }
+    func startDeck(trim: TrimFields, offsetS: Double, config: TrimConfig, context: DeckStartContext) throws -> DeckStart { throw pending("deck start (window, fades)") }
     func trimEndFade(trim: TrimFields, config: TrimConfig, atS: Double) throws -> FadeSample { throw pending("out-fade ahead of B") }
     func trimEndOutcome(trim: TrimFields, config: TrimConfig, afterS: Double) throws -> (ended: Bool, nothingLive: Bool) {
         throw pending("track end at B")
@@ -367,6 +428,10 @@ extension AudioSpecSubject {
     func endActionDeckStart(_ action: EndAction) throws -> EndActionDeckStart { throw pending("end action: passes and loop at start") }
     func endActionState(_ scenario: EndActionScenario, atS: Double) throws -> EndActionState { throw pending("end action: pass number and remaining time") }
     func endActionEndTimeS(_ scenario: EndActionScenario) throws -> Double? { throw pending("end action: end time") }
+    func deckLevel(_ scenario: EndActionScenario, atS: Double) throws -> (vol: Double, live: Bool) { throw pending("deck level and liveness over time") }
+    func liveAfterEndActionSwitch(playMode: PlayMode, from: EndAction, to: EndAction, atS: Double) throws -> LiveTrack? {
+        throw pending("what plays after an end action was switched mid-play")
+    }
     func nextEndAction(after action: EndAction) throws -> EndAction { throw pending("end action cycle") }
 
     func successor(mode: PlayMode, endAction: EndAction, playlistTrackCounts: [Int], from: (playlist: Int, track: Int)) throws -> Successor {

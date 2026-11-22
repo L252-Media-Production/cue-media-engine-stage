@@ -31,10 +31,23 @@ final class AudioCorePlaybackTests: XCTestCase {
         XCTAssertEqual(m.ended.map(\.frame), [4000])
     }
 
-    func testFirstPassOfAResumedStartIsShorterThanTheNext() {
+    /// `deck.fresh` is the gate for a second pass (docs/audio-spec-1.md, "Fade in at A"): a start part-way in plays one pass, whatever the end action says.
+    func testAResumedStartPlaysOnePassEvenWhenTheEndActionIsOnce() {
         var m = Mixer(sampleRate: rate)
-        let id = m.start(plan(length: 10, end: .twice, offset: 7))   // 3 s left, then a whole 10 s pass
+        let id = m.start(plan(length: 10, end: .twice, offset: 7))
+        XCTAssertEqual(plan(length: 10, end: .twice, offset: 7).end, .followPlayMode)
         m.advance(frames: 3000)
+        XCTAssertNil(m.deck(id)?.pass(at: m.transport.playFrame))
+        XCTAssertEqual(m.ended.map(\.frame), [3000])
+    }
+
+    func testFirstPassOfAStartJustPastTheTopIsShorterThanTheNext() {
+        var m = Mixer(sampleRate: rate)
+        let p = plan(length: 10, end: .twice, offset: 0.055)   // fresh (under 0.06 s from A), but not "from the top": the sound begins at 0.055
+        XCTAssertTrue(p.isFresh)
+        XCTAssertEqual(p.firstPassFrames, 9945)
+        let id = m.start(p)
+        m.advance(frames: 9945)
         XCTAssertEqual(m.deck(id)?.pass(at: m.transport.playFrame), PassPosition(number: 2, remainingFrames: 10_000))
     }
 
@@ -101,7 +114,7 @@ final class AudioCorePlaybackTests: XCTestCase {
         t.outPoint = 1
         t.fadeOutMs = 5000                           // asks for more than the 1 s window
         let p = plan(t, length: 10, offset: 0.5)     // resumed 0.5 s from B
-        XCTAssertEqual(p.endFadeMs, 500)
+        XCTAssertEqual(p.endFadeMs, 5000, "the plan keeps the length it was given; the running deck holds it to the pass")
         var m = Mixer(sampleRate: rate)
         let id = m.start(p)
         XCTAssertEqual(m.gain(of: id), 1)

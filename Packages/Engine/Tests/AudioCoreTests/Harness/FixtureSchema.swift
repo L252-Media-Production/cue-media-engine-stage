@@ -32,17 +32,22 @@ enum FixtureSchema {
         let fadeIgnored = "library_s playlist steps"
         let crossfade = c("fade_ms start rows", scenario: "sampled_at_fractions fade_ms", ignored: fadeIgnored)
         let endAction = c(
-            "deck_at_start ended_at_s ideal_ended_at_s tolerance_s rows",
-            scenario: "library_s playlist play_mode rows_at_s end_action", ignored: "tick_step_s run_s steps")
+            "rows_at_s deck_at_start ended_at_s ideal_ended_at_s tolerance_s rows",
+            scenario: "library_s playlist play_mode end_action", ignored: "tick_step_s run_s steps")
         let switchedOff = c(
-            "ended_at_s ideal_ended_at_s tolerance_s rows",
-            scenario: "library_s playlist play_mode rows_at_s end_action switch_off_to switch_off_at_s", ignored: "tick_step_s run_s")
+            "rows_at_s ended_at_s ideal_ended_at_s tolerance_s rows",
+            scenario: "library_s playlist play_mode end_action switch_off_to switch_off_at_s", ignored: "tick_step_s run_s")
         let trigger = c(
             "triggers trim fires ideal_fires tolerance_s",
             scenario: "library_s main_track main_track_length_s voice_over_lengths_s end_action run_s trim seek triggers",
             ignored: "playlist steps tick_s")
         let trimBase = "file_length_s config"
         let trimIgnored = "library_s playlist track_under_test"
+        let storedRows = c("rows", scenario: trimBase, ignored: "\(trimIgnored) input")
+        let level = c(
+            "ended_at_s ideal_ended_at_s tolerance_s rows",
+            scenario: "\(trimBase) trim end_action sampled_at_s", ignored: "\(trimIgnored) steps tick_step_s")
+        let overlap = c("deck", scenario: "\(trimBase) trim", ignored: "\(trimIgnored) steps tick_step_s")
         let curveWindows = "window_samples window_s windows"
         let resumeBase = "library_s playlist track_ids config age_limit_s"
 
@@ -71,6 +76,31 @@ enum FixtureSchema {
                     "rows ended live_after", scenario: "\(trimBase) trim sampled_at_s ended_check_at_s", ignored: "\(trimIgnored) steps"),
                 // `trim` only describes the signal (the fade-in is checked per fraction of the fade), so it is ignored here.
                 "fade_in_at_A": c("rows", scenario: "\(trimBase) sampled_at_fractions", ignored: "\(trimIgnored) trim steps"),
+                "short_window_stored": storedRows,
+                "set_trim_rounding_a_b": storedRows,
+                "set_trim_minimum_window": storedRows,
+                "set_trim_out_vs_file_length": storedRows,
+                "fade_length_limits": storedRows,
+                "fade_length_held_to_window": storedRows,
+                "fade_length_follows_window_changes": storedRows,
+                "default_fade_longer_than_window": c(
+                    "deck rows", scenario: "\(trimBase) trim sampled_at_s", ignored: "\(trimIgnored) steps tick_step_s"),
+                "out_fade_placement_loop": level,
+                "out_fade_placement_once": level,
+                "out_fade_placement_default": level,
+                "out_fade_placement_stop": level,
+                "out_fade_once_switched_off_in_pass_1": c(
+                    "ended_at_s ideal_ended_at_s tolerance_s rows",
+                    scenario: "\(trimBase) trim end_action switch_off_to switch_off_at_s sampled_at_s", ignored: "\(trimIgnored) steps tick_step_s"),
+                // Only the end is contract: the level in that last pass is a Python quirk (`_info_python_vol`, not read).
+                "loop_switched_off_in_pass_1_end": c(
+                    "ended_at_s ideal_ended_at_s tolerance_s",
+                    scenario: "\(trimBase) trim end_action switch_off_to switch_off_at_s", ignored: "\(trimIgnored) steps tick_step_s"),
+                "fade_in_start_threshold": c("rows", scenario: "\(trimBase) end_action", ignored: "\(trimIgnored) input"),
+                "fade_in_cap": storedRows,
+                // Only the deck values are contract: the level while the fades overlap is a Python quirk (`_info_python_vol`, not read).
+                "fade_in_out_fade_overlap_901": overlap,
+                "fade_in_out_fade_overlap_1000": overlap,
             ],
             "end_actions": [
                 "track_2s_end_default": endAction,
@@ -80,6 +110,9 @@ enum FixtureSchema {
                 "once_switched_off_in_pass_1": switchedOff,
                 "loop_switched_off_in_pass_2": switchedOff,
                 "end_action_cycle": c("sequence", ignored: "playlist input"),
+                "end_action_switched_mid_play": c(
+                    "tolerance_s rows", scenario: "library_s playlist play_modes",
+                    ignored: "tick_step_s run_s steps row_inputs"),
             ],
             "play_modes": [
                 "after_a_track_ends": c(
@@ -90,7 +123,7 @@ enum FixtureSchema {
                     "never_the_same_track_twice_in_a_row every_draw_is_a_track_of_the_playlist "
                         + "first_round_from_track_0_is_a_permutation_of_tracks_1_and_2 tracks_left_in_the_round_after_one_draw_from_track_0 "
                         + "changing_the_mode_forgets_the_round each_track_gets_a_fair_share_of_300_draws_60_to_140",
-                    scenario: "playlists playlist_under_test start_track draws_for_sequence draws_for_fair_share",
+                    scenario: "playlists playlist_under_test start_track draws_for_sequence draws_for_fair_share fair_share_range",
                     // The Python random seeds only reproduce a sequence that is not compared.
                     ignored: "library_s play_mode python_random_seeds"),
             ],
@@ -114,7 +147,7 @@ enum FixtureSchema {
             "levelmatch": [
                 "lufs_from_pcm": c("rows", scenario: "signals", ignored: "format synthesis"),
                 "norm_gain": c("rows", scenario: "playlist measured_lufs lufs_clamp_db", ignored: "input"),
-                "applied_to_deck": c("rows", scenario: "playlist measured_lufs playing row_inputs"),
+                "applied_to_deck": c("rows", scenario: "playlist measured_lufs playing_file row_inputs", ignored: "playing"),
             ],
             "resume_flow": [
                 "record": c("rows", scenario: "\(resumeBase) row_inputs", ignored: "input"),

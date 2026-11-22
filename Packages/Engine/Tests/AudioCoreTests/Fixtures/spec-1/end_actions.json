@@ -14,18 +14,6 @@
     ],
     "play_mode": "stop",
     "tick_step_s": 0.25,
-    "rows_at_s": [
-     0.0,
-     1.0,
-     1.75,
-     2.0,
-     2.25,
-     3.75,
-     4.0,
-     4.25,
-     6.0,
-     9.0
-    ],
     "end_action": "default",
     "run_s": 9.0,
     "steps": [
@@ -34,6 +22,17 @@
      "tick every 0.25 s for 9.0 s"
     ]
    },
+   "rows_at_s": [
+    1.0,
+    1.75,
+    2.0,
+    2.25,
+    3.75,
+    4.0,
+    4.25,
+    6.0,
+    9.0
+   ],
    "_info": "2 s track, playlist mode stop; ticks every 0.25 s from the start (so ended_at_s is on that 0.25 s grid, and ideal_ended_at_s is the end of the last pass). passes: 2 for once; loop = started with loops=-1",
    "deck_at_start": {
     "passes": 1,
@@ -109,18 +108,6 @@
     ],
     "play_mode": "stop",
     "tick_step_s": 0.25,
-    "rows_at_s": [
-     0.0,
-     1.0,
-     1.75,
-     2.0,
-     2.25,
-     3.75,
-     4.0,
-     4.25,
-     6.0,
-     9.0
-    ],
     "end_action": "once",
     "run_s": 9.0,
     "steps": [
@@ -129,6 +116,17 @@
      "tick every 0.25 s for 9.0 s"
     ]
    },
+   "rows_at_s": [
+    1.0,
+    1.75,
+    2.0,
+    2.25,
+    3.75,
+    4.0,
+    4.25,
+    6.0,
+    9.0
+   ],
    "_info": "2 s track, playlist mode stop; ticks every 0.25 s from the start (so ended_at_s is on that 0.25 s grid, and ideal_ended_at_s is the end of the last pass). passes: 2 for once; loop = started with loops=-1",
    "deck_at_start": {
     "passes": 2,
@@ -204,18 +202,6 @@
     ],
     "play_mode": "stop",
     "tick_step_s": 0.25,
-    "rows_at_s": [
-     0.0,
-     1.0,
-     1.75,
-     2.0,
-     2.25,
-     3.75,
-     4.0,
-     4.25,
-     6.0,
-     9.0
-    ],
     "end_action": "loop",
     "run_s": 9.0,
     "steps": [
@@ -224,6 +210,17 @@
      "tick every 0.25 s for 9.0 s"
     ]
    },
+   "rows_at_s": [
+    1.0,
+    1.75,
+    2.0,
+    2.25,
+    3.75,
+    4.0,
+    4.25,
+    6.0,
+    9.0
+   ],
    "_info": "2 s track, playlist mode stop; ticks every 0.25 s from the start (so ended_at_s is on that 0.25 s grid, and ideal_ended_at_s is the end of the last pass). passes: 2 for once; loop = started with loops=-1",
    "deck_at_start": {
     "passes": 1,
@@ -299,18 +296,6 @@
     ],
     "play_mode": "stop",
     "tick_step_s": 0.25,
-    "rows_at_s": [
-     0.0,
-     1.0,
-     1.75,
-     2.0,
-     2.25,
-     3.75,
-     4.0,
-     4.25,
-     6.0,
-     9.0
-    ],
     "end_action": "stop",
     "run_s": 9.0,
     "steps": [
@@ -319,6 +304,17 @@
      "tick every 0.25 s for 9.0 s"
     ]
    },
+   "rows_at_s": [
+    1.0,
+    1.75,
+    2.0,
+    2.25,
+    3.75,
+    4.0,
+    4.25,
+    6.0,
+    9.0
+   ],
    "_info": "2 s track, playlist mode stop; ticks every 0.25 s from the start (so ended_at_s is on that 0.25 s grid, and ideal_ended_at_s is the end of the last pass). passes: 2 for once; loop = started with loops=-1",
    "deck_at_start": {
     "passes": 1,
@@ -394,18 +390,6 @@
     ],
     "play_mode": "stop",
     "tick_step_s": 0.25,
-    "rows_at_s": [
-     0.0,
-     1.0,
-     1.75,
-     2.0,
-     2.25,
-     3.75,
-     4.0,
-     4.25,
-     6.0,
-     9.0
-    ],
     "end_action": "once",
     "switch_off_to": "default",
     "switch_off_at_s": 1.0,
@@ -415,6 +399,16 @@
    "ended_at_s": 2.0,
    "ideal_ended_at_s": 2.0,
    "tolerance_s": 0.05,
+   "rows_at_s": [
+    1.0,
+    1.75,
+    2.0,
+    2.25,
+    3.75,
+    4.0,
+    4.25,
+    6.0
+   ],
    "rows": [
     {
      "t_s": 1.0,
@@ -476,18 +470,6 @@
     ],
     "play_mode": "stop",
     "tick_step_s": 0.25,
-    "rows_at_s": [
-     0.0,
-     1.0,
-     1.75,
-     2.0,
-     2.25,
-     3.75,
-     4.0,
-     4.25,
-     6.0,
-     9.0
-    ],
     "end_action": "loop",
     "switch_off_to": "default",
     "switch_off_at_s": 3.0,
@@ -497,6 +479,16 @@
    "ended_at_s": 4.0,
    "ideal_ended_at_s": 4.0,
    "tolerance_s": 0.05,
+   "rows_at_s": [
+    1.0,
+    1.75,
+    2.0,
+    2.25,
+    3.75,
+    4.0,
+    4.25,
+    6.0
+   ],
    "rows": [
     {
      "t_s": 1.0,
@@ -565,6 +557,270 @@
     "once",
     "loop",
     "stop"
+   ]
+  },
+  "end_action_switched_mid_play": {
+   "scenario": {
+    "library_s": {
+     "a.wav": 2,
+     "b.wav": 2
+    },
+    "playlist": [
+     "a.wav",
+     "b.wav"
+    ],
+    "play_modes": [
+     "stop",
+     "loop_playlist"
+    ],
+    "tick_step_s": 0.25,
+    "run_s": 9.0,
+    "steps": [
+     "set_end(0, 0, from)",
+     "play track 0 (2 s)",
+     "set_end(0, 0, to) at switch_at_s of play",
+     "tick every 0.25 s; ended_at_s = first tick where that deck is gone; live_at_that_tick = what is live after that same tick (track index and pass_no, or null)"
+    ],
+    "row_inputs": "from / to / switch_at_s; each row is run once with the playlist mode stop and once with loop_playlist (2 tracks)"
+   },
+   "_info": "the pass that is running is always played out; the NEW action then decides what follows: default = the playlist mode (stop: nothing, loop_playlist: track 1), stop = nothing, loop = track 0 starts again (a restart: Python has a gap there, quirk 7; a port may loop seamlessly), and once / loop switched to something else ends after the RUNNING pass (a switched-off once in pass 1 ends after pass 1). ideal_ended_at_s = the end of the pass running at switch_at_s (2 s passes); measured is on the 0.25 s grid. NOT pinned: switching TO once while playing (default / stop / loop -> once): see AUDIO-SPEC quirk 12",
+   "tolerance_s": 0.05,
+   "rows": [
+    {
+     "from": "default",
+     "to": "loop",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "default",
+     "to": "stop",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     }
+    },
+    {
+     "from": "stop",
+     "to": "default",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 1,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "stop",
+     "to": "loop",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "once",
+     "to": "default",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 1,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "once",
+     "to": "default",
+     "switch_at_s": 3.0,
+     "ideal_ended_at_s": 4.0,
+     "play_mode_stop": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": {
+       "track": 1,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "once",
+     "to": "loop",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "once",
+     "to": "loop",
+     "switch_at_s": 3.0,
+     "ideal_ended_at_s": 4.0,
+     "play_mode_stop": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": {
+       "track": 0,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "once",
+     "to": "stop",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     }
+    },
+    {
+     "from": "once",
+     "to": "stop",
+     "switch_at_s": 3.0,
+     "ideal_ended_at_s": 4.0,
+     "play_mode_stop": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": null
+     }
+    },
+    {
+     "from": "loop",
+     "to": "default",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": {
+       "track": 1,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "loop",
+     "to": "default",
+     "switch_at_s": 3.0,
+     "ideal_ended_at_s": 4.0,
+     "play_mode_stop": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": {
+       "track": 1,
+       "pass_no": 1
+      }
+     }
+    },
+    {
+     "from": "loop",
+     "to": "stop",
+     "switch_at_s": 1.0,
+     "ideal_ended_at_s": 2.0,
+     "play_mode_stop": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 2.0,
+      "live_at_that_tick": null
+     }
+    },
+    {
+     "from": "loop",
+     "to": "stop",
+     "switch_at_s": 3.0,
+     "ideal_ended_at_s": 4.0,
+     "play_mode_stop": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": null
+     },
+     "play_mode_loop_playlist": {
+      "ended_at_s": 4.0,
+      "live_at_that_tick": null
+     }
+    }
    ]
   }
  }

@@ -89,24 +89,20 @@ final class PlayModesConformanceTests: FixtureTestCase {
         var start: Int
         var sequenceDraws: Int
         var fairShareDraws: Int
+        /// The number of draws one track may get out of `fairShareDraws` (`fair_share_range`).
+        var fairShare: ClosedRange<Int>
     }
 
     private func shuffleSetup() throws -> ShuffleSetup {
         let s = try fixtureCase("play_modes", "shuffle_bag").scenario()
         let (counts, underTest) = try playlists(s)
+        let range = try s.ints("fair_share_range")
+        guard range.count == 2, range[0] <= range[1] else {
+            throw FixtureReadError(file: s.file, caseName: s.caseName, message: "scenario.fair_share_range should be [low, high], it is \(range)")
+        }
         return ShuffleSetup(
             trackCount: counts[underTest], start: try s.int("start_track"),
-            sequenceDraws: try s.int("draws_for_sequence"), fairShareDraws: try s.int("draws_for_fair_share"))
-    }
-
-    /// The range of a fair share is part of the key name (`..._300_draws_60_to_140`); the number of draws must be the scenario's.
-    private func fairShareRange(_ key: String, draws: Int) throws -> ClosedRange<Int> {
-        let parts = key.split(separator: "_")
-        guard parts.count >= 5, parts[parts.count - 2] == "to", parts[parts.count - 4] == "draws",
-              let lo = Int(parts[parts.count - 3]), let hi = Int(parts[parts.count - 1]), let n = Int(parts[parts.count - 5])
-        else { throw FixtureReadError(file: "play_modes", caseName: "shuffle_bag", message: "cannot read the fair-share range from the key \(key)") }
-        XCTAssertEqual(n, draws, "shuffle_bag: \(key) names \(n) draws but draws_for_fair_share is \(draws)")
-        return lo...hi
+            sequenceDraws: try s.int("draws_for_sequence"), fairShareDraws: try s.int("draws_for_fair_share"), fairShare: range[0]...range[1])
     }
 
     /// The properties that can be seen from a series of draws on the playlist, starting after the start track.
@@ -129,7 +125,7 @@ final class PlayModesConformanceTests: FixtureTestCase {
         XCTAssertEqual(firstRound, bag.firstRoundFromTrack0IsAPermutationOfTracks1And2, "shuffle_bag first_round_from_track_0_is_a_permutation_of_tracks_1_and_2")
 
         let many = try subject.shuffleDraws(trackCount: setup.trackCount, startTrack: setup.start, count: setup.fairShareDraws)
-        let range = try fairShareRange("each_track_gets_a_fair_share_of_300_draws_60_to_140", draws: setup.fairShareDraws)
+        let range = setup.fairShare
         let counts = (0..<setup.trackCount).map { t in many.filter { $0 == t }.count }
         let fair = counts.allSatisfy { range.contains($0) }
         XCTAssertEqual(fair, bag.eachTrackGetsAFairShareOf300Draws60To140, "shuffle_bag each_track_gets_a_fair_share_of_300_draws_60_to_140 (counts \(counts))")

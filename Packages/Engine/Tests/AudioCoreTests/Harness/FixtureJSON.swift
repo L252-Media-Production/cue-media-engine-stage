@@ -436,6 +436,8 @@ struct FixtureCase {
     private let lufs: Double?
     /// Absolute tolerance of the values of this case (dB, gain, seconds as the file says).
     let tolerance: Double
+    /// `tolerance_by_key` of the case (or the enclosing case): a tolerance for the named keys only, which beats `tolerance` for them.
+    private let byKey: [String: Double]
 
     init(document: FixtureDocument, name: String, value: JSONValue, parent: FixtureCase?) throws {
         self.document = document
@@ -451,6 +453,19 @@ struct FixtureCase {
         } else {
             lufs = try? document.topNumber("tolerance_lufs")
         }
+        var keyed = parent?.byKey ?? [:]
+        if let own = value["tolerance_by_key"] {
+            guard case .object(let pairs) = own else {
+                throw FixtureReadError(file: document.file, caseName: name, message: "\"tolerance_by_key\" should be an object but is \(own.kind)")
+            }
+            for pair in pairs {
+                guard case .number(let n) = pair.value else {
+                    throw FixtureReadError(file: document.file, caseName: name, message: "tolerance_by_key.\(pair.key) should be a number but is \(pair.value.kind)")
+                }
+                keyed[pair.key] = n
+            }
+        }
+        byKey = keyed
         if let own = value["tolerance"] {
             guard case .number(let n) = own else {
                 throw FixtureReadError(file: document.file, caseName: name, message: "\"tolerance\" should be a number but is \(own.kind)")
@@ -464,6 +479,9 @@ struct FixtureCase {
     }
 
     var file: String { document.file }
+
+    /// The tolerance of a named value: the case's `tolerance_by_key` entry for `key` when there is one, else the case's `tolerance`.
+    func tolerance(forKey key: String) -> Double { byKey[key] ?? tolerance }
 
     /// Tolerance of LUFS values: the case's `tolerance_lufs`, else the enclosing case's, else the file's.
     func toleranceLufs() throws -> Double {

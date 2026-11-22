@@ -23,7 +23,7 @@ final class FixtureGuardTests: FixtureTestCase {
                     continue
                 }
                 let keys = Set(c.value.keys.filter { !$0.hasPrefix("_info") })
-                let allowed = schema.keys.union(["scenario", "tolerance"])
+                let allowed = schema.keys.union(["scenario", "tolerance", "tolerance_by_key"])
                 XCTAssertEqual(keys.subtracting(allowed), [], "\(file).json case '\(c.name)': keys the harness does not know")
                 XCTAssertEqual(schema.keys.subtracting(keys), [], "\(file).json case '\(c.name)': keys the harness expects are gone")
 
@@ -100,6 +100,26 @@ final class FixtureGuardTests: FixtureTestCase {
         XCTAssertEqual(try loose.nested("inner").tolerance, 2e-5)
         XCTAssertEqual(try loose.nested("tighter").tolerance, 3e-7)
         XCTAssertEqual(try loose.nested("inner").toleranceLufs(), 0.01)
+    }
+
+    /// `tolerance_by_key` beats the case tolerance for its keys only; other keys of the same case keep the case tolerance.
+    func testToleranceByKeyBeatsTheCaseToleranceForItsKeysOnly() throws {
+        let root = try JSONParser.parse(Data(#"""
+        {"tolerance": 1e-6, "cases": {"a": {"tolerance": 1e-4, "tolerance_by_key": {"base_s": 2.5e-5}, "scenario": {}, "cases": {
+          "inner": {"scenario": {}}}}, "plain": {"scenario": {}}}}
+        """#.utf8))
+        let doc = FixtureDocument(file: "demo", root: root)
+        let a = try doc.case("a")
+        XCTAssertEqual(a.tolerance(forKey: "base_s"), 2.5e-5, "the key's entry, not the case's 1e-4")
+        XCTAssertEqual(a.tolerance(forKey: "hi_s"), 1e-4, "a key with no entry keeps the case tolerance")
+        XCTAssertEqual(a.tolerance, 1e-4)
+        XCTAssertEqual(try a.nested("inner").tolerance(forKey: "base_s"), 2.5e-5, "a nested case inherits it")
+        XCTAssertEqual(try doc.case("plain").tolerance(forKey: "base_s"), 1e-6, "a case without the map uses the file tolerance")
+        assertClose(1.00002, 1.0, in: a, key: "base_s", "inside 2.5e-5")
+        assertClose(1.00002, 1.0, tolerance: a.tolerance(forKey: "hi_s"), "inside the case's 1e-4")
+        XCTExpectFailure("outside the file tolerance for a key without an entry") {
+            assertClose(1.00002, 1.0, tolerance: try! doc.case("plain").tolerance(forKey: "base_s"), "outside 1e-6")
+        }
     }
 
     func testAssertCloseUsesTheCaseTolerance() throws {

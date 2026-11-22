@@ -190,6 +190,24 @@ struct TrimCases: Decodable {
     let deckStart: Rows<DeckStartRow>
     let fadeOutAheadOfB: FadeOutAheadOfB
     let fadeInAtA: Rows<FadeInRow>
+    let shortWindowStored: Rows<ShortWindowRow>
+    let setTrimRoundingAB: Rows<SetRow>
+    let setTrimMinimumWindow: Rows<SetRow>
+    let setTrimOutVsFileLength: Rows<SetRow>
+    let fadeLengthLimits: Rows<SetRow>
+    let fadeLengthHeldToWindow: Rows<SetRow>
+    let fadeLengthFollowsWindowChanges: Rows<SetRow>
+    let defaultFadeLongerThanWindow: DefaultFadeCase
+    let outFadePlacementLoop: LevelCase
+    let outFadePlacementOnce: LevelCase
+    let outFadePlacementDefault: LevelCase
+    let outFadePlacementStop: LevelCase
+    let outFadeOnceSwitchedOffInPass1: LevelCase
+    let loopSwitchedOffInPass1End: EndOnly
+    let fadeInStartThreshold: Rows<StartThresholdRow>
+    let fadeInCap: Rows<FadeInCapRow>
+    let fadeInOutFadeOverlap901: OverlapCase
+    let fadeInOutFadeOverlap1000: OverlapCase
 
     enum CodingKeys: String, CodingKey {
         case trimRangeOfStoredData = "trim_range_of_stored_data"
@@ -197,6 +215,194 @@ struct TrimCases: Decodable {
         case deckStart = "deck_start"
         case fadeOutAheadOfB = "fade_out_ahead_of_B"
         case fadeInAtA = "fade_in_at_A"
+        case shortWindowStored = "short_window_stored"
+        case setTrimRoundingAB = "set_trim_rounding_a_b"
+        case setTrimMinimumWindow = "set_trim_minimum_window"
+        case setTrimOutVsFileLength = "set_trim_out_vs_file_length"
+        case fadeLengthLimits = "fade_length_limits"
+        case fadeLengthHeldToWindow = "fade_length_held_to_window"
+        case fadeLengthFollowsWindowChanges = "fade_length_follows_window_changes"
+        case defaultFadeLongerThanWindow = "default_fade_longer_than_window"
+        case outFadePlacementLoop = "out_fade_placement_loop"
+        case outFadePlacementOnce = "out_fade_placement_once"
+        case outFadePlacementDefault = "out_fade_placement_default"
+        case outFadePlacementStop = "out_fade_placement_stop"
+        case outFadeOnceSwitchedOffInPass1 = "out_fade_once_switched_off_in_pass_1"
+        case loopSwitchedOffInPass1End = "loop_switched_off_in_pass_1_end"
+        case fadeInStartThreshold = "fade_in_start_threshold"
+        case fadeInCap = "fade_in_cap"
+        case fadeInOutFadeOverlap901 = "fade_in_out_fade_overlap_901"
+        case fadeInOutFadeOverlap1000 = "fade_in_out_fade_overlap_1000"
+    }
+
+    /// A stored trim (old data, written as it is) and what the window and a deck started from the top make of it.
+    struct ShortWindowRow: Decodable {
+        let stored: TrimFields
+        let rangeS: [Double]
+        let durEffS: Double
+        let deck: Deck
+
+        enum CodingKeys: String, CodingKey {
+            case stored
+            case rangeS = "range_s"
+            case durEffS = "dur_eff_s"
+            case deck
+        }
+
+        struct Deck: Decodable {
+            let baseS: Double
+            let loS: Double
+            let hiS: Double
+            let durationS: Double
+            let endFadeMs: Int
+
+            enum CodingKeys: String, CodingKey {
+                case baseS = "base_s"
+                case loS = "lo_s"
+                case hiS = "hi_s"
+                case durationS = "duration_s"
+                case endFadeMs = "end_fade_ms"
+            }
+        }
+    }
+
+    /// A `set_trim` call and what it left stored. `previous` is what the track held before (absent: nothing, or the row before it).
+    struct SetRow: Decodable {
+        let set: TrimSet
+        let accepted: Bool
+        let stored: TrimFields
+        let rangeS: [Double]
+        let previous: TrimFields?
+
+        enum CodingKeys: String, CodingKey {
+            case set, accepted, stored, previous
+            case rangeS = "range_s"
+        }
+    }
+
+    struct Level: Decodable {
+        let tS: Double
+        let vol: Double
+        let live: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case tS = "t_s"
+            case vol, live
+        }
+    }
+
+    struct DefaultFadeCase: Decodable {
+        let deck: Deck
+        let rows: [Level]
+
+        struct Deck: Decodable {
+            let endFadeMs: Int
+            let fadeMsEff: Int
+
+            enum CodingKeys: String, CodingKey {
+                case endFadeMs = "end_fade_ms"
+                case fadeMsEff = "fade_ms_eff"
+            }
+        }
+    }
+
+    /// Level and liveness over time, and the time the deck ends (null: never).
+    struct LevelCase: Decodable {
+        let idealEndedAtS: Double?
+        let toleranceS: Double
+        let rows: [Level]
+
+        enum CodingKeys: String, CodingKey {
+            case idealEndedAtS = "ideal_ended_at_s"
+            case toleranceS = "tolerance_s"
+            case rows
+        }
+    }
+
+    /// Only the end is contract (the level in that last pass is a Python quirk).
+    struct EndOnly: Decodable {
+        let idealEndedAtS: Double?
+        let toleranceS: Double
+
+        enum CodingKeys: String, CodingKey {
+            case idealEndedAtS = "ideal_ended_at_s"
+            case toleranceS = "tolerance_s"
+        }
+    }
+
+    struct StartThresholdRow: Decodable {
+        let label: String
+        let trim: TrimFields
+        let offsetS: Double
+        let crossfadeMs: Int?
+        let paused: Bool?
+        let deck: Deck
+
+        enum CodingKeys: String, CodingKey {
+            case label = "case"
+            case trim
+            case offsetS = "offset_s"
+            case crossfadeMs = "crossfade_ms"
+            case paused, deck
+        }
+
+        struct Deck: Decodable {
+            let baseS: Double
+            let fadeInMs: Int
+            let startVol: Double
+            let fresh: Bool
+            let loop: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case baseS = "base_s"
+                case fadeInMs = "fade_in_ms"
+                case startVol = "start_vol"
+                case fresh, loop
+            }
+        }
+    }
+
+    struct FadeInCapRow: Decodable {
+        let label: String
+        let set: TrimSet
+        let accepted: Bool
+        let stored: TrimFields
+        let windowS: Double
+        let deck: Deck
+
+        enum CodingKeys: String, CodingKey {
+            case label = "case"
+            case set, accepted, stored
+            case windowS = "window_s"
+            case deck
+        }
+
+        struct Deck: Decodable {
+            let endFadeMs: Int
+            let fadeInMs: Int
+            let fadeInRampS: Double
+
+            enum CodingKeys: String, CodingKey {
+                case endFadeMs = "end_fade_ms"
+                case fadeInMs = "fade_in_ms"
+                case fadeInRampS = "fade_in_ramp_s"
+            }
+        }
+    }
+
+    /// Only the deck values are contract; the level during the overlap is a Python quirk.
+    struct OverlapCase: Decodable {
+        let deck: Deck
+
+        struct Deck: Decodable {
+            let endFadeMs: Int
+            let fadeInMs: Int
+
+            enum CodingKeys: String, CodingKey {
+                case endFadeMs = "end_fade_ms"
+                case fadeInMs = "fade_in_ms"
+            }
+        }
     }
 
     struct StoredRangeRow: Decodable {
@@ -210,7 +416,7 @@ struct TrimCases: Decodable {
     }
 
     struct WindowRow: Decodable {
-        let set: TrimFields
+        let set: TrimSet
         let accepted: Bool
         let stored: TrimFields
         let rangeS: [Double]
@@ -302,8 +508,10 @@ struct EndActionsCases: Decodable {
     let onceSwitchedOffInPass1: EndCase
     let loopSwitchedOffInPass2: EndCase
     let endActionCycle: Cycle
+    let endActionSwitchedMidPlay: SwitchedMidPlay
 
     enum CodingKeys: String, CodingKey {
+        case endActionSwitchedMidPlay = "end_action_switched_mid_play"
         case track2sEndDefault = "track_2s_end_default"
         case track2sEndOnce = "track_2s_end_once"
         case track2sEndLoop = "track_2s_end_loop"
@@ -314,6 +522,8 @@ struct EndActionsCases: Decodable {
     }
 
     struct EndCase: Decodable {
+        /// The times of the rows, listed by the case itself.
+        let rowsAtS: [Double]
         /// Absent in the two "switched off" cases.
         let deckAtStart: DeckAtStart?
         /// The value the Python player measured (includes its 50 ms tick). Decoded for completeness, never compared.
@@ -323,6 +533,7 @@ struct EndActionsCases: Decodable {
         let rows: [Row]
 
         enum CodingKeys: String, CodingKey {
+            case rowsAtS = "rows_at_s"
             case deckAtStart = "deck_at_start"
             case endedAtS = "ended_at_s"
             case idealEndedAtS = "ideal_ended_at_s"
@@ -352,6 +563,53 @@ struct EndActionsCases: Decodable {
 
     struct Cycle: Decodable {
         let sequence: [String]
+    }
+
+    /// Each row is run once with play mode stop and once with loop_playlist (2 tracks).
+    struct SwitchedMidPlay: Decodable {
+        let toleranceS: Double
+        let rows: [Row]
+
+        enum CodingKeys: String, CodingKey {
+            case toleranceS = "tolerance_s"
+            case rows
+        }
+
+        struct Row: Decodable {
+            let from: String
+            let to: String
+            let switchAtS: Double
+            let idealEndedAtS: Double
+            let playModeStop: Outcome
+            let playModeLoopPlaylist: Outcome
+
+            enum CodingKeys: String, CodingKey {
+                case from, to
+                case switchAtS = "switch_at_s"
+                case idealEndedAtS = "ideal_ended_at_s"
+                case playModeStop = "play_mode_stop"
+                case playModeLoopPlaylist = "play_mode_loop_playlist"
+            }
+        }
+
+        /// `live_at_that_tick` is null when nothing is live. The measured `ended_at_s` (0.25 s grid) is not read.
+        struct Outcome: Decodable {
+            let liveAtThatTick: Live?
+
+            enum CodingKeys: String, CodingKey {
+                case liveAtThatTick = "live_at_that_tick"
+            }
+
+            struct Live: Decodable {
+                let track: Int
+                let passNo: Int
+
+                enum CodingKeys: String, CodingKey {
+                    case track
+                    case passNo = "pass_no"
+                }
+            }
+        }
     }
 }
 

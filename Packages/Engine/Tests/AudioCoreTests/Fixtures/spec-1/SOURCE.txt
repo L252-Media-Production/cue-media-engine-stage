@@ -1,3 +1,3 @@
-python_commit: 52d6eab2d7418ea2362a9b15b85131812a76c625
+python_commit: fb87930500d53aeed9d8edd6d50ab062053a74d8
 spec_version: 1
-spec_doc_commit: 52d6eab2d7418ea2362a9b15b85131812a76c625
+spec_doc_commit: fb87930500d53aeed9d8edd6d50ab062053a74d8

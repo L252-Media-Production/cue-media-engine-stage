@@ -102,13 +102,22 @@ struct AudioCoreSubject: AudioSpecSubject {
         TrimPolicy(defaultFadeOutMs: c.defaultFadeOutMs, defaultFadeInMs: c.defaultFadeInMs)
     }
 
+    private func change<V: Equatable>(_ f: SetField<V>) -> Change<V> {
+        switch f {
+        case .absent: return .keep
+        case .clear: return .clear
+        case .value(let v): return .set(v)
+        }
+    }
+
     /// An edge written as text in the fixtures. Anything but fade and cut cannot be represented, so the edit is refused.
-    private func edge(_ text: String?) -> Change<TrimEdge>? {
-        switch text {
-        case nil: return .keep
-        case "fade": return .set(.fade)
-        case "cut": return .set(.cut)
-        default: return nil
+    private func edge(_ f: SetField<String>) -> Change<TrimEdge>? {
+        switch f {
+        case .absent: return .keep
+        case .clear: return .clear
+        case .value("fade"): return .set(.fade)
+        case .value("cut"): return .set(.cut)
+        case .value: return nil
         }
     }
 
@@ -117,15 +126,15 @@ struct AudioCoreSubject: AudioSpecSubject {
         return TrimRange(a: w.start, b: w.end)
     }
 
-    func setTrim(_ f: TrimFields, config: TrimConfig) throws -> TrimOutcome {
-        var t = Trim()
+    func setTrim(_ set: TrimSet, previous: TrimFields, config: TrimConfig) throws -> TrimOutcome {
+        var t = trim(previous)
         var edit = TrimEdit()
-        f.inPoint.map { edit.inPoint = .set($0) }
-        f.outPoint.map { edit.outPoint = .set($0) }
-        f.fadeMs.map { edit.fadeOutMs = .set($0) }
-        f.fadeInMs.map { edit.fadeInMs = .set($0) }
+        edit.inPoint = change(set.inPoint)
+        edit.outPoint = change(set.outPoint)
+        edit.fadeOutMs = change(set.fadeMs)
+        edit.fadeInMs = change(set.fadeInMs)
         var accepted = false
-        if let end = edge(f.end), let start = edge(f.start) {
+        if let end = edge(set.end), let start = edge(set.start) {
             edit.endEdge = end
             edit.startEdge = start
             accepted = t.apply(edit, fileLength: config.fileDurationS)
@@ -137,12 +146,17 @@ struct AudioCoreSubject: AudioSpecSubject {
             fadeOutMs: t.fadeOutMs(policy: p), fadeInMsEff: t.fadeInMsEffective(policy: p), fadeInAppliedMs: t.fadeInAppliedMs(policy: p))
     }
 
-    func startDeck(trim t: TrimFields, offsetS: Double, config: TrimConfig) throws -> DeckStart {
-        let plan = TrackPlan(trim: trim(t), policy: policy(config), fileLength: config.fileDurationS, offsetSeconds: offsetS)
+    /// Starts the track on a mixer the way `_start` does: paused transport, or a crossfade into it, when the context says so.
+    func startDeck(trim t: TrimFields, offsetS: Double, config: TrimConfig, context: DeckStartContext) throws -> DeckStart {
+        let plan = TrackPlan(trim: trim(t), policy: policy(config), fileLength: config.fileDurationS, offsetSeconds: offsetS, end: trackEnd(context.endAction))
+        var mixer = Mixer()
+        if context.paused { mixer.pause() }
+        let id = mixer.start(plan, crossfadeMs: context.crossfadeMs)
+        guard let started = mixer.deck(id)?.playback?.plan else { throw pending("a deck without a plan") }
         return DeckStart(
-            baseS: plan.seconds(plan.baseFrames), loS: plan.seconds(plan.loFrames), hiS: plan.seconds(plan.hiFrames),
-            durationS: plan.seconds(plan.firstPassFrames), endFadeMs: plan.endFadeMs, fadeInMs: plan.fadeInMs,
-            startVol: plan.startGain, fresh: plan.isFresh)
+            baseS: started.seconds(started.baseFrames), loS: started.seconds(started.loFrames), hiS: started.seconds(started.hiFrames),
+            durationS: started.seconds(started.firstPassFrames), endFadeMs: started.endFadeMs, fadeInMs: started.fadeInMs,
+            fadeInRampS: started.seconds(started.fadeInFrames), startVol: mixer.gain(of: id) ?? 0, fresh: started.isFresh, loop: started.end == .loop)
     }
 
     /// Starts the track from its beginning and runs the mixer `atS` seconds.
@@ -190,21 +204,28 @@ struct AudioCoreSubject: AudioSpecSubject {
         return EndActionDeckStart(passes: end.passes ?? 1, loop: end == .loop)
     }
 
-    /// One track alone, as long as the scenario says, with no trim. Runs to `atS`; the end action is switched at `switchOff.atS` on the way.
+    /// One track alone, as long as the scenario says, with its trim. Runs to `atS`; the end action is switched at `switchOff.atS` on the way.
     private func play(_ s: EndActionScenario, upTo atS: Double) throws -> (mixer: Mixer, deck: Deck.ID) {
         var mixer = Mixer()
-        let plan = TrackPlan(trim: Trim(), policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), fileLength: s.trackLengthS, end: trackEnd(s.endAction))
+        let config = TrimConfig(fileDurationS: s.trackLengthS, defaultFadeOutMs: s.defaultFadeOutMs, defaultFadeInMs: s.defaultFadeInMs)
+        let plan = TrackPlan(trim: trim(s.trim), policy: policy(config), fileLength: s.trackLengthS, end: trackEnd(s.endAction))
         let id = mixer.start(plan)
         var now = 0.0
         if let sw = s.switchOff, sw.atS <= atS {
             mixer.advance(frames: mixer.transport.frames(seconds: sw.atS))
             now = sw.atS
-            // Only "the running pass is the last one" is specified: the end action goes back to a single pass.
-            guard trackEnd(sw.to).passes == 1 else { throw pending("switching an end action on while the track plays") }
+            // Only "the running pass is the last one" is specified. A switch to loop starts the track again after it (a restart, not
+            // a longer pass); a switch TO once is not specified (quirk 12 of the spec).
+            guard trackEnd(sw.to) != .twice else { throw pending("switching an end action to once while the track plays (not specified)") }
             mixer.finishCurrentPass(of: id)
         }
         mixer.advance(frames: mixer.transport.frames(seconds: atS - now))
         return (mixer, id)
+    }
+
+    func deckLevel(_ s: EndActionScenario, atS: Double) throws -> (vol: Double, live: Bool) {
+        let r = try play(s, upTo: atS)
+        return (r.mixer.gain(of: r.deck) ?? 0, r.mixer.deck(r.deck)?.isPlaying ?? false)
     }
 
     func endActionState(_ s: EndActionScenario, atS: Double) throws -> EndActionState {

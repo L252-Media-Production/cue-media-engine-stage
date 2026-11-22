@@ -92,14 +92,11 @@ final class LevelMatchConformanceTests: FixtureTestCase {
         }
     }
 
-    /// `row_inputs` says what is set for each row; `playing` names the file on the deck.
+    /// `row_inputs` says what is set for each row; `playing_file` names the file on the deck.
     func testAppliedToDeck() throws {
         let c = try fixtureCase("levelmatch", "applied_to_deck")
         let s = try c.scenario()
-        let playing = try s.string("playing")
-        guard let file = playing.split(separator: " ").first.map(String.init), try s.object("measured_lufs").has(file) else {
-            throw FixtureReadError(file: s.file, caseName: s.caseName, message: "scenario.playing \"\(playing)\" does not start with a file of measured_lufs")
-        }
+        let file = try s.string("playing_file")
         let trackLufs = try s.optionalDouble(path: "measured_lufs", file)
         for row in try fixture().cases.appliedToDeck.rows {
             let setNorm = try s.row("row_inputs", label: row.track).object("set_norm")

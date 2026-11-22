@@ -37,7 +37,7 @@ public struct TrackPlan: Equatable {
     public let loFrames: Int64
     public let hiFrames: Int64
     public let baseFrames: Int64
-    /// The start was at A (not a seek or a resume part-way in), so a fade-in may apply.
+    /// The start was at A within `freshSeconds` (not a seek or a resume part-way in): the gate for a loop and a second pass.
     public let isFresh: Bool
     /// Fade-in at A and fade-out ahead of B, in ms and frames. 0 = none (a cut).
     public let fadeInMs: Int
@@ -46,20 +46,30 @@ public struct TrackPlan: Equatable {
     public let endFadeFrames: Int64
     public let end: TrackEnd
 
+    /// Where a start counts as "at A": an offset (a position in the FILE, not relative to A) up to this many seconds. Only such a start can fade in.
+    public static let atStartOffsetSeconds = 0.05
+    /// `isFresh` is `|start - A|` under this many seconds. A wider test than the fade-in's, and it gates a loop or a second pass.
+    public static let freshSeconds = 0.06
+    /// B within this many seconds of the end of the file is "the end of the file": no Out, so no out-fade.
+    public static let endToleranceSeconds = 0.01
+
     /// - Parameters:
-    ///   - offsetSeconds: where in the file the sound begins; at or before A means "at A".
+    ///   - offsetSeconds: the position in the file the start was asked for. Up to `atStartOffsetSeconds` it means "at A" (a start from the top);
+    ///     above that the sound begins at the later of A and the offset.
     public init(trim: Trim, policy: TrimPolicy, fileLength: Double, offsetSeconds: Double = 0, end: TrackEnd = .followPlayMode, sampleRate: Int = AudioFormat.sampleRate) {
         func frames(_ s: Double) -> Int64 { Int64((s * Double(sampleRate)).rounded()) }
         let w = trim.window(fileLength: fileLength)
-        let fresh = offsetSeconds <= w.start
-        let base = fresh ? w.start : min(offsetSeconds, w.end)
+        let fromTop = offsetSeconds <= Self.atStartOffsetSeconds
+        let base = fromTop ? w.start : min(max(w.start, offsetSeconds), w.end)
+        let fresh = abs(base - w.start) < Self.freshSeconds
         let durationMs = (w.end - base) * 1000
 
-        // Fade at B: only with an Out point and a fade edge, and never longer than the part that plays.
+        // Fade at B: only with an Out point that is before the end of the file and a fade edge. The length is the NOMINAL one (a default longer than the
+        // window stays as it is); the running deck holds it to the length of one pass (`Playback.isFadingOut`).
         var endFade = 0
-        if trim.outPoint != nil, !trim.endsWithCut { endFade = min(trim.fadeOutMs(policy: policy), Int(durationMs)) }
-        // Fade in at A: only on a start at A; capped to the window minus the out-fade, unless that leaves less than the shortest fade.
-        var fadeIn = fresh ? trim.fadeInAppliedMs(policy: policy) : 0
+        if trim.outPoint != nil, !trim.endsWithCut, w.end < fileLength - Self.endToleranceSeconds { endFade = trim.fadeOutMs(policy: policy) }
+        // Fade in at A: only on a start from the top; capped to the window minus the out-fade, unless that leaves less than the shortest fade.
+        var fadeIn = fromTop ? trim.fadeInAppliedMs(policy: policy) : 0
         let room = durationMs - Double(endFade)
         fadeIn = Int(min(Double(fadeIn), room >= Double(Trim.fadeRangeMs.lowerBound) ? room : durationMs))
 
@@ -72,7 +82,8 @@ public struct TrackPlan: Equatable {
         fadeInFrames = frames(Double(max(0, fadeIn)) / 1000)
         endFadeMs = endFade
         endFadeFrames = frames(Double(endFade) / 1000)
-        self.end = end
+        // A start that is not at A does not loop and does not play a second pass (`isFresh` is the gate).
+        self.end = fresh || end == .followPlayMode || end == .stop ? end : .followPlayMode
     }
 
     private init(copying p: TrackPlan, fadeInMs: Int, fadeInFrames: Int64) {

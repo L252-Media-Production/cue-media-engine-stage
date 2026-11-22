@@ -38,8 +38,9 @@ public struct TrimEdit: Equatable {
     public var inPoint: Change<Double> = .keep
     public var outPoint: Change<Double> = .keep
     public var endEdge: Change<TrimEdge> = .keep
-    public var fadeOutMs: Change<Int> = .keep
-    public var fadeInMs: Change<Int> = .keep
+    /// Fade lengths in ms as typed; `Trim.apply` rounds them to whole ms and refuses a value outside `Trim.fadeRangeMs` after rounding.
+    public var fadeOutMs: Change<Double> = .keep
+    public var fadeInMs: Change<Double> = .keep
     public var startEdge: Change<TrimEdge> = .keep
 
     public init() {}
@@ -101,11 +102,14 @@ public struct Trim: Equatable {
                 return .some(min(rounded, Self.round2(fileLength)))
             }
         }
-        func length(_ change: Change<Int>, _ current: Int?) -> Int?? {
+        func length(_ change: Change<Double>, _ current: Int?) -> Int?? {
             switch change {
             case .keep: return .some(current)
             case .clear: return .some(nil)
-            case .set(let ms): return Self.fadeRangeMs.contains(ms) ? .some(ms) : nil
+            case .set(let typed):
+                guard typed.isFinite, abs(typed) < 1e9 else { return nil }
+                let ms = Int(typed.rounded())
+                return Self.fadeRangeMs.contains(ms) ? .some(ms) : nil
             }
         }
         guard let inP = point(edit.inPoint, t.inPoint), let outP = point(edit.outPoint, t.outPoint),

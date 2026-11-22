@@ -25,7 +25,7 @@ generated files and a dirty tree can hold a half-finished regeneration. It write
 HEAD) and `spec_version`; `FixtureGuardTests` fails when the stamp is missing or its version differs from the fixtures. Commit the result (about 1.5 MB).
 
 The fixtures are self-describing: every case has a `scenario` object with the inputs it was generated from, and the harness reads them from there (a missing
-key fails with the file, case and key). `FixtureSchema` lists every key the harness reads or ignores on purpose; a new key in a fixture fails
+key fails with the file, case and key). Inputs are typed keys, never prose (`resume_flow` `then` is `{action, fade_ms}`, `levelmatch` `playing_file`, `shuffle_bag` `fair_share_range`); the harness parses no text. `FixtureSchema` lists every key the harness reads or ignores on purpose; a new key in a fixture fails
 `testNoFixtureKeyIsUnknown` until someone decides which it is.
 
 ## Run
@@ -55,6 +55,7 @@ Rules the harness follows (from the plan):
 - Tolerances come from the fixtures. A `tolerance` on a case overrides the file's for that case and the cases nested in it (`duck_curve` and
   `duck_curve_hold_percentile` carry 2e-5 dB). `assertClose(_:_:in:)` applies it. There is no special allowance in the harness; if a case ever needs one, the
   fixture gets its own tolerance on the Python side. The fixtures hold the ideal `Deck.vol`, not a quantised mixer volume.
+- Position and duration values in file seconds are compared within the case's `tolerance_by_key` (one sample, 2.5e-5 s); gains within the file tolerance. A key-level entry beats the case tolerance for that key only (`FixtureCase.tolerance(forKey:)`).
 - Trigger and end times are compared with the `ideal_*` values, never with the measured Python values (they include the 50 ms tick).
 - Shuffle: only the listed properties are checked, never the sequence.
 - `duck_loop` rows are matched by index, not by time (two rows share t = 0.5).
@@ -71,7 +72,7 @@ Rules the harness follows (from the plan):
   only `duck_curve_hold_percentile` can (its `_info_alternatives` lists the three depths). The test for it is pending on the subject until the engine
   provides `duckHoldDepthDb`.
 - **Open: clipping.** The spec leaves clipping unspecified, so no fixture tests it. The harness refuses to build a signal that would clip 16 bits instead of choosing a policy.
-- **Source:** the fixtures in this repo come from the Python repo's commit `52d6eab` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
+- **Source:** the fixtures in this repo come from the Python repo's commit `fb87930` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
 
 ## Engine types so far (slice 1: fades and crossfade)
 
@@ -86,10 +87,39 @@ onto these types; the types do not follow Python's method names. The next slices
 file in frames, never a copy of audio; fades at both edges; `TrackEnd`), `Playback` (passes, remaining time and the out-fade derived by arithmetic from the
 play frame) and `Mixer.ended` (decks that ended, at the exact frame). The spec text is copied to `docs/audio-spec-1.md` by `scripts/sync-audio-spec.sh`.
 
-Rules the fixtures show but the spec text does not state (taken from the fixtures, with the Python source read only to confirm the numbers):
-a window under 0.5 s falls back to B = end of file (A kept); points round to 0.01 s, an In under 0.01 s or an Out within 0.01 s of the end is not stored;
-a fade length must be 100...10000 ms (fixtures only bracket it) and is held to the part that plays; the out-fade runs only in the last pass of a deck that
-ends (never while looping); "fresh" means the start is at or before A; a loop keeps reporting pass 1, also after it is switched off.
+Rules that slice 2 took from the fixtures before the spec text stated them. Python commit `fb87930` pins each of them with a fixture case (and the spec text says them now), so
+there is no "implicit" list any more:
+
+| Rule | Pinned by (`trim.json` unless said) |
+|---|---|
+| A window under 0.5 s falls back to B = end of file, A kept; a fallen-back window has no out-fade | `short_window_stored` |
+| Points round to 0.01 s | `set_trim_rounding_a_b` |
+| An In that is <= 0.01 s after rounding is not stored | `set_trim_rounding_a_b` |
+| An Out within 0.01 s of the end (compared with the real length) is not stored; one past the end is clipped first | `set_trim_rounding_a_b`, `set_trim_out_vs_file_length` |
+| `set_trim` refuses a window under 0.5 s only when both In and Out are present | `set_trim_minimum_window` |
+| A fade length is rounded to whole ms and must be 100...10000 ms | `fade_length_limits` |
+| A fade length is held to the part that plays (never below 100 ms) and follows the window when it shrinks | `fade_length_held_to_window`, `fade_length_follows_window_changes` |
+| The out-fade runs only in the last pass of a deck that ends (never while looping; `once` in pass 2) | `out_fade_placement_loop`, `_once`, `_default`, `_stop`, `out_fade_once_switched_off_in_pass_1` |
+| A default out-fade longer than the window stays nominal on the deck and is held to one pass while running | `default_fade_longer_than_window` |
+| The fade-in starts only when the raw `offset` (file seconds, not relative to A) is <= 0.05 s | `fade_in_start_threshold` |
+| `fresh` (the gate for loop and a second pass) is `|start - A| < 0.06 s` | `fade_in_start_threshold` |
+| The fade-in is capped to window - out-fade when that leaves >= 100 ms; otherwise it keeps min(stored, window) | `fade_in_cap`, `fade_in_out_fade_overlap_901`, `_1000` (deck values only) |
+| A loop keeps reporting pass 1, also after it is switched off | `end_actions.json` `track_2s_end_loop`, `loop_switched_off_in_pass_2` |
+| Switching an end action while a track plays: the running pass is played out, then the new action decides | `end_actions.json` `end_action_switched_mid_play` |
+
+Python quirks 10, 11 and 12 of `docs/audio-spec-1.md` are NOT contract and are not reproduced (see "Stage decisions to make").
+
+## Stage decisions to make
+
+Behaviour the Python player has by accident, where the fixtures pin only part of the result. Stage has not chosen its own behaviour for these yet; until it does,
+the tests compare only what the fixture says (`loop_switched_off_in_pass_1_end` the end time, `fade_in_out_fade_overlap_901` / `_1000` the deck values).
+
+- **Quirk 10, a loop switched off mid-pass.** Python cuts hard at B instead of out-fading (the out-fade is decided from how the deck was started). The deck ends at the end of the running pass
+  (contract). Stage has not chosen its own behaviour yet: the ideal is an out-fade in the pass that turns out to be the last one.
+- **Quirk 11, fade-in and out-fade overlap.** When the window is too short for both, Python keeps the full fade-in and starts the out-fade at the first tick after it (or never). The deck values
+  (fade-in length kept, out-fade not shortened) are contract. Stage has not chosen its own behaviour yet: multiplying the two envelopes is the likely one.
+- **Quirk 12, switching to `once` mid-play.** Python adds no second pass (it is decided when the track starts). Not pinned by `end_action_switched_mid_play`. Stage has not chosen its own
+  behaviour yet; the subject treats that switch as pending.
 
 ## When the Python side bumps the spec
 

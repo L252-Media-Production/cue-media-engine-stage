@@ -3,7 +3,7 @@ import AudioCore
 /// The slice of the spec that AudioCore implements so far, as pure functions. Everything else is still pending
 /// (the protocol's default), so those tests are skipped until the transport port provides it.
 ///
-/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), play modes, next_in_order and the shuffle bag (play_modes.json, end_action_switched_mid_play), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
+/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), play modes, next_in_order and the shuffle bag (play_modes.json, end_action_switched_mid_play), trigger points (triggers.json), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
 /// `duck_key`, `duck_curve` (hold on / off), `duck_smooth`, `input_target_db`.
 struct AudioCoreSubject: AudioSpecSubject {
     func fadeGain(_ direction: FadeDirection, x: Double) throws -> Double {
@@ -323,6 +323,57 @@ struct AudioCoreSubject: AudioSpecSubject {
         player.advance(frames: end - player.mixer.transport.playFrame)
         guard let now = player.current, let pass = player.mixer.deck(now.deck)?.pass(at: player.mixer.transport.playFrame) else { return nil }
         return LiveTrack(track: now.position.track, passNo: pass.number)
+    }
+
+    // MARK: triggers.json
+
+    /// The test's answer to "can this target play": every voice-over of the scenario is decoded, with its length.
+    private struct FixtureReadiness: TargetReadiness {
+        var lengths: [TrackID: Double]
+
+        func state(of target: TrackID) -> TargetState {
+            lengths[target].map { .ready(lengthSeconds: $0) } ?? .missing
+        }
+    }
+
+    /// The main track is a one-track playlist with the scenario's trim, end action and trigger points; each voice-over file is a target. The player runs for
+    /// `runForS` (the seek, if any, at its time) and the fires are the voices that were started on top, at the frame they started.
+    func triggerFireTimes(_ s: TriggerScenario) throws -> [TriggerFire] {
+        let names = s.voiceOverLengthsS.keys.sorted()
+        var ids = [String: TrackID]()
+        var lengths = [TrackID: Double]()
+        for (i, name) in names.enumerated() {
+            ids[name] = TrackID(i + 1)
+            lengths[TrackID(i + 1)] = s.voiceOverLengthsS[name]
+        }
+        var list = TriggerList()
+        for (n, point) in s.triggers.enumerated() {
+            guard let target = ids[point.file] else { throw pending("a trigger whose target is not a voice-over of the scenario") }
+            list.add(Trigger(id: TriggerID(n), atSeconds: point.at, target: target, once: point.once ?? false, enabled: point.enabled ?? true))
+        }
+        let main = PlaylistTrack(id: TrackID(0), lengthSeconds: s.fileDurationS, trim: trim(s.trim), end: trackEnd(s.endAction), triggers: list)
+        var player = PlaylistPlayer(
+            playlists: [Playlist(tracks: [main], mode: .stop)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0),
+            random: SeededRandomSource(seed: 1), readiness: FixtureReadiness(lengths: lengths))
+        var fires = [TriggerFire]()
+        func collect() {
+            for f in player.fired { fires.append(TriggerFire(tS: player.mixer.transport.seconds(frames: f.frame), file: names[Int(f.target.raw) - 1])) }
+        }
+        player.play(TrackPosition(playlist: 0, track: 0))
+        collect()
+        let end = player.mixer.transport.frames(seconds: s.runForS)
+        if let seek = s.seek {
+            let at = player.mixer.transport.frames(seconds: seek.atS)
+            player.advance(frames: at)
+            collect()
+            player.seekLive(toSeconds: seek.toS)
+            collect()
+            player.advance(frames: end - at)
+        } else {
+            player.advance(frames: end)
+        }
+        collect()
+        return fires
     }
 
     func backgroundMultiplier(reductionDb: Double) throws -> Double {

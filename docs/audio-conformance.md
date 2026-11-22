@@ -134,6 +134,26 @@ Allocation: `advance(frames:)`, `PlayOrder.successor` and `ShuffleBag.draw` allo
 Starting the next track appends a deck to `Mixer.decks`, which can allocate, and ended decks are never removed, so a long show grows that array by one deck per track. `PlayOrder.nextInOrder` and
 the `Playlist`/`PlaylistPlayer` editing methods allocate and are setup or test paths.
 
+## Engine types, slice 4 (trigger points)
+
+`Trigger` / `TriggerID` / `TriggerList` (points of a track, sorted by `at`, fixed capacity 64, overflow counted), `TriggerWatch` (per watched deck: bitmasks `fired`, `due`, `skipped`, the
+file position seen so far, the pass and the passes before a seek; pure arithmetic: `begin`, `seeked`, `observe`, `nextEvent`), `TargetReadiness` / `TargetState` (ready with a length,
+loading, missing; driven by the tests from the fixture), `DuckingHook` with the no-op `NoDucking` (the ducking slice plugs in there; no ducking maths exists yet), `TriggerSettings`.
+`PlaylistPlayer` runs them: the step is cut at every frame a point is reached or a pass begins, so a voice starts at the exact frame whatever the caller's step (the Python 50 ms tick is not
+reproduced). The voice is a second `Deck` (`Mixer.startOnTop`, `Deck.isTop`) with no trim and no fade-in; starting a track removes it. `Mixer.seek` / `PlaylistPlayer.seekLive` move a
+deck (held to [A, B - 0.3 s], loop and passes kept, the fade-in not replayed).
+
+Rules (fixtures and spec text; the Python source was read only to confirm numbers): a point fires when the playhead crosses it, `(last, now]`; a point at A fires on a start at A; before A or
+at or after B never; a start part-way in or a seek has everything at or behind the position done and everything ahead armed; a new pass re-arms; `once` fires only when no pass came before;
+a Play on Top already running skips the point (not queued); disabled, disarmed (`TriggerSettings.armed`) and skipped points never fire; a seek while a voice plays on top is ignored.
+
+Not contract, Stage's own choice: the wait for a target that is still loading. Neither the spec text nor a fixture mentions it (the Python player gives up after 30 s); `TriggerSettings.waitLimitSeconds`
+defaults to 30 until a decision is made. The voice plays at full level (the "top track level" belongs to the ducking slice). Starting a track while a voice plays removes the voice.
+
+Allocation: `advance`, `TriggerWatch.observe` / `nextEvent` and the firing check allocate nothing. A fire appends a deck to `Mixer.decks` (allocates; ended decks stay): a run adds at most one deck per
+fired trigger, on top of one per track start. `TriggerWatch.init` allocates its fixed `dueSince` storage once per player; `TriggerList.add`, `PlaylistPlayer.addTrigger` / `removeTrigger` / `setTrigger`
+and `TriggerWatch.remap` are setup paths. `fired` is preallocated (capacity 32, extra fires counted in `droppedFires`).
+
 ## When the Python side bumps the spec
 
 The Python rule is: a change to audio behaviour regenerates the fixtures and raises the spec version. Then, here:

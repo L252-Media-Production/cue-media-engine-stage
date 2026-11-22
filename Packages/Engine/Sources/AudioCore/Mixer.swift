@@ -84,6 +84,27 @@ public struct Mixer {
         return id
     }
 
+    /// Starts a deck on top of the ones that play (a trigger voice): nothing is stopped or faded. It starts at full level.
+    /// Setup path, like `start`: appending a deck can allocate.
+    @discardableResult
+    public mutating func startOnTop(_ plan: TrackPlan) -> Deck.ID {
+        let id = (decks.last?.id ?? 0) + 1
+        decks.append(Deck(id: id, level: 1, playback: Playback(plan: plan, startFrame: transport.playFrame), isTop: true))
+        return id
+    }
+
+    /// Moves a playing deck to `seconds` of its file. Does nothing for a deck that is not playing.
+    public mutating func seek(_ id: Deck.ID, toSeconds seconds: Double) {
+        guard let i = decks.firstIndex(where: { $0.id == id }) else { return }
+        decks[i].seek(toSeconds: seconds, at: transport.playFrame)
+    }
+
+    /// Stops every deck that plays, voices on top included (a cut).
+    public mutating func stopAll() {
+        let now = transport.playFrame
+        for i in decks.indices where decks[i].isPlaying { decks[i].stop(at: now) }
+    }
+
     /// Fades the live deck down to 0 over `milliseconds` and removes it. 0 is a cut. Does nothing when nothing is live.
     public mutating func fadeOutLive(milliseconds: Int) {
         guard let id = live?.id, let i = decks.firstIndex(where: { $0.id == id }) else { return }

@@ -27,8 +27,11 @@ public struct PlaylistTrack: Equatable {
     public var end: TrackEnd
     /// The track's own crossfade time in ms (0...30000), nil = follow the master time. Stored for the crossfade rules; the auto-advance starts the next track with a cut.
     public var crossfadeMs: Int?
+    /// Voice-overs fired from positions of this track's file.
+    public var triggers = TriggerList()
 
-    public init(id: TrackID, lengthSeconds: Double, trim: Trim = Trim(), end: TrackEnd = .followPlayMode, crossfadeMs: Int? = nil) {
+    public init(id: TrackID, lengthSeconds: Double, trim: Trim = Trim(), end: TrackEnd = .followPlayMode, crossfadeMs: Int? = nil, triggers: TriggerList = TriggerList()) {
+        self.triggers = triggers
         self.id = id
         self.lengthSeconds = lengthSeconds
         self.trim = trim

@@ -17,7 +17,7 @@ public struct Playback: Equatable {
     /// The play frame at which the deck ends by itself; nil while it never does (a loop).
     public private(set) var endFrame: Int64?
     /// A loop reports pass 1 for ever, also after it has been switched to end with the running pass.
-    private let reportsOnePass: Bool
+    private var reportsOnePass: Bool
 
     init(plan: TrackPlan, startFrame: Int64) {
         self.plan = plan
@@ -51,6 +51,53 @@ public struct Playback: Equatable {
         let later = elapsed - first
         let index = later / w
         return PassPosition(number: reportsOnePass ? 1 : Int(index) + 2, remainingFrames: w - later % w)
+    }
+
+    /// The 0-based pass the deck is in, counted truly (a loop keeps counting; `pass(at:)` reports 1 for ever). nil once ended.
+    public func passIndex(at frame: Int64) -> Int? {
+        guard !isEnded(at: frame) else { return nil }
+        let elapsed = frame - startFrame
+        let first = plan.firstPassFrames
+        if elapsed < first { return 0 }
+        return Int((elapsed - first) / plan.windowFrames) + 1
+    }
+
+    /// Where in the FILE the deck is at `frame`, in frames of the file: from where the sound began during the first pass, from A in every later one.
+    /// nil once the deck has ended.
+    public func filePositionFrames(at frame: Int64) -> Int64? {
+        guard !isEnded(at: frame) else { return nil }
+        let elapsed = max(0, frame - startFrame)
+        let first = plan.firstPassFrames
+        if elapsed < first { return plan.baseFrames + elapsed }
+        return plan.loFrames + (elapsed - first) % plan.windowFrames
+    }
+
+    /// The first play frame after `frame` at which the next pass begins; nil when no further pass comes (the deck ends first, or it never started one).
+    public func nextPassBoundary(after frame: Int64) -> Int64? {
+        let first = plan.firstPassFrames
+        let elapsed = frame - startFrame
+        let boundary = elapsed < first ? startFrame + first : startFrame + first + ((elapsed - first) / plan.windowFrames + 1) * plan.windowFrames
+        if let e = endFrame, boundary >= e { return nil }
+        return boundary
+    }
+
+    /// The same deck, moved to `seconds` of the file at `frame`. The target is held to [A, B - 0.3 s] (docs/audio-spec-1.md, quirk 1). The passes that were left are
+    /// kept (a loop keeps looping; the out-fade and the end follow from the new position), the fade-in does not play again. Pure arithmetic.
+    func seeked(toSeconds seconds: Double, at frame: Int64) -> Playback {
+        let rate = Double(plan.sampleRate)
+        let target = Int64((seconds * rate).rounded())
+        let latest = max(plan.loFrames, plan.hiFrames - Int64((0.3 * rate).rounded()))
+        let base = min(max(target, plan.loFrames), latest)
+        // Passes still to play, the running one included.
+        var remaining = Int64.max
+        if let e = endFrame {
+            let total = e - startFrame <= plan.firstPassFrames ? 1 : 1 + (e - startFrame - plan.firstPassFrames + plan.windowFrames - 1) / plan.windowFrames
+            remaining = max(1, total - Int64(passIndex(at: frame) ?? 0))
+        }
+        var p = Playback(plan: plan.seeked(toBaseFrames: base), startFrame: frame)
+        p.reportsOnePass = reportsOnePass
+        if remaining != Int64.max { p.endFrame = frame + p.plan.firstPassFrames + (remaining - 1) * plan.windowFrames } else { p.endFrame = nil }
+        return p
     }
 
     /// The running pass becomes the last one: the deck ends at its end instead of going on (the end action was switched off).

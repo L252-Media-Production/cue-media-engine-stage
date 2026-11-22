@@ -15,8 +15,12 @@ public struct Deck: Equatable, Identifiable {
     /// The track window, passes and fades at A and B. nil: a deck that plays without end (slice 1).
     public private(set) var playback: Playback?
 
-    init(id: ID, level: Double, playback: Playback? = nil) {
+    /// The deck plays on top of the others (a voice-over fired by a trigger point): starting it does not stop them.
+    public let isTop: Bool
+
+    init(id: ID, level: Double, playback: Playback? = nil, isTop: Bool = false) {
         self.id = id
+        self.isTop = isTop
         self.level = level
         self.playback = playback
     }
@@ -61,6 +65,13 @@ public struct Deck: Equatable, Identifiable {
     /// Makes the running pass the last one.
     mutating func finishCurrentPass(at frame: Int64) {
         playback?.finishCurrentPass(at: frame)
+        settle(at: frame)
+    }
+
+    /// Moves the deck to `seconds` of the file (see `Playback.seeked`). Volume, fades and the pause state are kept.
+    mutating func seek(toSeconds seconds: Double, at frame: Int64) {
+        guard isPlaying, let p = playback else { return }
+        playback = p.seeked(toSeconds: seconds, at: frame)
         settle(at: frame)
     }
 

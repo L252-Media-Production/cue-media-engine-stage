@@ -36,9 +36,9 @@ public struct TrackPlan: Equatable {
     /// A, B and the position the sound begins at, in frames of the file. `loFrames <= baseFrames <= hiFrames`.
     public let loFrames: Int64
     public let hiFrames: Int64
-    public let baseFrames: Int64
+    public private(set) var baseFrames: Int64
     /// The start was at A within `freshSeconds` (not a seek or a resume part-way in): the gate for a loop and a second pass.
-    public let isFresh: Bool
+    public private(set) var isFresh: Bool
     /// Fade-in at A and fade-out ahead of B, in ms and frames. 0 = none (a cut).
     public let fadeInMs: Int
     public let fadeInFrames: Int64
@@ -97,6 +97,14 @@ public struct TrackPlan: Equatable {
         endFadeMs = p.endFadeMs
         endFadeFrames = p.endFadeFrames
         end = p.end
+    }
+
+    /// The same plan with the sound beginning at another frame of the window (a seek): the end action is kept, the fade-in is not played again.
+    func seeked(toBaseFrames base: Int64) -> TrackPlan {
+        var p = TrackPlan(copying: self, fadeInMs: 0, fadeInFrames: 0)
+        p.baseFrames = base
+        p.isFresh = abs(seconds(base) - seconds(loFrames)) < Self.freshSeconds
+        return p
     }
 
     /// The same plan without a fade-in (it is never applied under a crossfade or while paused).

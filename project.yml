@@ -17,15 +17,24 @@ settings:
 packages:
   Engine:
     path: Packages/Engine
+  StageKit:
+    path: Packages/StageKit
 
 targets:
   CueMEStage:
     type: application
     platform: macOS
     sources:
-      - Apps/CueMEStage
+      - path: Apps/CueMEStage
+        excludes:
+          - Resources/Fonts
+      # Folder reference: the fonts and their OFL licence land in Contents/Resources/Fonts/ (see BundledFonts.swift).
+      - path: Apps/CueMEStage/Resources/Fonts
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: Engine
+      - package: StageKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage
@@ -33,6 +42,21 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: CueME Stage
         INFOPLIST_KEY_NSHumanReadableCopyright: Copyright L252 Media Production
         ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+
+  CueMEStageTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Apps/CueMEStageTests
+    dependencies:
+      - target: CueMEStage
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CueMEStage.app/Contents/MacOS/CueMEStage
+        BUNDLE_LOADER: $(TEST_HOST)
         CODE_SIGN_STYLE: Automatic
 
   StageEngine:
@@ -64,3 +88,16 @@ targets:
         # For distribution this needs the disable-library-validation entitlement instead.
         ENABLE_HARDENED_RUNTIME: NO
         CODE_SIGN_STYLE: Automatic
+
+schemes:
+  CueMEStage:
+    build:
+      targets:
+        CueMEStage: all
+        CueMEStageTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CueMEStageTests

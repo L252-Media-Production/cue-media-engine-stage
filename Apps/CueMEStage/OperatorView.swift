@@ -1,0 +1,710 @@
+import SwiftUI
+import StageKit
+
+/// The operator (run) view: service on the left, current and next monitors and the slide grid in the centre,
+/// transport under them, the bottom tabs (Audio, Activities, ...) and the status bar. Reads `StageState` only;
+/// every control sends a `Command` through the store.
+struct OperatorView: View {
+    let store: StageStore
+    /// Shared with the menu bar (Service > Go Live acts on the selected item).
+    @Bindable var ui: OperatorUIState
+    @Environment(\.theme) private var theme
+
+    /// Which service item the slide grid shows; not engine state.
+    private var selection: Item.ID? {
+        get { ui.selection }
+        nonmutating set { ui.selection = newValue }
+    }
+
+    private var state: StageState { store.state }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ServicePanel(state: state, selection: $ui.selection) { item in
+                    store.send(.go(itemID: item.id, slideIndex: 0))
+                }
+                .frame(width: 240)
+                Divider()
+                VStack(spacing: 0) {
+                    MonitorRow(state: state)
+                    Divider()
+                    SlideGrid(state: state, item: state.item(selection)) { item, index in
+                        store.send(.go(itemID: item.id, slideIndex: index))
+                    }
+                    Divider()
+                    TransportBar(blackout: state.blackout, send: store.send)
+                    Divider()
+                    BottomPanel(state: state, send: store.send)
+                        .frame(height: 210)
+                }
+            }
+            Divider()
+            StatusBar(state: state, lastEvent: store.lastEvent)
+        }
+        .background(theme.background)
+        .foregroundStyle(theme.textPrimary)
+        // When a different item goes live (Next across items, Go from elsewhere), the grid follows it; also when the
+        // view appears with something already live.
+        .onChange(of: state.primaryLive?.itemID, initial: true) { _, itemID in
+            if let itemID { selection = itemID }
+        }
+        // Nothing picked yet (first snapshot of a service): show the item Next would start with.
+        .onChange(of: state.service?.id, initial: true) { _, _ in
+            if selection == nil { selection = state.primaryLive?.itemID ?? state.nextSlide?.itemID }
+        }
+    }
+}
+
+// MARK: Service
+
+private struct ServicePanel: View {
+    let state: StageState
+    @Binding var selection: Item.ID?
+    let go: (Item) -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PanelHeader(title: state.service?.name ?? "No service")
+            List(state.service?.items ?? [], selection: $selection) { item in
+                ServiceRow(item: item, isLive: isLive(item))
+                    .tag(item.id)
+            }
+            // Double-click. Return is Service > Go Live: the menu's key equivalent takes it before the list sees it,
+            // so a press of Return is one Go, never two.
+            .contextMenu(forSelectionType: Item.ID.self) { ids in
+                Button("Go Live") { goFirst(of: ids) }.disabled(ids.isEmpty)
+            } primaryAction: { ids in
+                goFirst(of: ids)
+            }
+            .scrollContentBackground(.hidden)
+            Text("Double-click or Return takes an item live")
+                .font(.caption)
+                .foregroundStyle(theme.textSecondary)
+                .padding(ThemeTokens.spacingS)
+        }
+        .background(theme.surface)
+    }
+
+    private func goFirst(of ids: Set<Item.ID>) {
+        guard let item = state.service?.items.first(where: { ids.contains($0.id) }) else { return }
+        go(item)
+    }
+
+    private func isLive(_ item: Item) -> Bool {
+        if state.primaryLive?.itemID == item.id { return true }
+        guard case let .media(id) = item.content else { return false }
+        return state.audio.liveTrack == id
+    }
+}
+
+/// A service entry. Selection is the list's own highlight; LIVE is a red bar on the leading edge plus a chip,
+/// so the two read differently also when the live item is the selected one.
+private struct ServiceRow: View {
+    let item: Item
+    let isLive: Bool
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: ThemeTokens.spacingS) {
+            Rectangle()
+                .fill(isLive ? theme.live : .clear)
+                .frame(width: 3)
+            Image(systemName: icon)
+                .foregroundStyle(isLive ? theme.live : theme.textSecondary)
+                .frame(width: 16)
+            Text(item.title)
+                .fontWeight(isLive ? .semibold : .regular)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            if isLive { Chip(text: "LIVE", color: theme.live, filled: true) }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isLive ? "Live" : "")
+    }
+
+    private var icon: String {
+        switch item.content {
+        case .song: "music.note.list"
+        case .media: "waveform"
+        case .blank: "rectangle"
+        }
+    }
+}
+
+// MARK: Monitors (current and next)
+
+private struct MonitorRow: View {
+    let state: StageState
+
+    var body: some View {
+        HStack(alignment: .top, spacing: ThemeTokens.spacingM) {
+            ForEach(state.screens) { screen in
+                ScreenMonitor(screen: screen, itemTitle: state.item(screen.live?.itemID)?.title, blackout: state.blackout)
+            }
+            NextCard(next: state.nextSlide, itemTitle: state.item(state.nextSlide?.itemID)?.title)
+        }
+        .padding(ThemeTokens.spacingM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ScreenMonitor: View {
+    let screen: ScreenState
+    let itemTitle: String?
+    let blackout: Bool
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        MonitorFrame(title: screen.name, caption: caption, accent: isOnAir ? theme.live : nil) {
+            if blackout {
+                // The output is black; say so, so it cannot be mistaken for "nothing live".
+                ZStack {
+                    Color.black
+                    Text("BLACKOUT").font(ThemeTokens.mono(12, weight: .bold)).foregroundStyle(theme.live)
+                }
+            } else if let live = screen.live {
+                SlideText(lines: live.lines, size: 13)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+            } else {
+                NothingLive(text: "Nothing live")
+            }
+        }
+    }
+
+    private var isOnAir: Bool { screen.live != nil && !blackout }
+
+    private var caption: String? {
+        guard let live = screen.live else { return nil }
+        return [itemTitle, live.label].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+private struct NextCard: View {
+    let next: LiveSlide?
+    let itemTitle: String?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        MonitorFrame(
+            title: "Next",
+            caption: next.map { [itemTitle, $0.label].compactMap { $0 }.joined(separator: " · ") },
+            accent: next == nil ? nil : theme.preview
+        ) {
+            if let next {
+                SlideText(lines: next.lines, size: 13)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                    .opacity(0.85)
+            } else {
+                NothingLive(text: "End of service")
+            }
+        }
+    }
+}
+
+/// A 16:9 monitor with a title row above it.
+private struct MonitorFrame<Content: View>: View {
+    let title: String
+    let caption: String?
+    let accent: Color?
+    @ViewBuilder let content: Content
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ThemeTokens.spacingXS) {
+            HStack(spacing: ThemeTokens.spacingXS) {
+                Text(title.uppercased())
+                    .font(ThemeTokens.mono(11, weight: .bold))
+                    .foregroundStyle(accent ?? theme.textSecondary)
+                Spacer(minLength: ThemeTokens.spacingXS)
+                if let caption {
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            content
+                .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.radius))
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ThemeTokens.radius)
+                        .stroke(accent ?? theme.border, lineWidth: 2)
+                )
+        }
+        .frame(maxWidth: 280)
+    }
+}
+
+/// The empty state of a monitor: a grey, dashed panel, deliberately unlike the black of a blackout or a live slide.
+private struct NothingLive: View {
+    let text: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ZStack {
+            theme.surfaceRaised
+            RoundedRectangle(cornerRadius: ThemeTokens.radius)
+                .strokeBorder(theme.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .padding(ThemeTokens.spacingXS)
+            Text(text)
+                .font(ThemeTokens.mono(11, weight: .medium))
+                .foregroundStyle(theme.textSecondary)
+        }
+    }
+}
+
+private struct SlideText: View {
+    let lines: [String]
+    let size: CGFloat
+
+    var body: some View {
+        VStack(spacing: 3) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+            }
+        }
+        .font(.system(size: size, weight: .semibold))
+        .foregroundStyle(.white)
+        .multilineTextAlignment(.center)
+        .minimumScaleFactor(0.6)
+        .padding(ThemeTokens.spacingS)
+    }
+}
+
+// MARK: Slide grid
+
+private struct SlideGrid: View {
+    let state: StageState
+    let item: Item?
+    let go: (Item, Int) -> Void
+    @Environment(\.theme) private var theme
+
+    private let columns = [GridItem(.adaptive(minimum: 190), spacing: ThemeTokens.spacingM)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PanelHeader(title: item?.title ?? "Slides")
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let item {
+            let slides = state.slides[item.id] ?? []
+            if slides.isEmpty {
+                EmptyMessage(text: emptyText(for: item))
+            } else {
+                grid(item: item, slides: slides)
+            }
+        } else {
+            EmptyMessage(text: "Select an item in the service to see its slides")
+        }
+    }
+
+    private func grid(item: Item, slides: [Slide]) -> some View {
+        let live = state.primaryLive?.itemID == item.id ? state.primaryLive?.slideIndex : nil
+        let next = state.nextSlide?.itemID == item.id ? state.nextSlide?.slideIndex : nil
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: ThemeTokens.spacingM) {
+                    ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
+                        SlideCard(number: index + 1, slide: slide, isLive: index == live, isNext: index == next) {
+                            go(item, index)
+                        }
+                        .id(slide.id)
+                    }
+                }
+                .padding(ThemeTokens.spacingM)
+            }
+            .onAppear { reveal(live, in: slides, proxy, animated: false) }
+            .onChange(of: state.primaryLive?.slideID) { _, _ in reveal(live, in: slides, proxy, animated: true) }
+        }
+        // A new grid per item, so `onAppear` scrolls to the live slide when the item changes.
+        .id(item.id)
+    }
+
+    private func reveal(_ index: Int?, in slides: [Slide], _ proxy: ScrollViewProxy, animated: Bool) {
+        guard let index, slides.indices.contains(index) else { return }
+        let id = slides[index].id
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+        } else {
+            proxy.scrollTo(id)
+        }
+    }
+
+    private func emptyText(for item: Item) -> String {
+        switch item.content {
+        case .song: "This song has no slides"
+        case .media: "Media item: no slides. Double-click it in the service to play it"
+        case .blank: "Blank item: no slides"
+        }
+    }
+}
+
+/// One slide. LIVE: solid red border and a filled chip. NEXT: green border and an outlined chip.
+private struct SlideCard: View {
+    let number: Int
+    let slide: Slide
+    let isLive: Bool
+    let isNext: Bool
+    let action: () -> Void
+    @Environment(\.theme) private var theme
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: ThemeTokens.spacingXS) {
+                    Text("\(number)")
+                        .font(ThemeTokens.mono(11, weight: .bold))
+                        .foregroundStyle(theme.textSecondary)
+                    Text(slide.label)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isLive {
+                        Chip(text: "LIVE", color: theme.live, filled: true)
+                    } else if isNext {
+                        Chip(text: "NEXT", color: theme.preview, filled: false)
+                    }
+                }
+                .padding(.horizontal, ThemeTokens.spacingS)
+                .padding(.vertical, ThemeTokens.spacingXS + 1)
+                .background(theme.surfaceRaised)
+
+                SlideText(lines: slide.lines, size: 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .background(Color.black)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.radius))
+            .overlay(
+                RoundedRectangle(cornerRadius: ThemeTokens.radius)
+                    .stroke(borderColor, lineWidth: isLive ? 3 : 2)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Take \(slide.label) live")
+        .accessibilityLabel("Slide \(number), \(slide.label)")
+        .accessibilityValue(isLive ? "Live" : isNext ? "Next" : "")
+    }
+
+    private var borderColor: Color {
+        if isLive { return theme.live }
+        if isNext { return theme.preview }
+        return hovering ? theme.textSecondary : theme.border
+    }
+}
+
+// MARK: Transport
+
+private struct TransportBar: View {
+    let blackout: Bool
+    let send: (Command) -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: ThemeTokens.spacingS) {
+            // Next / Previous are also on → / ← (Show menu). Return belongs to the service list (Go).
+            Button { send(.previous) } label: { Label("Previous", systemImage: "chevron.left") }
+            Button { send(.next) } label: { Label("Next", systemImage: "chevron.right") }
+            Divider().frame(height: 18)
+            Button("Clear Slide") { send(.clear(.slide)) }
+            Button("Clear All") { send(.clear(.all)) }
+            Spacer()
+            if blackout {
+                // A custom style: `.borderedProminent` turns grey when the window is not key, and this state must
+                // stay obvious whatever has focus.
+                Button { send(.blackout(false)) } label: {
+                    Label("BLACKOUT ON", systemImage: "circle.fill").font(ThemeTokens.mono(12, weight: .bold))
+                }
+                .buttonStyle(ActiveStateButtonStyle(color: theme.live))
+                .help("Blackout is on. Click to end it")
+                .accessibilityValue("On")
+            } else {
+                Button { send(.blackout(true)) } label: { Label("Blackout", systemImage: "circle") }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(.horizontal, ThemeTokens.spacingM)
+        .padding(.vertical, ThemeTokens.spacingS)
+    }
+}
+
+private struct ActiveStateButtonStyle: ButtonStyle {
+    let color: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(color.opacity(configuration.isPressed ? 0.75 : 1), in: RoundedRectangle(cornerRadius: 5))
+    }
+}
+
+// MARK: Bottom panel
+
+private struct BottomPanel: View {
+    let state: StageState
+    let send: (Command) -> Void
+    @Environment(\.theme) private var theme
+    /// Remembered across launches; View > Cmd-4 / Cmd-5 write the same key.
+    @AppStorage(StorageKeys.bottomTab) private var tabRaw = BottomTab.audio.rawValue
+    private var tab: BottomTab { BottomTab.resolve(tabRaw) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(BottomTab.allCases) { item in
+                    TabButton(title: item.rawValue, isSelected: tab == item, isEnabled: item.isEnabled) { tabRaw = item.rawValue }
+                }
+                Spacer()
+            }
+            .padding(.horizontal, ThemeTokens.spacingS)
+            .background(theme.surfaceRaised)
+
+            switch tab {
+            case .audio:
+                AudioPanel(state: state, send: send)
+            case .activities, .scripture, .media, .looks:
+                PlaceholderPanel(title: tab.rawValue)
+            }
+        }
+        .background(theme.surface)
+    }
+}
+
+private struct TabButton: View {
+    let title: String
+    let isSelected: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Text(title.uppercased())
+                .font(ThemeTokens.mono(11, weight: .semibold))
+                .foregroundStyle(isSelected ? theme.textPrimary : theme.textSecondary)
+                .padding(.horizontal, ThemeTokens.spacingM)
+                .padding(.vertical, ThemeTokens.spacingS)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(isSelected ? theme.accent : .clear).frame(height: 2)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.4)
+        .help(isEnabled ? "" : "Not available yet")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct PlaceholderPanel: View {
+    let title: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(spacing: ThemeTokens.spacingS) {
+            Text(title).font(.headline)
+            Text("After v0.1").font(ThemeTokens.mono(12)).foregroundStyle(theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(true)
+    }
+}
+
+private struct AudioPanel: View {
+    let state: StageState
+    let send: (Command) -> Void
+    @Environment(\.theme) private var theme
+
+    private var audio: AudioState { state.audio }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: ThemeTokens.spacingL) {
+            VStack(alignment: .leading, spacing: ThemeTokens.spacingS) {
+                Text(state.mediaTitle(audio.liveTrack) ?? "No track")
+                    .font(.title3.weight(.semibold))
+                HStack(spacing: ThemeTokens.spacingM) {
+                    Text(timecode(audio.position)).font(ThemeTokens.mono(22, weight: .medium))
+                    Text(audio.transport.rawValue.uppercased())
+                        .font(ThemeTokens.mono(11, weight: .bold))
+                        .foregroundStyle(audio.transport == .playing ? theme.live : theme.textSecondary)
+                }
+                HStack(spacing: ThemeTokens.spacingS) {
+                    Button(audio.transport == .paused ? "Resume" : "Pause") {
+                        send(audio.transport == .paused ? .resumeAudio : .pauseAudio)
+                    }
+                    .disabled(audio.transport != .playing && audio.transport != .paused)
+                    Button("Fade Out") { send(.fadeAudio(seconds: 3)) }.disabled(audio.liveTrack == nil)
+                    Button("Stop") { send(.stopAudio) }.disabled(audio.liveTrack == nil)
+                    Button("Skip Trigger") { send(.skipNextTrigger) }.disabled(audio.nextTrigger == nil)
+                }
+            }
+            Divider()
+            Grid(alignment: .leading, horizontalSpacing: ThemeTokens.spacingM, verticalSpacing: ThemeTokens.spacingXS) {
+                row("Voice", audio.voicePlaying ? "ON TOP" : "—", color: audio.voicePlaying ? theme.warning : nil)
+                row("Ducking", audio.duckingText)
+                row("Next trigger", audio.nextTrigger.map { timecode($0.at) } ?? "—")
+                Divider().gridCellColumns(2)
+                row("Dropped ends", "\(audio.counters.droppedEnds)", color: counterColor(audio.counters.droppedEnds))
+                row("Dropped fires", "\(audio.counters.droppedFires)", color: counterColor(audio.counters.droppedFires))
+                row("Pool exhausted", "\(audio.counters.poolExhausted)", color: counterColor(audio.counters.poolExhausted))
+            }
+            .frame(width: 240) // the spanning Divider would otherwise stretch the grid to the full width
+            Spacer()
+        }
+        .padding(ThemeTokens.spacingM)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func row(_ label: String, _ value: String, color: Color? = nil) -> some View {
+        GridRow {
+            Text(label).foregroundStyle(theme.textSecondary)
+            Text(value).font(ThemeTokens.mono(12)).foregroundStyle(color ?? theme.textPrimary)
+        }
+    }
+
+    private func counterColor(_ n: Int) -> Color? { n > 0 ? theme.danger : nil }
+}
+
+// MARK: Status
+
+private struct StatusBar: View {
+    let state: StageState
+    let lastEvent: StageEvent?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: ThemeTokens.spacingL) {
+            ForEach(state.outputs) { output in
+                HStack(spacing: ThemeTokens.spacingXS) {
+                    Circle().fill(color(output.health)).frame(width: 8, height: 8)
+                    Text(output.name)
+                    if output.droppedFrames > 0 {
+                        Text("\(output.droppedFrames) dropped").foregroundStyle(theme.danger)
+                    }
+                }
+            }
+            StatusChip(text: "Audio: \(state.audio.transport.label)", color: audioColor)
+                .help("Audio transport")
+            let engine = EngineChipModel(counters: state.audio.counters)
+            StatusChip(text: "Engine", color: engine.isAlert ? theme.warning : nil)
+                .help(engine.tooltip)
+            Spacer()
+            if case let .commandRejected(_, reason) = lastEvent {
+                Text("Refused: \(reason)").foregroundStyle(theme.warning)
+            }
+        }
+        .font(ThemeTokens.mono(11))
+        .padding(.horizontal, ThemeTokens.spacingM)
+        .padding(.vertical, ThemeTokens.spacingXS + 2)
+        .background(theme.surfaceRaised)
+    }
+
+    private var audioColor: Color? {
+        switch state.audio.transport {
+        case .stopped: nil
+        case .playing: theme.ok
+        case .paused, .fading: theme.warning
+        }
+    }
+
+    private func color(_ health: OutputStatus.Health) -> Color {
+        switch health {
+        case .ok: theme.ok
+        case .degraded: theme.warning
+        case .offline: theme.danger
+        }
+    }
+}
+
+// MARK: Shared
+
+private struct PanelHeader: View {
+    let title: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(ThemeTokens.mono(11, weight: .semibold))
+            .foregroundStyle(theme.textSecondary)
+            .lineLimit(1)
+            .padding(.horizontal, ThemeTokens.spacingM)
+            .padding(.vertical, ThemeTokens.spacingS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.surfaceRaised)
+    }
+}
+
+/// A status-bar chip: neutral (`color` nil) or tinted.
+private struct StatusChip: View {
+    let text: String
+    let color: Color?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(text)
+            .foregroundStyle(color ?? theme.textSecondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background((color ?? theme.border).opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(color ?? theme.border, lineWidth: 1))
+    }
+}
+
+private struct Chip: View {
+    let text: String
+    let color: Color
+    let filled: Bool
+
+    var body: some View {
+        Text(text)
+            .font(ThemeTokens.mono(9, weight: .bold))
+            .foregroundStyle(filled ? .white : color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(filled ? color : .clear, in: RoundedRectangle(cornerRadius: 3))
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: filled ? 0 : 1))
+    }
+}
+
+private struct EmptyMessage: View {
+    let text: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(theme.textSecondary)
+            .multilineTextAlignment(.center)
+            .padding(ThemeTokens.spacingL)
+    }
+}
+
+private func timecode(_ seconds: Double) -> String {
+    let total = max(0, seconds)
+    let minutes = Int(total) / 60
+    let rest = total - Double(minutes * 60)
+    return String(format: "%02d:%04.1f", minutes, rest)
+}
+
+#Preview {
+    OperatorView(store: .mock(), ui: OperatorUIState())
+        .modifier(Themed())
+        .frame(width: 1200, height: 780)
+}

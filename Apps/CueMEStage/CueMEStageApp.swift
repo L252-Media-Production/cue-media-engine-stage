@@ -2,22 +2,26 @@ import SwiftUI
 
 @main
 struct CueMEStageApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
-}
+    // TODO(ipc): swap the mock for the StageEngine IPC client once it exists. Nothing else changes.
+    @State private var store = StageStore.mock()
+    @State private var ui = OperatorUIState()
+    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.dark.rawValue
 
-struct ContentView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Text("CueME Stage")
-                .font(.largeTitle)
-            Text("Operator UI placeholder. The engine spike runs in StageEngine.")
-                .foregroundStyle(.secondary)
+    init() {
+        // Before any view reads ThemeTokens (which also registers on first use, so the order is safe either way).
+        BundledFonts.registerOnce()
+        ShortcutGuard.install()
+    }
+
+    var body: some Scene {
+        WindowGroup("CueME Stage") {
+            OperatorView(store: store, ui: ui)
+                .preferredColorScheme(AppTheme.resolve(themeRaw).colorScheme)
+                .modifier(Themed())
+                .frame(minWidth: 1100, minHeight: 720)
         }
-        .padding(40)
-        .frame(minWidth: 480, minHeight: 280)
+        .commands {
+            StageMenuCommands(store: store, ui: ui)
+        }
     }
 }

@@ -188,12 +188,16 @@ struct TriggerScenario {
     /// The track starts at this position of the file (an offset in file seconds; 0 = from the top).
     var offsetS = 0.0
     var targetReady = TargetReadyAt.always
+    /// Per voice-over file, for scenarios whose targets are decoded at different times; a file that is not listed follows `targetReady`.
+    var targetReadyByFile: [String: TargetReadyAt] = [:]
     /// `top_track_pct`: the level of a trigger voice in percent.
     var topTrackPct = 100.0
     var armed = true
     /// A second track of the playlist and the moment it is started (a cut when `crossfadeMs` is 0), while whatever plays goes on.
     var otherTrack: (name: String, lengthS: Double)?
     var newTrack: (atS: Double, crossfadeMs: Int)?
+    /// Ducking on: the settings and the constant sample value of the voice-over files (what the scenario says its voice-over holds). nil: no ducking.
+    var duck: (settings: DuckSettings, voiceSampleValue: Int)?
 }
 
 /// A deck as it is listed at a moment: a track by name, or a voice-over by its file name.
@@ -208,6 +212,8 @@ struct DeckView: Equatable {
     var fading: Bool
     /// The level-match gain of the deck (`Deck.gain` of the spec), a factor besides `vol`.
     var levelGain: Double
+    /// The background multiplier of the deck is below 0.99 (the fixtures' definition of `ducked`).
+    var ducked = false
 }
 
 /// What is playing at a moment of a trigger scenario.
@@ -251,6 +257,37 @@ struct DuckLoopSeries {
     var targetDb: [Double?]
     var grDb: [Double]
     var bgMultiplier: [Double]
+}
+
+/// A `duck_loop` run in which the scenario starts the voice-overs itself (the phase cases and the second-voice cases of Python 3d7cd36): the background plays
+/// from t = 0, the first voice-over starts on top at `backgroundAloneS`, the control loop's first turn comes `loopFirstTurnDelayS` later, and a second
+/// voice-over may start on top while the first ducks. One row per loop turn.
+struct DuckVoicesRequest {
+    var settings: DuckSettings
+    var stepS: Double
+    var lookAheadS: Double
+    var backgroundLengthS: Double
+    var backgroundAloneS: Double
+    var loopFirstTurnDelayS: Double
+    var firstVoice: [VoiceOver.Segment]
+    /// The second voice-over starts on top `clockMovedBeforeS` after the loop turn before turn `startsAtStep`.
+    var secondVoice: (segments: [VoiceOver.Segment], startsAtStep: Int, clockMovedBeforeS: Double)?
+    /// The player's own tick (it finds out that a voice-over is over) runs on every turn that is a multiple of this.
+    var tickEverySteps: Int
+    var sampleCount: Int
+}
+
+/// One row per loop turn, as the fixture lists it. `topN` (1 or 2) and `lookAheadIndex` are nil once the voice-over is gone from the player.
+struct DuckVoicesSeries {
+    var tS: [Double]
+    var topN: [Int?]
+    var topPosS: [Double?]
+    var lookAheadIndex: [Int?]
+    var targetDb: [Double]
+    var grDb: [Double]
+    var bgMultiplier: [Double]
+    /// How many times the control loop was started (Python: `ducking_loop_tasks`).
+    var loopRuns: Int
 }
 
 enum LevelMatchMode: String, Decodable, CaseIterable {
@@ -423,6 +460,8 @@ protocol AudioSpecSubject {
     func inputTargetDb(rms: Double, gainDb: Double, ratio: Double, thresholdDb: Double) throws -> Double
     /// The real ducking loop: a background deck from t = 0 and a voice-over played on top, one row per 10 ms.
     func duckLoop(_ request: DuckLoopRequest) throws -> DuckLoopSeries
+    /// The same loop with voice-overs the scenario starts itself: a first-turn delay (the phase of the control grid) and a second voice-over.
+    func duckVoices(_ request: DuckVoicesRequest) throws -> DuckVoicesSeries
 
     // levelmatch.json
     /// Integrated loudness (BS.1770) of interleaved 48 kHz 16-bit stereo; nil = silent or shorter than 0.4 s.
@@ -497,6 +536,7 @@ extension AudioSpecSubject {
     func backgroundMultiplier(reductionDb: Double) throws -> Double { throw pending("background gain multiplier") }
     func inputTargetDb(rms: Double, gainDb: Double, ratio: Double, thresholdDb: Double) throws -> Double { throw pending("input_target_db") }
     func duckLoop(_ request: DuckLoopRequest) throws -> DuckLoopSeries { throw pending("duck_loop series") }
+    func duckVoices(_ request: DuckVoicesRequest) throws -> DuckVoicesSeries { throw pending("duck_loop voices series") }
 
     func measureLufs(pcm: [Int16]) throws -> Double? { throw pending("LUFS measurement (BS.1770)") }
     func storeLevelMatch(typed: LevelMatchTyped, playlist: [String], clamp: LufsClamp) throws -> LevelMatchStored { throw pending("level-match setting limits") }

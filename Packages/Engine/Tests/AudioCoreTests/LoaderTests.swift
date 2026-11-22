@@ -34,6 +34,6 @@ final class LoaderTests: FixtureTestCase {
     func testTriggerCaseNamesDoNotIncludeInfoKeys() throws {
         let names = Set(try FixtureDocument.load("triggers").caseNames)
         XCTAssertFalse(names.contains { $0.hasPrefix("_info") })
-        XCTAssertEqual(names.count, 22)   // 11 cases of the first sync and the 11 trigger boundary cases of Python 1241963
+        XCTAssertEqual(names.count, 23)   // 11 cases of the first sync, the 11 trigger boundary cases of Python 1241963 and target_never_ready_does_not_block_next_point (ba6c883)
     }
 }

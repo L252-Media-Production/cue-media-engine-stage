@@ -26,6 +26,7 @@ final class TriggersConformanceTests: FixtureTestCase {
     func testOnceLoopSeekBackInLap2() throws { try run("once_loop_seek_back_in_lap_2") }
     func testTargetReadyAfter1s() throws { try run("target_ready_after_1s") }
     func testTargetNeverReady() throws { try run("target_never_ready") }
+    func testTargetNeverReadyDoesNotBlockNextPoint() throws { try run("target_never_ready_does_not_block_next_point") }
 
     // MARK: cases with a list of fires
 
@@ -40,11 +41,22 @@ final class TriggersConformanceTests: FixtureTestCase {
             seeks = try s.objects("seeks").map { (try $0.double("at_s"), try $0.double("to_s")) }
         }
         var ready = TargetReadyAt.always
-        if s.has("target_decoded_at_s") { ready = try s.optionalDouble("target_decoded_at_s").map { .atS($0) } ?? .never }
-        return TriggerScenario(
+        var readyByFile = [String: TargetReadyAt]()
+        if s.has("target_decoded_at_s") {
+            if case .object = try s.raw("target_decoded_at_s") {
+                // One time per file (null: never decoded).
+                let o = try s.object("target_decoded_at_s")
+                for file in o.keys { readyByFile[file] = try o.optionalDouble(file).map { .atS($0) } ?? .never }
+            } else {
+                ready = try s.optionalDouble("target_decoded_at_s").map { .atS($0) } ?? .never
+            }
+        }
+        var scenario = TriggerScenario(
             triggers: try s.decode("triggers"), trim: s.has("trim") ? try s.decode("trim") : TrimFields(), fileDurationS: mainLength,
             voiceOverLengthsS: Dictionary(uniqueKeysWithValues: try s.numbersByName("voice_over_lengths_s").map { ($0.name, $0.value) }),
             endAction: try s.named("end_action"), seeks: seeks, runForS: s.has("run_s") ? try s.double("run_s") : 0, targetReady: ready)
+        scenario.targetReadyByFile = readyByFile
+        return scenario
     }
 
     private func run(_ name: String) throws {
@@ -134,12 +146,13 @@ final class TriggersConformanceTests: FixtureTestCase {
             let pct = try row.double("top_track_pct")
             var sc = try scenario("voice_level_and_second_point", s)
             sc.topTrackPct = pct
-            sc.runForS = 12.5
+            sc.runForS = 20
             let at = try row.double("at_s")
             let later = try row.object("at_12_5_s")
-            let snaps = try subject.triggerSnapshots(sc, at: [at, 12.5])
-            XCTAssertEqual(snaps.count, 2, "pct \(pct): snapshots")
-            guard snaps.count == 2 else { continue }
+            let end = try row.object("at_20_s")
+            let snaps = try subject.triggerSnapshots(sc, at: [at, 12.5, 20])
+            XCTAssertEqual(snaps.count, 3, "pct \(pct): snapshots")
+            guard snaps.count == 3 else { continue }
             let voice = try row.string("voice")
             let tops = snaps[0].decks.filter(\.top)
             XCTAssertEqual(tops.count, 1, "pct \(pct) at \(at): one voice on top")
@@ -155,6 +168,11 @@ final class TriggersConformanceTests: FixtureTestCase {
             XCTAssertEqual(snaps[1].decks.filter(\.top).count, try later.int("tops"), "pct \(pct) at 12.5: tops")
             XCTAssertEqual(snaps[1].decks.first { $0.top }.map { Self.bare($0.name) }, try later.string("voice"), "pct \(pct) at 12.5: voice")
             XCTAssertEqual(snaps[1].firesSoFar, try later.int("trigger_fires_so_far"), "pct \(pct) at 12.5: trigger_fires_so_far")
+            // At 20 s the 8 s voice-over (from 10 s) is over: nothing on top, the track is live again, and the voice-over at 12 s (still playing when the
+            // first one was, "a Play on Top already running skips the point") never fired.
+            XCTAssertEqual(snaps[2].decks.filter(\.top).count, try end.int("tops"), "pct \(pct) at 20: tops")
+            XCTAssertEqual(snaps[2].liveName.map(Self.bare), try end.string("live"), "pct \(pct) at 20: live")
+            XCTAssertEqual(snaps[2].firesSoFar, try end.int("trigger_fires_so_far"), "pct \(pct) at 20: trigger_fires_so_far")
         }
     }
 
@@ -163,8 +181,9 @@ final class TriggersConformanceTests: FixtureTestCase {
 
     private static func bare(_ name: String) -> String { name.hasSuffix(".wav") ? String(name.dropLast(4)) : name }
 
-    /// The decks at the listed times. Compared: which decks play, which one is live, `top`, `vol` (with the fade curves of fades.json) and `ending`.
-    /// NOT compared: `ducked`, `_info_python_*` (ducking is not in the engine yet; quirk 14 is not contract).
+    /// The decks at the listed times. Compared: which decks play, which one is live, `top`, `vol` (with the fade curves of fades.json), `ending` and
+    /// `ducked` (the background multiplier is below 0.99). NOT compared: `_info_python_*` (the Python gr and multiplier; the release of the dip after a
+    /// crossfade is quirk 14 and not contract).
     private func newTrack(_ name: String) throws {
         let fc = try fixtureCase("triggers", name)
         let s = try fc.scenario()
@@ -174,6 +193,11 @@ final class TriggersConformanceTests: FixtureTestCase {
         XCTAssertEqual(try nt.int("track"), 1, "\(name): the new track is track 1")
         let config = try s.object("config")
         let triggers: [TriggerCase.Point] = try s.decode("triggers")
+        // The voice-over file holds one constant sample value ("vo.wav (8 s, constant 16384 = -6 dBFS RMS)"): the key of a constant is its absolute value.
+        let voiceText = try s.string("voice_over")
+        guard let match = voiceText.range(of: #"constant (-?\d+)"#, options: .regularExpression), let value = Int(voiceText[match].dropFirst("constant ".count)) else {
+            throw FixtureReadError(file: s.file, caseName: name, message: "scenario.voice_over does not say which constant sample value the voice-over holds: \(voiceText)")
+        }
         let voiceFiles = Set(triggers.map(\.file))
         var lengths = [String: Double]()
         for f in voiceFiles { lengths[f] = try s.number("library_s", named: f) }
@@ -181,7 +205,8 @@ final class TriggersConformanceTests: FixtureTestCase {
             triggers: triggers, trim: TrimFields(), fileDurationS: try s.number("library_s", named: try s.strings("playlist")[0]), voiceOverLengthsS: lengths,
             endAction: try s.named("end_action"), seeks: [], runForS: 0, mainName: names[0], topTrackPct: try config.double("top_track_pct"),
             armed: try config.bool("triggers_armed"), otherTrack: (names[1], try s.number("library_s", named: try s.strings("playlist")[1])),
-            newTrack: (try nt.double("at_s"), try nt.int("crossfade_ms")))
+            newTrack: (try nt.double("at_s"), try nt.int("crossfade_ms")),
+            duck: (try config.decodeSelf(as: DuckSettings.self), value))
 
         let top = caseValues(fc)
         var expected = try top.objects("rows").map { ($0, $0) }
@@ -191,8 +216,20 @@ final class TriggersConformanceTests: FixtureTestCase {
         sc.runForS = times.max() ?? 0
         let snaps = try subject.triggerSnapshots(sc, at: times)
         XCTAssertEqual(snaps.count, times.count, "\(name): snapshots")
+        let voiceName = Self.bare(try XCTUnwrap(triggers.first?.file, "\(name): no trigger"))
         for (snap, (row, _)) in zip(snaps, expected) {
             let t = try row.double("t_s")
+            // `voice`, `old_background` and `new_track` say for each of the three decks whether it is still there, its level, whether it is ducked and
+            // whether it is fading out (`ending`): the samples that tell a cut from a crossfade, and a deck that is faded out from one that is gone.
+            for (key, deckName) in [("voice", voiceName), ("old_background", names[0]), ("new_track", names[1])] {
+                let want = try row.object(key)
+                let got = snap.decks.first { Self.bare($0.name) == deckName }
+                XCTAssertEqual(got != nil, try want.bool("present"), "\(name) t=\(t) \(key) present")
+                guard let got, try want.bool("present") else { continue }
+                assertClose(got.vol, try want.double("vol"), in: fc, "t=\(t) \(key) vol")
+                XCTAssertEqual(got.ducked, try want.bool("ducked"), "\(name) t=\(t) \(key) ducked")
+                XCTAssertEqual(got.ending, try want.bool("fading_out"), "\(name) t=\(t) \(key) fading_out")
+            }
             XCTAssertEqual(snap.liveName.map(Self.bare), try row.string("live"), "\(name) t=\(t) live")
             let want = try row.objects("decks")
             XCTAssertEqual(snap.decks.map { Self.bare($0.name) }.sorted(), try want.map { try $0.string("name") }.sorted(), "\(name) t=\(t): which decks play")
@@ -202,6 +239,7 @@ final class TriggersConformanceTests: FixtureTestCase {
                 XCTAssertEqual(got.top, try d.bool("top"), "\(name) t=\(t) \(deckName) top")
                 assertClose(got.vol, try d.double("vol"), in: fc, "t=\(t) \(deckName) vol")
                 XCTAssertEqual(got.ending, try d.bool("ending"), "\(name) t=\(t) \(deckName) ending")
+                XCTAssertEqual(got.ducked, try d.bool("ducked"), "\(name) t=\(t) \(deckName) ducked")
             }
         }
     }

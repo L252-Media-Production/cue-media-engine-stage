@@ -55,6 +55,7 @@ public struct Mixer {
     /// Ends that did not fit in `ended` during the last `advance`.
     public private(set) var droppedEnds = 0
     public private(set) var counters = EngineCounters()
+    private var duck = DuckControl()
 
     /// Setup path: allocates the pool and the ended buffer, once.
     public init(sampleRate: Int = AudioFormat.sampleRate, poolCapacity: Int = Mixer.defaultPoolCapacity) {
@@ -72,12 +73,25 @@ public struct Mixer {
 
     // MARK: time
 
-    /// Moves the clock and settles every deck, recording the decks that ended in `ended`.
+    /// Moves the clock and settles every deck, recording the decks that ended in `ended`. While a sidechain runs, the time is cut at every step of its
+    /// 10 ms control loop (counted in frames of the play clock), so what the loop computes does not depend on `frames`.
     /// Real-time: no allocation (`ended` is preallocated and cleared in place), no closures, no locks.
     public mutating func advance(frames: Int64) {
-        transport.advance(frames: frames)
+        precondition(frames >= 0, "time does not run backwards")
         ended.removeAll(keepingCapacity: true)
         droppedEnds = 0
+        var left = frames
+        repeat {
+            var step = left
+            if duck.isRunning, !transport.isPaused { step = Swift.min(step, Swift.max(1, duck.nextStep - transport.playFrame)) }
+            advanceClock(step)
+            left -= step
+            runDuckSteps()
+        } while left > 0
+    }
+
+    private mutating func advanceClock(_ frames: Int64) {
+        transport.advance(frames: frames)
         let now = transport.playFrame
         for i in slots.indices {
             guard var d = slots[i].deck else { continue }
@@ -243,5 +257,106 @@ public struct Mixer {
     public mutating func finishCurrentPass(of id: Deck.ID) {
         guard let i = index(of: id) else { return }
         slots[i].deck?.finishCurrentPass(at: transport.playFrame)
+    }
+}
+
+// MARK: sidechain ducking
+
+extension Mixer {
+    /// A voice on top starts to duck the decks that play (the background). `curve` is the reduction in dB for each 10 ms window of the voice, made offline with
+    /// `Ducking.curve` (the hold included); the loop reads it, it never makes one. Does nothing when no deck plays besides the voice or `curve` is empty.
+    /// A second voice replaces the first as the driver; the loop, its reduction and the background are kept.
+    /// Real-time: no allocation (the curve is only retained).
+    public mutating func beginDucking(voice: Deck.ID, curve: [Double], settings: DuckingSettings) {
+        let now = transport.playFrame
+        guard deck(voice)?.isPlaying == true, !curve.isEmpty else { return }
+        if duck.isRunning, !hasLiveBackground() { endDuckingSession(at: now) }      // nothing of the old session plays any more: no residual depth
+        var any = false
+        for i in slots.indices where slots[i].deck?.isPlaying == true && slots[i].deck?.isTop == false {
+            if slots[i].deck?.followsDuck != true { slots[i].deck?.setFollowsDuck(true, at: now) }
+            any = true
+        }
+        guard any else { return }
+        duck.voice = voice
+        duck.voiceStart = deck(voice)?.playback?.startFrame ?? now
+        duck.curve = curve
+        duck.attackMs = settings.attackMs
+        duck.releaseMs = settings.releaseMs
+        duck.stepFrames = Swift.max(1, transport.frames(milliseconds: 10))
+        duck.stepSeconds = transport.seconds(frames: duck.stepFrames)
+        duck.lookAheadFrames = transport.frames(milliseconds: settings.lookAheadMs)
+        if !duck.isRunning {
+            duck.isRunning = true
+            duck.nextStep = now
+            duck.reductionDb = 0
+            duck.inForce = DuckReading()
+            duck.pending = DuckReading()
+            duck.pendingAt = Int64.min
+        }
+        runDuckSteps()
+    }
+
+    /// The voice is gone (it ended, or a cut removed it): the loop releases from the next step on. Ignored for a voice that is not the driver.
+    /// Real-time: arithmetic only.
+    public mutating func endDucking(voice: Deck.ID) {
+        if duck.voice == voice { duck.voice = .none }
+    }
+
+    /// What the loop made current at a play frame, or nil when no loop has run.
+    public func duckReading(at frame: Int64) -> DuckReading? { duck.isRunning || duck.pendingAt != Int64.min ? duck.reading(at: frame) : nil }
+
+    /// True while the control loop runs (a voice plays, or the reduction is still being released).
+    public var isDucking: Bool { duck.isRunning }
+
+    /// The voice that drives the loop now (the last one that began ducking), or `.none` after it ended.
+    public var duckVoice: Deck.ID { duck.voice }
+
+    private func hasLiveBackground() -> Bool {
+        for s in slots where s.deck?.isPlaying == true && s.deck?.followsDuck == true { return true }
+        return false
+    }
+
+    private mutating func endDuckingSession(at frame: Int64) {
+        for i in slots.indices where slots[i].deck?.followsDuck == true { slots[i].deck?.setFollowsDuck(false, at: frame) }
+        duck.isRunning = false
+        duck.voice = .none
+        duck.reductionDb = 0
+        duck.inForce = DuckReading()
+        duck.pending = DuckReading()
+        duck.pendingAt = Int64.min
+    }
+
+    /// Runs every control step that is due at the play frame. Real-time: arithmetic and a loop over the pool, no allocation.
+    mutating func runDuckSteps() {
+        while duck.isRunning, duck.nextStep <= transport.playFrame {
+            let at = duck.nextStep
+            if !hasLiveBackground() {          // a cut, or the old side of a crossfade has gone: nothing left to duck
+                endDuckingSession(at: at)
+                return
+            }
+            let before = duck.reading(at: at)
+            let voiceGone = duck.voice == Deck.ID.none || deck(duck.voice)?.isPlaying != true
+            var target = 0.0
+            var window = -1
+            if !voiceGone {
+                // Floor: the integer division of a position that is not negative (Python: `int((playhead - origin) / 0.01) + 2`, quirk 16).
+                window = Int((at - duck.voiceStart + duck.lookAheadFrames) / duck.stepFrames)
+                if window >= 0, window < duck.curve.count { target = duck.curve[window] }
+            }
+            duck.reductionDb = Ducking.smooth(gr: duck.reductionDb, target: target, dt: duck.stepSeconds, attackMs: duck.attackMs, releaseMs: duck.releaseMs)
+            let factor = Ducking.backgroundMultiplier(reductionDb: duck.reductionDb)
+            let effective = at + duck.stepFrames
+            for i in slots.indices where slots[i].deck?.followsDuck == true { slots[i].deck?.setDuck(factor, effectiveAt: effective, now: at) }
+            duck.inForce = before
+            duck.pending = DuckReading(targetDb: target, reductionDb: duck.reductionDb, multiplier: factor, window: window)
+            duck.pendingAt = effective
+            if voiceGone, duck.reductionDb == 0, before.reductionDb == 0 {
+                endDuckingSession(at: effective)
+                duck.pending = duck.inForce
+                duck.pendingAt = Int64.min
+                return
+            }
+            duck.nextStep = effective
+        }
     }
 }

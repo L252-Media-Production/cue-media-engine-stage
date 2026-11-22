@@ -79,11 +79,26 @@ public protocol TargetReadiness {
     func state(of target: TrackID) -> TargetState
 }
 
-/// The hook the ducking slice plugs into. A voice on top starts over the deck it plays on (the background); when it ends the background is released.
-/// The trigger code calls these at the exact frames and does nothing else about ducking.
+/// The hook that ducking plugs into. A voice on top starts over the deck it plays on (the background); when it ends (also by a fade-out after a crossfade, or
+/// a cut) the background is released. The trigger code calls these at the exact frames and does nothing else about ducking.
+///
+/// The first pair only tells what happened. The second pair also hands over the mixer and the voice's target: that is what a hook that really ducks
+/// (`SidechainDucking`) implements. Their defaults call the first pair, so a recorder only needs the first.
 public protocol DuckingHook {
     mutating func voiceStarted(_ voice: Deck.ID, over background: Deck.ID?, atFrame frame: Int64)
     mutating func voiceEnded(_ voice: Deck.ID, atFrame frame: Int64)
+    mutating func voiceStarted(_ voice: Deck.ID, target: TrackID, over background: Deck.ID?, atFrame frame: Int64, in mixer: inout Mixer)
+    mutating func voiceEnded(_ voice: Deck.ID, atFrame frame: Int64, in mixer: inout Mixer)
+}
+
+public extension DuckingHook {
+    mutating func voiceStarted(_ voice: Deck.ID, target: TrackID, over background: Deck.ID?, atFrame frame: Int64, in mixer: inout Mixer) {
+        voiceStarted(voice, over: background, atFrame: frame)
+    }
+
+    mutating func voiceEnded(_ voice: Deck.ID, atFrame frame: Int64, in mixer: inout Mixer) {
+        voiceEnded(voice, atFrame: frame)
+    }
 }
 
 /// The default hook: no ducking.
@@ -91,6 +106,55 @@ public struct NoDucking: DuckingHook {
     public init() {}
     public mutating func voiceStarted(_ voice: Deck.ID, over background: Deck.ID?, atFrame frame: Int64) {}
     public mutating func voiceEnded(_ voice: Deck.ID, atFrame frame: Int64) {}
+}
+
+/// Sidechain ducking (Play on Top): the voice's 10 ms level key is measured offline (`prepare`, when the file is decoded or imported), turned into a reduction
+/// curve with the settings, and the mixer's control loop follows it while the voice plays. A voice whose target has not been prepared does not duck.
+///
+/// Setup path: `init`, `prepare` and changing `settings` allocate (they make the curves). `voiceStarted` / `voiceEnded` do not: a dictionary lookup and
+/// handing the (already made) curve to the mixer, which only retains it.
+public struct SidechainDucking: DuckingHook {
+    public var settings: DuckingSettings {
+        didSet { if settings != oldValue { for (id, e) in entries { entries[id] = Entry(key: e.key, curve: curve(of: e.key)) } } }
+    }
+    /// How many voices started without a prepared key (they play, nothing is ducked).
+    public private(set) var voicesWithoutKey = 0
+
+    private struct Entry {
+        var key: [Double]
+        var curve: [Double]
+    }
+    private var entries: [TrackID: Entry] = [:]
+
+    public init(settings: DuckingSettings = DuckingSettings()) {
+        self.settings = settings
+    }
+
+    /// Keeps the key of a track (`Ducking.key(pcm:)`, one value per 10 ms of its file) and makes its reduction curve. Setup path.
+    public mutating func prepare(target: TrackID, key: [Double]) {
+        entries[target] = Entry(key: key, curve: curve(of: key))
+    }
+
+    public mutating func forget(target: TrackID) { entries[target] = nil }
+
+    private func curve(of key: [Double]) -> [Double] {
+        Ducking.curve(key: key, level: settings.voiceLevel, ratio: settings.ratio, thresholdDb: settings.thresholdDb, hold: settings.hold)
+    }
+
+    public mutating func voiceStarted(_ voice: Deck.ID, over background: Deck.ID?, atFrame frame: Int64) {}
+    public mutating func voiceEnded(_ voice: Deck.ID, atFrame frame: Int64) {}
+
+    public mutating func voiceStarted(_ voice: Deck.ID, target: TrackID, over background: Deck.ID?, atFrame frame: Int64, in mixer: inout Mixer) {
+        guard let e = entries[target] else {
+            voicesWithoutKey += 1
+            return
+        }
+        mixer.beginDucking(voice: voice, curve: e.curve, settings: settings)
+    }
+
+    public mutating func voiceEnded(_ voice: Deck.ID, atFrame frame: Int64, in mixer: inout Mixer) {
+        mixer.endDucking(voice: voice)
+    }
 }
 
 /// A readiness that knows no target: every trigger is given up on.
@@ -107,7 +171,7 @@ public struct TriggerSettings: Equatable {
     /// (the Python player gives up after 30 s); it is Stage's own default until a decision is made.
     public var waitLimitSeconds = 30.0
     /// The level a trigger voice plays at, in percent (`top_track_pct`): a plain volume of `percent / 100` (0...1), no fade-in. Only this level is implemented;
-    /// what the top-track level does to the other decks (ducking) belongs to the ducking slice.
+    /// what the top-track level does to the other decks is ducking (`SidechainDucking`, with its own copy of the level in `DuckingSettings`).
     public var topTrackPercent = 100.0
 
     public init(armed: Bool = true, waitLimitSeconds: Double = 30, topTrackPercent: Double = 100) {

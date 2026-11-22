@@ -183,7 +183,7 @@ public struct PlaylistPlayer<Random: RandomSource> {
                     droppedFires += 1
                     totalDroppedFires += 1
                 }
-                ducking.voiceStarted(id, over: c.deck, atFrame: now)
+                ducking.voiceStarted(id, target: t.target, over: c.deck, atFrame: now, in: &mixer)
                 watch.clearDue(i)
             }
         }
@@ -226,7 +226,7 @@ public struct PlaylistPlayer<Random: RandomSource> {
         // A cut removed the voice at once. A crossfade fades it out with every other deck: it stays "on top" (a point reached meanwhile is skipped, as with any
         // voice) until its fade ends, and the hook hears about its end then, at the exact frame.
         if let v = voice, mixer.deck(v)?.isPlaying != true {
-            ducking.voiceEnded(v, atFrame: mixer.transport.playFrame)
+            ducking.voiceEnded(v, atFrame: mixer.transport.playFrame, in: &mixer)
             topDeck = nil
         }
         // Level match applies to tracks, not to trigger voices (docs/audio-spec-1.md: "no level match" for a voice-over).
@@ -249,7 +249,7 @@ public struct PlaylistPlayer<Random: RandomSource> {
 
     /// The voice on top, if any, is about to be removed by a cut: tell the ducking hook.
     private mutating func releaseVoice() {
-        if let v = topDeck, mixer.deck(v)?.isPlaying == true { ducking.voiceEnded(v, atFrame: mixer.transport.playFrame) }
+        if let v = topDeck, mixer.deck(v)?.isPlaying == true { ducking.voiceEnded(v, atFrame: mixer.transport.playFrame, in: &mixer) }
         topDeck = nil
     }
 
@@ -281,7 +281,7 @@ public struct PlaylistPlayer<Random: RandomSource> {
             mixer.advance(frames: step)
             left -= step
             for e in mixer.ended where e.deck == topDeck {
-                ducking.voiceEnded(e.deck, atFrame: e.frame)
+                ducking.voiceEnded(e.deck, atFrame: e.frame, in: &mixer)
                 topDeck = nil
             }
             if let c = current {

@@ -327,19 +327,19 @@ struct AudioCoreSubject: AudioSpecSubject {
 
     // MARK: triggers.json
 
-    /// The test's answer to "can this target play": every voice-over of the scenario is decoded, with its length, once the gate is open.
+    /// The test's answer to "can this target play": a voice-over of the scenario is decoded, with its length, once its gate is open.
     private final class FixtureReadiness: TargetReadiness {
         var lengths: [TrackID: Double]
-        var open: Bool
+        var open: Set<TrackID>
 
-        init(lengths: [TrackID: Double], open: Bool) {
+        init(lengths: [TrackID: Double], open: Set<TrackID>) {
             self.lengths = lengths
             self.open = open
         }
 
         func state(of target: TrackID) -> TargetState {
             guard let length = lengths[target] else { return .missing }
-            return open ? .ready(lengthSeconds: length) : .loading
+            return open.contains(target) ? .ready(lengthSeconds: length) : .loading
         }
     }
 
@@ -370,10 +370,21 @@ struct AudioCoreSubject: AudioSpecSubject {
             tracks.append(PlaylistTrack(id: TrackID(1), lengthSeconds: other.lengthS))
             trackNames.append(other.name)
         }
-        let gate = FixtureReadiness(lengths: lengths, open: s.targetReady == .always)
+        func readiness(of file: String) -> TargetReadyAt { s.targetReadyByFile[file] ?? s.targetReady }
+        let gate = FixtureReadiness(lengths: lengths, open: Set(voiceNames.filter { readiness(of: $0) == .always }.compactMap { targetIds[$0] }))
+        // Ducking only where the scenario asks for it: its voice-over files are a constant sample value, so the key is that value in every 10 ms window.
+        var hook: any DuckingHook = NoDucking()
+        if let d = s.duck {
+            var sidechain = SidechainDucking(settings: duckingSettings(d.settings))
+            for (id, seconds) in lengths {
+                let value = Double(abs(d.voiceSampleValue)) / 32768
+                sidechain.prepare(target: id, key: Array(repeating: value, count: Int(seconds * 100)))
+            }
+            hook = sidechain
+        }
         var player = PlaylistPlayer(
             playlists: [Playlist(tracks: tracks, mode: .stop)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0),
-            random: SeededRandomSource(seed: 1), readiness: gate, settings: TriggerSettings(armed: s.armed, topTrackPercent: s.topTrackPct))
+            random: SeededRandomSource(seed: 1), readiness: gate, ducking: hook, settings: TriggerSettings(armed: s.armed, topTrackPercent: s.topTrackPct))
 
         var run = TriggerRun()
         var deckNames = [Deck.ID: String]()
@@ -393,14 +404,18 @@ struct AudioCoreSubject: AudioSpecSubject {
         }
         func snapshot(_ t: Double) {
             let decks = player.mixer.decks.filter(\.isPlaying).map {
-                DeckView(name: deckNames[$0.id] ?? "?", top: $0.isTop, vol: $0.gain(at: player.mixer.transport.playFrame), ending: $0.endsWhenFadeEnds && $0.fade != nil, fading: $0.fade != nil, levelGain: $0.levelGain(at: player.mixer.transport.playFrame))
+                DeckView(
+                    name: deckNames[$0.id] ?? "?", top: $0.isTop, vol: $0.volume(at: player.mixer.transport.playFrame), ending: $0.endsWhenFadeEnds && $0.fade != nil,
+                    fading: $0.fade != nil, levelGain: $0.levelGain(at: player.mixer.transport.playFrame), ducked: $0.duck(at: player.mixer.transport.playFrame) < 0.99)
             }
             run.snapshots.append(TriggerSnapshot(atS: t, liveName: player.mixer.live.flatMap { deckNames[$0.id] }, decks: decks, firesSoFar: firesSoFar))
         }
 
-        enum Event { case ready, seek(Double), newTrack(Int), read }
+        enum Event { case ready(TrackID), seek(Double), newTrack(Int), read }
         var events: [(t: Double, order: Int, e: Event)] = []
-        if case .atS(let t) = s.targetReady { events.append((t, 0, .ready)) }
+        for name in voiceNames {
+            if case .atS(let t) = readiness(of: name), let id = targetIds[name] { events.append((t, 0, .ready(id))) }
+        }
         for seek in s.seeks { events.append((seek.atS, 1, .seek(seek.toS))) }
         if let n = s.newTrack { events.append((n.atS, 1, .newTrack(n.crossfadeMs))) }
         for t in readAt { events.append((t, 2, .read)) }
@@ -417,7 +432,7 @@ struct AudioCoreSubject: AudioSpecSubject {
                 collect()
             }
             switch ev.e {
-            case .ready: gate.open = true
+            case .ready(let id): gate.open.insert(id)
             case .seek(let to): player.seekLive(toSeconds: to); collect()
             case .newTrack(let xf): start(1, crossfadeMs: xf, offset: 0)
             case .read: snapshot(ev.t)
@@ -496,6 +511,174 @@ struct AudioCoreSubject: AudioSpecSubject {
 
     func duckCurve(key: [Double], level: Double, ratio: Double, thresholdDb: Double, hold: Bool) throws -> [Double] {
         Ducking.curve(key: key, level: level, ratio: ratio, thresholdDb: thresholdDb, hold: hold)
+    }
+
+    func duckHoldDepthDb(key: [Double], level: Double, ratio: Double, thresholdDb: Double) throws -> Double {
+        Ducking.holdDepthDb(key: key, level: level, ratio: ratio, thresholdDb: thresholdDb)
+    }
+
+    private func duckingSettings(_ s: DuckSettings, lookAheadS: Double = 0.02) -> DuckingSettings {
+        DuckingSettings(
+            thresholdDb: s.thresholdDb, ratio: s.ratio, attackMs: s.attackMs, releaseMs: s.releaseMs, hold: s.hold, topTrackPercent: s.topTrackPct,
+            lookAheadMs: Int((lookAheadS * 1000).rounded()))
+    }
+
+    /// The real loop: a background deck from t = 0, a voice-over on top from `backgroundAloneS`, a mixer read every 10 ms. The voice-over is the segments of
+    /// the fixture as 48 kHz stereo (the key is measured from those samples, like at import).
+    ///
+    /// Row i (0-based) is read at the play frame of its time: rows before the voice are one step apart (row `alone - 1` is the last background-only sample),
+    /// the voice starts at the SAME time as that row (the next one), then every row is one step later. Columns:
+    ///  - `grDb`, `bgMultiplier`: what the mixer's control loop has made current at that frame (`Mixer.duckReading`) and the background deck's factor.
+    ///  - `targetDb`, `topPosS`: what the loop read for the voice. The fixture reports the voice until the first tick (every `tickEverySteps` steps from the
+    ///    start of the voice) after it has ended: that is how the scenario samples it, so it is a REPORTING rule here, not a rule of the engine (the engine
+    ///    releases at the exact frame; the reduction is the same either way).
+    func duckLoop(_ r: DuckLoopRequest) throws -> DuckLoopSeries {
+        let rate = AudioSpec.sampleRate
+        var mixer = Mixer(sampleRate: rate)
+        let stepFrames = mixer.transport.frames(seconds: r.stepS)
+        let aloneRow = Int((r.backgroundAloneS / r.stepS).rounded())
+        let voiceFrames = Int(((r.voiceOver.segments ?? []).reduce(0) { $0 + $1.seconds } * Double(rate)).rounded())
+        var pcm = [Int16]()
+        pcm.reserveCapacity(voiceFrames * 2)
+        for seg in r.voiceOver.segments ?? [] {
+            let v = Int16(clamping: seg.sampleValue)
+            for _ in 0..<Int((seg.seconds * Double(rate)).rounded()) { pcm.append(v); pcm.append(v) }
+        }
+        var hook = SidechainDucking(settings: duckingSettings(r.settings, lookAheadS: r.lookAheadS))
+        hook.prepare(target: TrackID(1), key: Ducking.key(pcm: pcm))
+        let policy = TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0)
+        let background = mixer.start(TrackPlan(trim: Trim(), policy: policy, fileLength: r.backgroundLengthS, sampleRate: rate))
+        var voice = Deck.ID.none
+        let voiceStart = Int64(aloneRow) * stepFrames
+        let voiceEnd = voiceStart + Int64(voiceFrames)
+
+        var out = DuckLoopSeries(tS: [], topPosS: [], targetDb: [], grDb: [], bgMultiplier: [])
+        for i in 0..<r.sampleCount {
+            let frame = Int64(i < aloneRow ? i + 1 : i) * stepFrames
+            if frame > mixer.transport.playFrame { mixer.advance(frames: frame - mixer.transport.playFrame) }
+            if i == aloneRow {
+                voice = mixer.startOnTop(
+                    TrackPlan(trim: Trim(), policy: policy, fileLength: Double(voiceFrames) / Double(rate), sampleRate: rate), level: r.settings.topTrackPct / 100)
+                hook.voiceStarted(voice, target: TrackID(1), over: background, atFrame: frame, in: &mixer)
+            }
+            let reading = mixer.duckReading(at: frame)
+            var seen = false
+            if i >= aloneRow {
+                let lastTick = voiceStart + Int64((i - aloneRow) / r.tickEverySteps * r.tickEverySteps) * stepFrames
+                seen = lastTick <= voiceEnd
+            }
+            out.tS.append(Double(frame) / Double(rate))
+            out.topPosS.append(seen ? Double(min(frame - voiceStart, voiceEnd - voiceStart)) / Double(rate) : nil)
+            out.targetDb.append(seen ? reading?.targetDb ?? 0 : nil)
+            out.grDb.append(reading?.reductionDb ?? 0)
+            out.bgMultiplier.append(mixer.deck(background)?.duck(at: frame) ?? 1)
+        }
+        return out
+    }
+
+    /// `duck_loop` cases that start their voice-overs themselves. Row `r` is the loop's turn `r` of Python: the voice-over's position at it, the key window it
+    /// read (`look_ahead_index`), the reduction after it.
+    ///
+    /// How the Python timer is reproduced (all of it in this adapter; the engine has a grid anchored where its loop starts and nothing else, quirk 16):
+    ///  - The phase of the grid: Python's first turn comes `loop_first_turn_delay_s` after the first voice-over started and every later turn 10 ms after
+    ///    the one before. The adapter lets the voice play that long before it hands it to the ducking hook, so the engine's first step is at that
+    ///    position of the voice and row `r` is the engine's step `r` (the value that step computed, `duckReading(at: step + 10 ms)`).
+    ///  - With no delay (the on-grid cases) Python's later turns read the playhead a float rounding error BELOW the 10 ms grid (the rig's fake clock adds
+    ///    0.01 per turn; the recorded `look_ahead_index` of row k is k + 1, not k + 2). That is not contract: the adapter models it as a loop that runs
+    ///    one frame (21 us) early: the hook is called 479 frames in, row 0 is the first turn before the loop (nothing has happened yet) and row `r` is
+    ///    step `r - 1`. The `look_ahead_index` column checks this choice: a fixture made with other rounding noise fails there, loudly.
+    ///  - Instants (`t_s`, `top_pos_s`) are the scenario's schedule (start + delay + 10 ms x row), not frame counts: 9.9 ms is not a whole number of frames,
+    ///    and the 479-frame loop is not 10 ms. The engine runs on the nearest frame.
+    ///  - REPORTING only (not in the engine): the player's own 50 ms tick (`tick_every_steps`) is what takes a finished voice-over away. Until it does,
+    ///    the fixture keeps listing the voice-over with its position clamped to its length (the stale rows), whatever the loop has already done.
+    func duckVoices(_ r: DuckVoicesRequest) throws -> DuckVoicesSeries {
+        let rate = AudioSpec.sampleRate
+        var mixer = Mixer(sampleRate: rate)
+        let stepFrames = mixer.transport.frames(seconds: r.stepS)
+        func frames(of segments: [VoiceOver.Segment]) -> Int {
+            Int((segments.reduce(0) { $0 + $1.seconds } * Double(rate)).rounded())
+        }
+        func pcm(_ segments: [VoiceOver.Segment]) -> [Int16] {
+            var out = [Int16]()
+            for seg in segments {
+                let v = Int16(clamping: seg.sampleValue)
+                for _ in 0..<Int((seg.seconds * Double(rate)).rounded()) { out.append(v); out.append(v) }
+            }
+            return out
+        }
+        let policy = TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0)
+        func plan(_ segments: [VoiceOver.Segment]) -> TrackPlan {
+            TrackPlan(trim: Trim(), policy: policy, fileLength: Double(frames(of: segments)) / Double(rate), sampleRate: rate)
+        }
+        var hook = SidechainDucking(settings: duckingSettings(r.settings, lookAheadS: r.lookAheadS))
+        hook.prepare(target: TrackID(1), key: Ducking.key(pcm: pcm(r.firstVoice)))
+        if let second = r.secondVoice { hook.prepare(target: TrackID(2), key: Ducking.key(pcm: pcm(second.segments))) }
+
+        let background = mixer.start(TrackPlan(trim: Trim(), policy: policy, fileLength: r.backgroundLengthS, sampleRate: rate))
+        let voiceStart = mixer.transport.frames(seconds: r.backgroundAloneS)
+        mixer.advance(frames: voiceStart)
+        let level = r.settings.topTrackPct / 100
+        let voice1 = mixer.startOnTop(plan(r.firstVoice), level: level)
+
+        let delayFrames = mixer.transport.frames(seconds: r.loopFirstTurnDelayS)
+        let onGrid = delayFrames == 0
+        let loopPhase = onGrid ? stepFrames - 1 : delayFrames
+        let rowOffset = onGrid ? 1 : 0
+        mixer.advance(frames: loopPhase)
+        hook.voiceStarted(voice1, target: TrackID(1), over: background, atFrame: mixer.transport.playFrame, in: &mixer)
+        // The second voice-over starts on the clock of Python's turns (delay + 10 ms x turns), not on the loop's phase.
+        let secondStart: Int64? = r.secondVoice.map {
+            voiceStart + delayFrames + Int64($0.startsAtStep - 1) * stepFrames + mixer.transport.frames(seconds: $0.clockMovedBeforeS)
+        }
+        var voice2 = Deck.ID.none
+        let secondStartS = r.secondVoice.map { r.backgroundAloneS + r.loopFirstTurnDelayS + Double($0.startsAtStep - 1) * r.stepS + $0.clockMovedBeforeS }
+        let lengthS = [Double(frames(of: r.firstVoice)) / Double(rate), r.secondVoice.map { Double(frames(of: $0.segments)) / Double(rate) } ?? 0]
+
+        var out = DuckVoicesSeries(tS: [], topN: [], topPosS: [], lookAheadIndex: [], targetDb: [], grDb: [], bgMultiplier: [], loopRuns: 0)
+        var wasDucking = false
+        var removed = false
+        for row in 0..<r.sampleCount {
+            if mixer.isDucking, !wasDucking { out.loopRuns += 1 }
+            wasDucking = mixer.isDucking
+            let step = row - rowOffset
+            var reading: DuckReading?
+            var multiplier = 1.0
+            if step >= 0 {
+                let at = voiceStart + loopPhase + Int64(step) * stepFrames
+                if let start = secondStart, voice2 == .none, start < at, let second = r.secondVoice {
+                    mixer.advance(frames: start - mixer.transport.playFrame)
+                    voice2 = mixer.startOnTop(plan(second.segments), level: level)
+                    hook.voiceStarted(voice2, target: TrackID(2), over: background, atFrame: start, in: &mixer)
+                }
+                if at > mixer.transport.playFrame { mixer.advance(frames: at - mixer.transport.playFrame) }
+                reading = mixer.duckReading(at: at + stepFrames)
+                multiplier = mixer.deck(background)?.duck(at: at + stepFrames) ?? 1
+            }
+            let time = r.backgroundAloneS + r.loopFirstTurnDelayS + Double(row) * r.stepS
+            let driver = voice2 != .none && mixer.duckVoice == voice2 ? 2 : 1
+            let startS = driver == 2 ? (secondStartS ?? 0) : r.backgroundAloneS
+            var topN: Int?
+            var pos: Double?
+            var index: Int?
+            if step < 0 {
+                topN = 1; pos = 0; index = 2             // the first turn, before the loop has a phase: position 0, window 2, nothing to do yet
+            } else if let reading, reading.window >= 0 {
+                topN = driver; pos = time - startS; index = reading.window
+            } else {
+                if row > 0, row % r.tickEverySteps == 0 { removed = true }
+                if !removed {
+                    topN = driver; pos = lengthS[driver - 1]; index = Int((lengthS[driver - 1] / r.stepS + 1e-9).rounded(.down)) + 2
+                }
+            }
+            out.tS.append(time)
+            out.topN.append(topN)
+            out.topPosS.append(pos)
+            out.lookAheadIndex.append(index)
+            out.targetDb.append(reading?.targetDb ?? 0)
+            out.grDb.append(reading?.reductionDb ?? 0)
+            out.bgMultiplier.append(multiplier)
+        }
+        return out
     }
 
     func duckSmooth(gr: Double, target: Double, dt: Double, attackMs: Double, releaseMs: Double) throws -> Double {

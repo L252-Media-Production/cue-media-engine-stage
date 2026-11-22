@@ -58,7 +58,8 @@ Rules the harness follows (from the plan):
 - Position and duration values in file seconds are compared within the case's `tolerance_by_key` (one sample, 2.5e-5 s); gains within the file tolerance. A key-level entry beats the case tolerance for that key only (`FixtureCase.tolerance(forKey:)`).
 - Trigger and end times are compared with the `ideal_*` values, never with the measured Python values (they include the 50 ms tick).
 - Shuffle: only the listed properties are checked, never the sequence.
-- `duck_loop` rows are matched by index, not by time (two rows share t = 0.5).
+- `duck_loop` rows are matched by index, not by time (two rows share t = 0.5). Both multiplier columns are compared: `ideal_bg_multiplier` at the file tolerance
+  (the contract) and the measured `bg_multiplier` at the `tolerance_by_key` of `duck_loop` (6e-4), see quirk 9 below.
 - The quirks table of `AUDIO-SPEC.md` is not reproduced. Clipping is not in the spec and is not tested.
 - The WAV renders are not used yet. `renders.json` is loaded and its version checked; an envelope comparison comes with the real mixer.
 
@@ -69,10 +70,10 @@ Rules the harness follows (from the plan):
 - **`resume_flow` is adapted, not copied.** Stage has no `resume.json`; it autosaves show state. Keep the behaviour the fixture states (what is restored, the age
   limit, a resumed start never fades in, a deliberate stop or a running fade-out leaves nothing to resume) and map it onto the show-state autosave.
 - **`duck_loop` must call the same hold-percentile function as `duck_curve`.** The `duck_loop` fixture cannot tell the 60th, 75th and 90th percentile apart;
-  only `duck_curve_hold_percentile` can (its `_info_alternatives` lists the three depths). The test for it is pending on the subject until the engine
-  provides `duckHoldDepthDb`.
+  only `duck_curve_hold_percentile` can (its `_info_alternatives` lists the three depths). The engine has one function for both
+  (`Ducking.holdDepthDb`, used by `Ducking.curve`).
 - **Open: clipping.** The spec leaves clipping unspecified, so no fixture tests it. The harness refuses to build a signal that would clip 16 bits instead of choosing a policy.
-- **Source:** the fixtures in this repo come from the Python repo's commit `1241963` (branch `audio-spec`, spec version 1); see `Fixtures/spec-1/SOURCE.txt`.
+- **Source:** the fixtures in this repo come from the Python repo's commit `3d7cd36` (branch `audio-spec`, spec version 1; first synced at `1241963`); see `Fixtures/spec-1/SOURCE.txt`.
 
 ## Engine types so far (slice 1: fades and crossfade)
 
@@ -171,10 +172,10 @@ that is not ready makes the point wait and it fires on the first call after the 
 `TriggerSettings.topTrackPercent / 100` as a plain volume (no fade-in) and becomes the live deck.
 
 Compared by the harness: `ideal_fired` / `ideal_t_s` / `ideal_fires` within `tolerance_s`, `start_s` within `tolerance_by_key`, the decks of the new-track cases (which decks play, `live`, `top`, `vol`, `ending`) and the voice rows (`voice_vol`, `voice_is_live`,
-`voice_fading`, `background_decks`, `tops`, `voice`, `trigger_fires_so_far`). Not compared: Python's `fires`, `fired`, `first_fire_t_s`, `_info_python_*`, `ducked` and the ducking state (the ducking slice), `voice_gain` (level match is not in the engine, so no
+`voice_fading`, `background_decks`, `tops`, `voice`, `trigger_fires_so_far`). Not compared: Python's `fires`, `fired`, `first_fire_t_s`, `_info_python_*` (the Python gr and multiplier), `voice_gain` (level match is not in the engine, so no
 gain is applied to a trigger voice). `python_differs` rows are compared against `ideal_fired`, which is the contract; only the Python measurement is ignored.
 
-Left to the ducking slice: what the top-track level does to the other decks (the background multiplier, the `ducked` flag of the decks, the release after a crossfade, quirk 14).
+What the top-track level does to the other decks (the background multiplier, the `ducked` flag of the decks, the release after a crossfade, quirk 14) is slice 7, below.
 
 ## Engine types, slice 6 (loudness and level match)
 
@@ -192,6 +193,48 @@ mode whose reference is not measured gives no gain; `stored.lufs` of the off and
 
 Allocation: the measurement allocates (offline). `Deck.setLevelGain`, `Mixer.setLevelGain`, `Deck.gain(at:)` and `levelGain(at:)` are arithmetic on stored numbers and allocate nothing (a test counts heap blocks around them). `setLevelMatch` and
 `setMeasuredLufs` are setup/UI paths (they may copy a `LevelMatch`, a small value).
+
+## Engine types, slice 7 (ducking)
+
+`Ducking` (pure maths: `key`, `curve`, `holdDepthDb`, `smooth`, `backgroundMultiplier`, `inputTargetDb`), `DuckingSettings`, `DuckReading` (target, smoothed reduction, multiplier and the key `window` the step read), `DuckControl` (the state of the loop, inside the
+`Mixer`), `Mixer.beginDucking(voice:curve:settings:)` / `endDucking(voice:)` / `duckReading(at:)` / `isDucking` / `duckVoice`, `Deck.duck(at:)` / `volume(at:)` / `followsDuck` (gain = fade x level x duck) and `SidechainDucking`, the `DuckingHook`
+that the player calls when a voice starts (a voice whose target has no prepared key plays without ducking and is counted in `voicesWithoutKey`).
+
+How it works: the curve (reduction in dB per 10 ms window of the voice, hold already applied) is made offline when a voice-over is imported and only read in the loop. `Mixer.advance` cuts time at every 10 ms control step, so results do not depend on the caller's block size.
+The step at frame `anchor + j * 480` reads window `floor((position of the voice + 20 ms) / 10 ms)` (for the step at the voice's position `j * 10 ms`: window `j + 2`), smooths the reduction one step with attack or release, and the new factor is in force from the NEXT step on
+(a render block that contains the step ramps from the old factor to the new one). Every playing deck that is not a voice on top is marked as background when a voice starts. The loop ends by itself when the voice is over and the reduction has been released. It allocates nothing
+per block (a test counts heap blocks). `docs/audio-engine-realtime.md` has the rules for the hook.
+
+Decisions (what the spec and the fixtures say, and what is Stage's own):
+
+- **The look-ahead rounds DOWN (floor)** (quirk 16; contract as far as the phase cases pin it). The window is `floor(position / 10 ms) + 2`. `voice_phase_2_5ms`, `_7ms` and `_9_9ms` fix it: 2.5 ms rules out ceil, 7 and 9.9 ms rule out round (the engine run with round or ceil fails
+  them; with floor the reduction is within 1.5e-6 dB of the fixture on every row). The on-grid cases cannot tell the rounding apart (the position is a multiple of the window).
+- **A second voice-over replaces the first and keeps the loop, the reduction and the grid.** The loop is started once for the whole run (`ducking_loop_tasks` 1; the adapter counts the starts it sees), the reduction is not reset (it relaxes at the release rate through the new
+  voice's silence, then follows the new curve read from the second voice's OWN position, origin 0), and the first voice, still audible while it fades out, no longer drives the ducking (`Mixer.duckVoice` is the second). When a shorter second voice ends first the release starts
+  at once, although the first is still fading (`second_voice_ends_first`). The control grid stays where the first voice started it: the second voice's steps are at 7.5, 17.5 ... ms of its own position in `second_voice_starts_off_grid_while_ducking`.
+- **A trigger voice gets no level match.** `voice_gain` is 1.0 and the voice volume is only the top-track level (slice 6, `voice_level_and_second_point`); the key of the voice is scaled by the same top-track level before the curve.
+- **Quirk 9 is handled by the fixture's `ideal_bg_multiplier`, not by the engine.** Python rewrites a background deck's multiplier only when it moved by more than 0.0005, so the measured `bg_multiplier` column trails `10^(-gr_db/20)` by up to 5e-4 (worst row 4.98e-4). The engine does
+  NOT emulate that write rule: its multiplier is the ideal one. The test compares it with `ideal_bg_multiplier` at the file tolerance (2e-6; worst difference 5.5e-7) and with the measured column at 6e-4 (worst 4.98e-4); every `duck_loop` case prints both (`DUCKCONF` lines).
+- **A cut or a crossfade away from a voice-over leaves no residual depth** (quirk 14, not contract): the loop ends as soon as no deck of the old background plays any more (a cut: at once; a crossfade: when the fades are done) and the new track is never ducked by the old voice. A new track after a crossfade starts at its own level
+  (`ducked` false); during the crossfade the voice and the old background fade out (`voice`, `old_background`, `new_track` of the `new_track_*` cases at 4.0 ... 5.1 s: present, level, ducked, fading out).
+
+### Quirk 16: the phase of the control grid is not contract (and how the adapter reproduces it)
+
+Python's loop is one asyncio timer that starts at the first voice-over and ticks every 10 ms, so the position it reads has an arbitrary phase against the 10 ms windows; the engine's grid is anchored where its loop starts. Phase and rounding are therefore NOT contract, only
+floor is pinned (above). To compare row by row anyway, the test adapter (`AudioCoreSubject.duckVoices`; the engine has no phase parameter and nothing for it was added) reproduces Python's phase:
+
+- **A phase is a delay of the hook.** The voice plays `loop_first_turn_delay_s` (2.5, 7, 9.9 ms: 120, 336, 475 frames) before it is handed to `SidechainDucking.voiceStarted`; the engine's first step is then at that position of the voice, and row `r` is the value step `r`
+  computed (`duckReading(at: step + 10 ms)`). 9.9 ms is 475.2 frames: the engine runs on frame 475, and the instants `t_s` and `top_pos_s` of the rows are compared as the scenario's schedule (start + delay + 10 ms x row), not as frame counts.
+- **The on-grid rows are not on the grid.** With no delay Python's later turns read the position a float rounding error BELOW the 10 ms grid (the rig's fake clock adds 0.01 per turn): the recorded `look_ahead_index` of row `k` is `k + 1`, not `k + 2`
+  (`second_voice_*`, rows of the first voice and a second voice that starts on the grid). That is rig noise, not behaviour; the adapter models it as a loop that runs ONE FRAME (21 us) early: the hook is called 479 frames in, row 0 is the first turn before the loop (position 0,
+  nothing to do) and row `r` is step `r - 1`. With an exact 480-frame grid the two second-voice cases fail (the engine reads one window further: `look_ahead_index` is 3 where Python recorded 2, and the reduction differs by up to 12.6 dB at the rise of the voice at 0.3 s).
+  The column `look_ahead_index` checks this choice on every row; a fixture made with other rounding noise fails there instead of being absorbed. The older `production_defaults_hold_on` and `slow_attack_hold_off` need no phase (the engine's own grid, sampled with its one-step delay, is
+  what they record).
+- **Reporting only, not in the engine:** the player's 50 ms tick is what takes a finished voice-over away. Until it does the fixture keeps listing the voice-over (`top_n`, `top_pos_s` clamped to its length, `look_ahead_index`; the rows after the voice ended, e.g. rows 251-254 of
+  `production_defaults_hold_on`). The adapter reproduces that listing from `tick_every_steps`; the engine releases at the exact frame and the reduction is the same either way.
+
+What the fixtures do not pin about the engine's loop: the engine applies a factor one step AFTER the step that computed it, so its audible look-ahead is 10 ms (it reads 20 ms ahead and applies 10 ms later); Python with a positive phase applies at once and anticipates by 20 ms
+(the on-grid rows of the fixtures, by rounding noise, anticipate by 10 ms like the engine). Whether Stage wants 20 ms audible (a 30 ms read) is open. Also not pinned: a second voice-over that starts exactly ON a control step (the engine runs that step with the first voice, Python with the second).
 
 ## When the Python side bumps the spec
 

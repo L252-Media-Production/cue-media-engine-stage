@@ -760,10 +760,11 @@ struct DuckSettings: Decodable, Equatable {
 struct VoiceOver: Decodable, Equatable {
     let file: String
     let startsAtS: Double
-    let lengthS: Double
-    let levelPct: Double
+    /// Absent in the `voice_over` of the second-voice `duck_loop` cases (they describe their voice-overs in the scenario).
+    let lengthS: Double?
+    let levelPct: Double?
     /// (seconds, constant sample value) segments, in order.
-    let segments: [Segment]
+    let segments: [Segment]?
 
     struct Segment: Equatable {
         let seconds: Double
@@ -782,11 +783,9 @@ struct VoiceOver: Decodable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         file = try c.decode(String.self, forKey: .file)
         startsAtS = try c.decode(Double.self, forKey: .startsAtS)
-        lengthS = try c.decode(Double.self, forKey: .lengthS)
-        levelPct = try c.decode(Double.self, forKey: .levelPct)
-        segments = try c.decode([[Double]].self, forKey: .segments).map {
-            Segment(seconds: $0[0], sampleValue: Int($0[1]))
-        }
+        lengthS = try c.decodeIfPresent(Double.self, forKey: .lengthS)
+        levelPct = try c.decodeIfPresent(Double.self, forKey: .levelPct)
+        segments = try c.decodeIfPresent([[Double]].self, forKey: .segments).map { $0.map { Segment(seconds: $0[0], sampleValue: Int($0[1])) } }
     }
 }
 
@@ -920,8 +919,11 @@ struct DuckingCases: Decodable {
         let samples: Samples
         let peakReductionDb: Double
         let finalMultiplier: Double
+        /// Only in the second-voice cases: how many loop tasks ran in the whole run.
+        let duckingLoopTasks: Int?
 
         enum CodingKeys: String, CodingKey {
+            case duckingLoopTasks = "ducking_loop_tasks"
             case settings
             case stepS = "step_s"
             case lookAheadS = "look_ahead_s"
@@ -937,7 +939,13 @@ struct DuckingCases: Decodable {
             let topPosS: [Double?]
             let targetDb: [Double?]
             let grDb: [Double]
+            /// The multiplier Python measured on the background deck: it trails `idealBgMultiplier` by up to 5e-4 (quirk 9). Compared at `tolerance_by_key`.
             let bgMultiplier: [Double]
+            /// `10^(-gr_db/20)` of the same row: the contract (quirk 9). Compared at the file tolerance.
+            let idealBgMultiplier: [Double]
+            /// Only in the cases that start the voice-overs themselves: which voice-over drives the step (1 or 2), the key window it read (null: none) ...
+            let topN: [Int?]?
+            let lookAheadIndex: [Int?]?
 
             enum CodingKeys: String, CodingKey {
                 case tS = "t_s"
@@ -945,6 +953,9 @@ struct DuckingCases: Decodable {
                 case targetDb = "target_db"
                 case grDb = "gr_db"
                 case bgMultiplier = "bg_multiplier"
+                case idealBgMultiplier = "ideal_bg_multiplier"
+                case topN = "top_n"
+                case lookAheadIndex = "look_ahead_index"
             }
         }
     }

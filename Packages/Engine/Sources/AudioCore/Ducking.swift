@@ -43,17 +43,35 @@ public enum Ducking {
     /// With `hold`, from the first to the last active window (target > 0.05 dB) the reduction stays at least
     /// the 75th percentile of the active values.
     public static func curve(key: [Double], level: Double, ratio: Double, thresholdDb: Double, hold: Bool) -> [Double] {
+        var target = rawReduction(key: key, level: level, ratio: ratio, thresholdDb: thresholdDb)
+        if hold, let h = holdSpan(of: target) {
+            for i in h.first...h.last { target[i] = max(target[i], h.depth) }
+        }
+        return target
+    }
+
+    /// The depth (dB) the hold keeps from the first to the last active window: the 75th percentile of the active reductions (0 when no window is active).
+    /// `curve` with `hold` uses the very same function, so the loop and the curve cannot disagree.
+    public static func holdDepthDb(key: [Double], level: Double, ratio: Double, thresholdDb: Double) -> Double {
+        holdSpan(of: rawReduction(key: key, level: level, ratio: ratio, thresholdDb: thresholdDb))?.depth ?? 0
+    }
+
+    /// The share of the active reductions the hold keeps (a percentile, 0...100). Pinned by `duck_curve_hold_percentile`: 75.
+    static let holdPercentile = 75.0
+
+    private static func rawReduction(key: [Double], level: Double, ratio: Double, thresholdDb: Double) -> [Double] {
         let ratio = max(1, ratio)
-        var target = key.map { k -> Double in
+        return key.map { k -> Double in
             let db = 20 * log10(max(k * max(level, 1e-4), 1e-6))
             return min(max(db - thresholdDb, 0) * (1 - 1 / ratio), 60)
         }
-        if hold, let first = target.firstIndex(where: { $0 > 0.05 }), let last = target.lastIndex(where: { $0 > 0.05 }) {
-            let active = target[first...last].filter { $0 > 0.05 }
-            let depth = percentile(active, 75)
-            for i in first...last { target[i] = max(target[i], depth) }
-        }
-        return target
+    }
+
+    /// From the first to the last active window (reduction > 0.05 dB) and the depth held in between.
+    private static func holdSpan(of target: [Double]) -> (first: Int, last: Int, depth: Double)? {
+        guard let first = target.firstIndex(where: { $0 > 0.05 }), let last = target.lastIndex(where: { $0 > 0.05 }) else { return nil }
+        let active = target[first...last].filter { $0 > 0.05 }
+        return (first, last, percentile(active, holdPercentile))
     }
 
     /// One step of the attack / release smoothing of the reduction (dB). `gr` moves toward `target` with the attack

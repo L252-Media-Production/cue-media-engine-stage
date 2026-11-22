@@ -34,6 +34,12 @@ public struct Deck: Equatable, Identifiable {
     public private(set) var levelGainNow = 1.0
     private var levelGainBefore = 1.0
     private var levelChangedAt = Int64.min
+    /// The deck is part of the background of a voice on top: the ducking loop moves its `duck` factor. A deck that starts later (a new track) never is.
+    public private(set) var followsDuck = false
+    /// The ducking factor (`10^(-gr/20)`), a factor of its own besides the fade and the level-match gain: 1 when nothing is ducked.
+    private var duckNow = 1.0
+    private var duckBefore = 1.0
+    private var duckChangedAt = Int64.min
     /// The track window, passes and fades at A and B. nil: a deck that plays without end (slice 1).
     public private(set) var playback: Playback?
 
@@ -51,11 +57,23 @@ public struct Deck: Equatable, Identifiable {
     /// ramps from `levelGain(at: blockStart)` to `levelGain(at: blockEnd)` instead of stepping, so a change does not click.
     public func levelGain(at frame: Int64) -> Double { frame >= levelChangedAt ? levelGainNow : levelGainBefore }
 
-    /// The gain at a play frame: the crossfade / fade-out ramp times the edges of the window times the level-match gain. An ended deck is silent.
+    /// The ducking factor at a play frame: the value the control loop made current at `frame`, the one before it earlier. It is known from the current play
+    /// frame up to one control step ahead (the loop hands over one value per step, in force one step later): a render block reads `duck(at: blockStart)`
+    /// before the mixer advances over it and `duck(at: blockEnd)` after, and ramps between the two instead of stepping.
+    public func duck(at frame: Int64) -> Double { frame >= duckChangedAt ? duckNow : duckBefore }
+
+    /// The deck's own volume at a play frame: the crossfade / fade-out ramp times the edges of the window (the spec's `Deck.vol`). Not the level-match
+    /// gain and not the ducking factor. An ended deck is silent. Real-time: arithmetic only.
+    public func volume(at frame: Int64) -> Double {
+        guard isPlaying else { return 0 }
+        return (fade?.gain(at: frame) ?? level) * (playback?.edgeGain(at: frame) ?? 1)
+    }
+
+    /// The gain at a play frame: the volume (fade, window edges) times the level-match gain times the ducking factor. An ended deck is silent.
     /// Real-time: arithmetic only.
     public func gain(at frame: Int64) -> Double {
         guard isPlaying else { return 0 }
-        return (fade?.gain(at: frame) ?? level) * (playback?.edgeGain(at: frame) ?? 1) * levelGain(at: frame)
+        return (fade?.gain(at: frame) ?? level) * (playback?.edgeGain(at: frame) ?? 1) * levelGain(at: frame) * duck(at: frame)
     }
 
     /// The pass that is running and what is left of it (nil: no passes, or ended).
@@ -81,7 +99,7 @@ public struct Deck: Equatable, Identifiable {
         // The last gain is read while the fade that ran is still in place.
         if let t = endedAt {
             let last = Swift.max(t - 1, playback?.startFrame ?? (t - 1))
-            lastGain = (fade?.gain(at: last) ?? level) * (playback?.edgeGain(at: last) ?? 1) * levelGain(at: last)
+            lastGain = (fade?.gain(at: last) ?? level) * (playback?.edgeGain(at: last) ?? 1) * levelGain(at: last) * duck(at: last)
         }
         if let f = fade, f.isFinished(at: frame) {
             level = f.to
@@ -104,6 +122,19 @@ public struct Deck: Equatable, Identifiable {
         levelGainBefore = ramped ? levelGain(at: frame) : gain
         levelGainNow = gain
         levelChangedAt = ramped ? frame : Int64.min
+    }
+
+    /// Makes the deck follow the ducking loop (or not). Leaving it puts the factor back to 1 at once.
+    mutating func setFollowsDuck(_ follows: Bool, at frame: Int64) {
+        followsDuck = follows
+        if !follows { duckNow = 1; duckBefore = 1; duckChangedAt = Int64.min }
+    }
+
+    /// Sets the ducking factor: it is the value from `effectiveFrame` on, and what `duck(at:)` gives now stays until then.
+    mutating func setDuck(_ factor: Double, effectiveAt effectiveFrame: Int64, now frame: Int64) {
+        duckBefore = duck(at: frame)
+        duckNow = factor
+        duckChangedAt = effectiveFrame
     }
 
     /// Moves the deck to `seconds` of the file (see `Playback.seeked`). Volume, fades and the pause state are kept.

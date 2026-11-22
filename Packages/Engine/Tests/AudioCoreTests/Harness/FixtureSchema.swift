@@ -50,9 +50,9 @@ enum FixtureSchema {
             "triggers trim fires ideal_fires tolerance_s",
             scenario: "library_s main_track main_track_length_s voice_over_lengths_s end_action run_s triggers target_decoded_at_s",
             ignored: "playlist steps tick_s")
-        // The new track and the voice-over of these cases are read from the scenario; the ducking settings in `config` are not (ducking is not implemented).
+        // The new track, the voice-over (the constant sample value of its file) and the ducking settings in `config` are read from the scenario.
         let newTrack = c(
-            "rows at_12_5_s", scenario: "library_s playlist config end_action triggers new_track", ignored: "voice_over tick_s steps")
+            "rows at_12_5_s", scenario: "library_s playlist config end_action triggers new_track voice_over", ignored: "tick_s steps")
         let trimBase = "file_length_s config"
         let trimIgnored = "library_s playlist track_under_test"
         let storedRows = c("rows", scenario: trimBase, ignored: "\(trimIgnored) input")
@@ -147,6 +147,7 @@ enum FixtureSchema {
             ].map { ($0, triggerSeeks) } + [
                 ("target_ready_after_1s", triggerTarget),
                 ("target_never_ready", triggerTarget),
+                ("target_never_ready_does_not_block_next_point", triggerTarget),
                 // Rows of `ideal_fired` (null = not compared); `fired`, `first_fire_t_s` and `python_differs` are what Python did and are not read.
                 ("point_at_or_near_A_start_at_A", c("tolerance_s rows", scenario: "library_s main_track main_track_length_s voice_over end_action run_s", ignored: "playlist tick_s input")),
                 ("point_near_A_start_with_offset", c(
@@ -182,12 +183,19 @@ enum FixtureSchema {
         ]
     }()
 
-    /// Nested cases of `ducking.json` `duck_loop`.
+    /// Nested cases of `ducking.json` `duck_loop`. The first two run the shared scenario of `duck_loop` (one voice-over, on the grid); the others carry a
+    /// scenario of their own: the phase of the control grid (`loop_first_turn_delay_s`) and, in two of them, a second voice-over.
     static let duckLoopCases: [String: CaseSchema] = {
-        let loop = CaseSchema(
-            keys: ["settings", "step_s", "look_ahead_s", "voice_over", "samples", "peak_reduction_db", "final_multiplier"],
-            scenario: ["background", "voice_over_file"], ignoredScenario: ["see"])
-        return ["production_defaults_hold_on": loop, "slow_attack_hold_off": loop]
+        let columns = "settings step_s look_ahead_s voice_over samples peak_reduction_db final_multiplier"
+        let loop = CaseSchema(keys: set(columns), scenario: ["background", "voice_over_file"], ignoredScenario: ["see"])
+        let ownScenario = "background background_alone_s first_voice_over loop_first_turn_delay_s step_s tick_every_steps"
+        let phase = CaseSchema(keys: set(columns), scenario: set("\(ownScenario) phase_ms"), ignoredScenario: ["settings"])
+        let second = CaseSchema(keys: set("\(columns) ducking_loop_tasks"), scenario: set("\(ownScenario) second_voice_over"), ignoredScenario: ["settings"])
+        return [
+            "production_defaults_hold_on": loop, "slow_attack_hold_off": loop,
+            "voice_phase_2_5ms": phase, "voice_phase_7ms": phase, "voice_phase_9_9ms": phase,
+            "second_voice_starts_off_grid_while_ducking": second, "second_voice_ends_first": second,
+        ]
     }()
 
     /// Case names of a file as the harness knows them.

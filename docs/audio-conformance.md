@@ -176,6 +176,23 @@ gain is applied to a trigger voice). `python_differs` rows are compared against 
 
 Left to the ducking slice: what the top-track level does to the other decks (the background multiplier, the `ducked` flag of the decks, the release after a crossfade, quirk 14).
 
+## Engine types, slice 6 (loudness and level match)
+
+`Loudness.integratedLufs(interleaved:channels:)` (offline, a pure function of the buffer): BS.1770 K-weighting (the standard's 48 kHz shelf and high-pass coefficients), mean square over 400 ms blocks every 100 ms, absolute gate -70 LUFS,
+relative gate 10 LU below; 1 or 2 channels with weight 1; nil for silence, for less than one block (0.4 s) and for any other channel count. Not rounded (the fixture values are rounded to 3 decimals and compared within 0.01 LU; the engine's values
+are within 0.0005 LU of them). `LevelMatch` (mode `off` / `track` / `lufs`, a reference track by id, the stored target; `Clamp` min, max, step; typed -80 stores -60; gain `min(0, target - measured)`; linear `10^(dB/20)`, 1 with no gain),
+`PlaylistTrack.measuredLufs`, `Playlist.levelMatch` / `levelGainDb(ofTrackAt:)` / `levelGain(ofTrackAt:)`. `Deck.levelGainNow` / `levelGain(at:)` is a factor of its own, multiplied into `Deck.gain(at:)` with the fade and the window edges;
+it follows a change at once (the spec's "Deck.gain follows a change at once"), and `levelGain(at: blockStart)` / `levelGain(at: blockEnd)` give a render block that contains the change the two values to ramp between (no ramp length is
+invented). `PlaylistPlayer.setLevelMatch` / `setMeasuredLufs` apply a change to the playing track; a track starts with its gain from the first frame. A trigger voice is never level matched (the spec text and the fixture: "no level match"),
+so `voice_gain` is 1.0 and the voice volume is only the top-track level.
+
+What the spec and fixtures do not pin (decided here): the K-weighting coefficients are the ITU-R BS.1770 values (the 100 Hz and 10 kHz rows of `lufs_from_pcm` confirm them); only whole blocks count (no padding of a last partial block); the filter
+starts from rest; 3 or more channels (and their weights) are not specified; a typed target that is not a number keeps the default -18; rounding to the 0.1 step is to the nearest; an index outside the playlist keeps no reference track; a `track`
+mode whose reference is not measured gives no gain; `stored.lufs` of the off and track modes is an unused default. A fixture that would pin the rest: a `lufs_from_pcm` row with a 3-channel or mono signal and one that ends in a partial block.
+
+Allocation: the measurement allocates (offline). `Deck.setLevelGain`, `Mixer.setLevelGain`, `Deck.gain(at:)` and `levelGain(at:)` are arithmetic on stored numbers and allocate nothing (a test counts heap blocks around them). `setLevelMatch` and
+`setMeasuredLufs` are setup/UI paths (they may copy a `LevelMatch`, a small value).
+
 ## When the Python side bumps the spec
 
 The Python rule is: a change to audio behaviour regenerates the fixtures and raises the spec version. Then, here:

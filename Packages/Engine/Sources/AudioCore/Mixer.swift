@@ -215,6 +215,13 @@ public struct Mixer {
         slots[i].deck?.seek(toSeconds: seconds, at: transport.playFrame)
     }
 
+    /// Sets the level-match gain (linear) of a deck from now on. `atStart` is for a deck that has just been started: it has no earlier level to ramp from.
+    /// Real-time: arithmetic only.
+    public mutating func setLevelGain(of id: Deck.ID, _ gain: Double, atStart: Bool = false) {
+        guard let i = index(of: id) else { return }
+        slots[i].deck?.setLevelGain(gain, at: transport.playFrame, ramped: !atStart)
+    }
+
     /// Stops every deck that plays, voices on top included (a cut).
     public mutating func stopAll() {
         let now = transport.playFrame

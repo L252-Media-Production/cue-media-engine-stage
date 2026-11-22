@@ -3,7 +3,7 @@ import AudioCore
 /// The slice of the spec that AudioCore implements so far, as pure functions. Everything else is still pending
 /// (the protocol's default), so those tests are skipped until the transport port provides it.
 ///
-/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), play modes, next_in_order and the shuffle bag (play_modes.json, end_action_switched_mid_play), trigger points (triggers.json), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
+/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), integrated loudness and level match (levelmatch.json), play modes, next_in_order and the shuffle bag (play_modes.json, end_action_switched_mid_play), trigger points (triggers.json), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
 /// `duck_key`, `duck_curve` (hold on / off), `duck_smooth`, `input_target_db`.
 struct AudioCoreSubject: AudioSpecSubject {
     func fadeGain(_ direction: FadeDirection, x: Double) throws -> Double {
@@ -393,7 +393,7 @@ struct AudioCoreSubject: AudioSpecSubject {
         }
         func snapshot(_ t: Double) {
             let decks = player.mixer.decks.filter(\.isPlaying).map {
-                DeckView(name: deckNames[$0.id] ?? "?", top: $0.isTop, vol: $0.gain(at: player.mixer.transport.playFrame), ending: $0.endsWhenFadeEnds && $0.fade != nil, fading: $0.fade != nil)
+                DeckView(name: deckNames[$0.id] ?? "?", top: $0.isTop, vol: $0.gain(at: player.mixer.transport.playFrame), ending: $0.endsWhenFadeEnds && $0.fade != nil, fading: $0.fade != nil, levelGain: $0.levelGain(at: player.mixer.transport.playFrame))
             }
             run.snapshots.append(TriggerSnapshot(atS: t, liveName: player.mixer.live.flatMap { deckNames[$0.id] }, decks: decks, firesSoFar: firesSoFar))
         }
@@ -439,6 +439,52 @@ struct AudioCoreSubject: AudioSpecSubject {
         try runTrigger(s, readAt: times).snapshots
     }
 
+
+    // MARK: levelmatch.json
+
+    func measureLufs(pcm: [Int16]) throws -> Double? {
+        Loudness.integratedLufs(interleaved: pcm, channels: AudioSpec.channels)
+    }
+
+    private func levelMode(_ m: LevelMatchMode) -> LevelMatch.Mode {
+        switch m {
+        case .off: return .off
+        case .track: return .track
+        case .lufs: return .lufs
+        }
+    }
+
+    /// The setting as typed goes through `LevelMatch`; the reference is kept as an id and named again by the file of that track.
+    func storeLevelMatch(typed: LevelMatchTyped, playlist: [String], clamp: LufsClamp) throws -> LevelMatchStored {
+        let ids = playlist.indices.map { TrackID($0) }
+        let stored = LevelMatch(
+            typedMode: levelMode(typed.mode), typedReferenceIndex: typed.ref, typedLufs: typed.lufs, playlist: ids, clamp: .init(min: clamp.min, max: clamp.max, step: clamp.step))
+        let mode: LevelMatchMode = typed.mode
+        return LevelMatchStored(mode: mode, ref: stored.referenceTrack.map { playlist[$0.raw] }, lufs: stored.targetLufs)
+    }
+
+    func levelMatchGain(mode: LevelMatchMode, targetLufs: Double?, measuredLufs: Double?) throws -> LevelMatchResult {
+        guard mode != .off else { return LevelMatchResult(gainDb: nil, linear: 1) }
+        let db = LevelMatch.gainDb(measured: measuredLufs, target: targetLufs)
+        return LevelMatchResult(gainDb: db, linear: LevelMatch.linear(db: db))
+    }
+
+    /// A track is playing with level match off, then the setting is changed: what the deck's gain is right away. For `track` mode the reference is a second
+    /// track of the playlist measured at `trackLufs`' target.
+    func liveDeckGain(mode: LevelMatchMode, targetLufs: Double?, trackLufs: Double?) throws -> Double {
+        var tracks = [PlaylistTrack(id: TrackID(0), lengthSeconds: 60, measuredLufs: trackLufs)]
+        var setting = LevelMatch(mode: levelMode(mode), targetLufs: targetLufs ?? LevelMatch.defaultTargetLufs)
+        if mode == .track {
+            tracks.append(PlaylistTrack(id: TrackID(1), lengthSeconds: 60, measuredLufs: targetLufs))
+            setting.referenceTrack = TrackID(1)
+        }
+        var player = PlaylistPlayer(playlists: [Playlist(tracks: tracks, mode: .stop)], policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1))
+        player.play(TrackPosition(playlist: 0, track: 0))
+        player.advance(frames: 480)
+        player.setLevelMatch(setting, ofPlaylist: 0)
+        guard let c = player.current else { throw pending("a playing deck") }
+        return player.mixer.deck(c.deck)?.levelGain(at: player.mixer.transport.playFrame) ?? 0
+    }
 
     func backgroundMultiplier(reductionDb: Double) throws -> Double {
         Ducking.backgroundMultiplier(reductionDb: reductionDb)

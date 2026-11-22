@@ -149,7 +149,8 @@ final class TriggersConformanceTests: FixtureTestCase {
                 assertClose(v.vol, try row.double("voice_vol"), in: fc, "pct \(pct) voice_vol")
                 XCTAssertEqual(v.fading, try row.bool("voice_fading"), "pct \(pct): voice_fading")
             }
-            // `voice_gain` (the level-match gain, 1.0 for a trigger voice) is not compared: level match is not in the engine yet, so there is no gain to apply.
+            // `voice_gain`: the level-match gain of the voice deck, a factor besides `voice_vol` (the fixture says level match never applies to a trigger voice).
+            if let v = tops.first { assertClose(v.levelGain, try row.double("voice_gain"), in: fc, "pct \(pct) voice_gain") }
             XCTAssertEqual(snaps[0].decks.filter { !$0.top }.count, try row.int("background_decks"), "pct \(pct): background_decks")
             XCTAssertEqual(snaps[1].decks.filter(\.top).count, try later.int("tops"), "pct \(pct) at 12.5: tops")
             XCTAssertEqual(snaps[1].decks.first { $0.top }.map { Self.bare($0.name) }, try later.string("voice"), "pct \(pct) at 12.5: voice")

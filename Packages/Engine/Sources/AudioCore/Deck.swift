@@ -30,6 +30,10 @@ public struct Deck: Equatable, Identifiable {
     public private(set) var endedAtFrame: Int64?
     /// The gain of the last frame the deck played (the frame before `endedAtFrame`); 0 until it ended. The mixer copies it into the ended record.
     public private(set) var lastGain = 0.0
+    /// The level-match gain (linear), a factor of its own besides the fade: 1 when level match is off or does not apply. It follows a change at once.
+    public private(set) var levelGainNow = 1.0
+    private var levelGainBefore = 1.0
+    private var levelChangedAt = Int64.min
     /// The track window, passes and fades at A and B. nil: a deck that plays without end (slice 1).
     public private(set) var playback: Playback?
 
@@ -43,11 +47,15 @@ public struct Deck: Equatable, Identifiable {
         self.playback = playback
     }
 
-    /// The gain at a play frame: the crossfade / fade-out ramp times the edges of the window. An ended deck is silent.
+    /// The level-match gain at a play frame: the new value from the frame it was set at on, the one before it earlier. A render block that contains the change
+    /// ramps from `levelGain(at: blockStart)` to `levelGain(at: blockEnd)` instead of stepping, so a change does not click.
+    public func levelGain(at frame: Int64) -> Double { frame >= levelChangedAt ? levelGainNow : levelGainBefore }
+
+    /// The gain at a play frame: the crossfade / fade-out ramp times the edges of the window times the level-match gain. An ended deck is silent.
     /// Real-time: arithmetic only.
     public func gain(at frame: Int64) -> Double {
         guard isPlaying else { return 0 }
-        return (fade?.gain(at: frame) ?? level) * (playback?.edgeGain(at: frame) ?? 1)
+        return (fade?.gain(at: frame) ?? level) * (playback?.edgeGain(at: frame) ?? 1) * levelGain(at: frame)
     }
 
     /// The pass that is running and what is left of it (nil: no passes, or ended).
@@ -73,7 +81,7 @@ public struct Deck: Equatable, Identifiable {
         // The last gain is read while the fade that ran is still in place.
         if let t = endedAt {
             let last = Swift.max(t - 1, playback?.startFrame ?? (t - 1))
-            lastGain = (fade?.gain(at: last) ?? level) * (playback?.edgeGain(at: last) ?? 1)
+            lastGain = (fade?.gain(at: last) ?? level) * (playback?.edgeGain(at: last) ?? 1) * levelGain(at: last)
         }
         if let f = fade, f.isFinished(at: frame) {
             level = f.to
@@ -89,6 +97,13 @@ public struct Deck: Equatable, Identifiable {
     mutating func finishCurrentPass(at frame: Int64) {
         playback?.finishCurrentPass(at: frame)
         settle(at: frame)
+    }
+
+    /// Sets the level-match gain from `frame` on. `ramped` keeps the value before for the block that contains the change; a deck that has just started has none.
+    mutating func setLevelGain(_ gain: Double, at frame: Int64, ramped: Bool) {
+        levelGainBefore = ramped ? levelGain(at: frame) : gain
+        levelGainNow = gain
+        levelChangedAt = ramped ? frame : Int64.min
     }
 
     /// Moves the deck to `seconds` of the file (see `Playback.seeked`). Volume, fades and the pause state are kept.

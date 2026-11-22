@@ -206,6 +206,8 @@ struct DeckView: Equatable {
     var ending: Bool
     /// Any fade is running.
     var fading: Bool
+    /// The level-match gain of the deck (`Deck.gain` of the spec), a factor besides `vol`.
+    var levelGain: Double
 }
 
 /// What is playing at a moment of a trigger scenario.

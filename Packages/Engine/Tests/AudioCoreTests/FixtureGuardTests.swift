@@ -18,21 +18,30 @@ final class FixtureGuardTests: FixtureTestCase {
             let top = Set(doc.root.keys.filter { !$0.hasPrefix("_info") })
             XCTAssertEqual(top.subtracting(FixtureSchema.topLevelKeys), [], "\(file).json: top-level keys the harness does not know")
             for c in try doc.allCases() {
-                guard let schema = FixtureSchema.schema(file: file, caseName: c.name) else {
-                    XCTFail("\(file).json: case '\(c.name)' is not in FixtureSchema")
-                    continue
-                }
-                let keys = Set(c.value.keys.filter { !$0.hasPrefix("_info") })
-                let allowed = schema.keys.union(["scenario", "tolerance", "tolerance_by_key"])
-                XCTAssertEqual(keys.subtracting(allowed), [], "\(file).json case '\(c.name)': keys the harness does not know")
-                XCTAssertEqual(schema.keys.subtracting(keys), [], "\(file).json case '\(c.name)': keys the harness expects are gone")
-
-                let scenarioKeys = Set(try c.scenario().keys.filter { !$0.hasPrefix("_info") })
-                let known = schema.scenario.union(schema.ignoredScenario)
-                XCTAssertEqual(scenarioKeys.subtracting(known), [], "\(file).json case '\(c.name)': scenario keys the harness does not know")
-                XCTAssertEqual(schema.scenario.subtracting(scenarioKeys), [], "\(file).json case '\(c.name)': scenario keys the harness reads are gone")
+                for problem in try FixtureSchema.problems(file: file, in: c) { XCTFail(problem) }
             }
         }
+    }
+
+    /// The guard also covers the trigger cases (they are read raw, case by case): a new key in a case or in its scenario, a case that is not listed, and a
+    /// key that went missing all show up.
+    func testTheGuardCatchesANewKeyInATriggerCase() throws {
+        let real = try FixtureDocument.load("triggers").case("simple")
+        XCTAssertEqual(try FixtureSchema.problems(file: "triggers", in: real), [], "the real case is covered")
+
+        func variant(_ transform: (String) -> String, name: String = "simple") throws -> FixtureCase {
+            let text = transform(String(decoding: real.value.serialized(), as: UTF8.self))
+            let doc = FixtureDocument(file: "triggers", root: try JSONParser.parse(Data(#"{"tolerance": 2e-6, "cases": {"\#(name)": \#(text)}}"#.utf8)))
+            return try doc.case(name)
+        }
+        let newCaseKey = try variant { $0.replacingOccurrences(of: "{", with: #"{"a_new_key": 1,"#, options: [], range: $0.startIndex..<$0.index(after: $0.startIndex)) }
+        XCTAssertTrue(try FixtureSchema.problems(file: "triggers", in: newCaseKey).contains { $0.contains("a_new_key") }, "a new key in the case")
+        let newScenarioKey = try variant { $0.replacingOccurrences(of: #""scenario":{"#, with: #""scenario":{"a_new_scenario_key":1,"#) }
+        XCTAssertTrue(try FixtureSchema.problems(file: "triggers", in: newScenarioKey).contains { $0.contains("a_new_scenario_key") }, "a new key in the scenario")
+        let unlisted = try variant({ $0 }, name: "a_new_trigger_case")
+        XCTAssertTrue(try FixtureSchema.problems(file: "triggers", in: unlisted).contains { $0.contains("not in FixtureSchema") }, "a case that is not listed")
+        let missing = try variant { $0.replacingOccurrences(of: #""ideal_fires""#, with: #""_info_ideal_fires""#) }
+        XCTAssertTrue(try FixtureSchema.problems(file: "triggers", in: missing).contains { $0.contains("ideal_fires") }, "a key that went missing")
     }
 
     /// SOURCE.txt says which Python commit and spec version the fixtures were copied from.

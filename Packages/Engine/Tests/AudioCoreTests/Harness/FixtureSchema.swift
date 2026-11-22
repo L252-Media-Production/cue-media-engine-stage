@@ -201,4 +201,24 @@ enum FixtureSchema {
         guard parts.count == 1 else { return nil }
         return files[file]?[parts[0]]
     }
+
+    /// What is wrong with one case of a fixture file against this schema: a case that is not listed, keys the harness neither reads nor ignores (in the case
+    /// or in its scenario), and keys it expects that are gone. Empty when the case is covered. `FixtureGuardTests` runs it over every case of every file.
+    static func problems(file: String, in c: FixtureCase) throws -> [String] {
+        guard let schema = schema(file: file, caseName: c.name) else { return ["\(file).json: case '\(c.name)' is not in FixtureSchema"] }
+        var out = [String]()
+        let keys = Set(c.value.keys.filter { !$0.hasPrefix("_info") })
+        let allowed = schema.keys.union(["scenario", "tolerance", "tolerance_by_key"])
+        let unknown = keys.subtracting(allowed).sorted()
+        if !unknown.isEmpty { out.append("\(file).json case '\(c.name)': keys the harness does not know: \(unknown)") }
+        let gone = schema.keys.subtracting(keys).sorted()
+        if !gone.isEmpty { out.append("\(file).json case '\(c.name)': keys the harness expects are gone: \(gone)") }
+
+        let scenarioKeys = Set(try c.scenario().keys.filter { !$0.hasPrefix("_info") })
+        let unknownScenario = scenarioKeys.subtracting(schema.scenario.union(schema.ignoredScenario)).sorted()
+        if !unknownScenario.isEmpty { out.append("\(file).json case '\(c.name)': scenario keys the harness does not know: \(unknownScenario)") }
+        let goneScenario = schema.scenario.subtracting(scenarioKeys).sorted()
+        if !goneScenario.isEmpty { out.append("\(file).json case '\(c.name)': scenario keys the harness reads are gone: \(goneScenario)") }
+        return out
+    }
 }

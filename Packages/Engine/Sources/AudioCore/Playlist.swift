@@ -27,11 +27,14 @@ public struct PlaylistTrack: Equatable {
     public var end: TrackEnd
     /// The track's own crossfade time in ms (0...30000), nil = follow the master time. Stored for the crossfade rules; the auto-advance starts the next track with a cut.
     public var crossfadeMs: Int?
+    /// The integrated loudness of the track in LUFS (`Loudness`), nil until it has been measured or when it cannot be (silence).
+    public var measuredLufs: Double?
     /// Voice-overs fired from positions of this track's file.
     public var triggers = TriggerList()
 
-    public init(id: TrackID, lengthSeconds: Double, trim: Trim = Trim(), end: TrackEnd = .followPlayMode, crossfadeMs: Int? = nil, triggers: TriggerList = TriggerList()) {
+    public init(id: TrackID, lengthSeconds: Double, trim: Trim = Trim(), end: TrackEnd = .followPlayMode, crossfadeMs: Int? = nil, measuredLufs: Double? = nil, triggers: TriggerList = TriggerList()) {
         self.triggers = triggers
+        self.measuredLufs = measuredLufs
         self.id = id
         self.lengthSeconds = lengthSeconds
         self.trim = trim
@@ -137,6 +140,8 @@ public struct Playlist: Equatable {
         didSet { if mode != oldValue { bag.reset() } }
     }
     public private(set) var bag = ShuffleBag()
+    /// Level match of the tracks of this playlist.
+    public var levelMatch = LevelMatch()
 
     public init(tracks: [PlaylistTrack], mode: PlaylistMode = .stop) {
         self.tracks = tracks
@@ -145,6 +150,15 @@ public struct Playlist: Equatable {
     }
 
     public func index(of id: TrackID) -> Int? { tracks.firstIndex { $0.id == id } }
+
+    /// The level-match gain in dB of the track at `index` (nil: not applicable), and as a factor (1 when none).
+    public func levelGainDb(ofTrackAt index: Int) -> Double? {
+        guard tracks.indices.contains(index) else { return nil }
+        let reference = levelMatch.referenceTrack.flatMap { id in tracks.first { $0.id == id }?.measuredLufs }
+        return levelMatch.gainDb(measured: tracks[index].measuredLufs, referenceMeasured: reference)
+    }
+
+    public func levelGain(ofTrackAt index: Int) -> Double { LevelMatch.linear(db: levelGainDb(ofTrackAt: index)) }
 
     /// The next track by the shuffle bag; see `ShuffleBag.draw`.
     public mutating func drawShuffle<R: RandomSource>(after current: TrackID?, using random: inout R) -> Int? {

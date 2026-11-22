@@ -189,6 +189,28 @@ public struct PlaylistPlayer<Random: RandomSource> {
         }
     }
 
+    // MARK: level match
+
+    /// Changes the level-match setting of a playlist. If its track is playing, the deck's gain follows at once (the render block that contains the change ramps).
+    /// Setup and UI path.
+    public mutating func setLevelMatch(_ levelMatch: LevelMatch, ofPlaylist p: Int) {
+        guard playlists.indices.contains(p) else { return }
+        playlists[p].levelMatch = levelMatch
+        applyLevelGainToCurrent()
+    }
+
+    /// A track has been measured (or measured again): the deck of that track, if it plays, follows at once.
+    public mutating func setMeasuredLufs(_ lufs: Double?, ofTrack id: TrackID, inPlaylist p: Int) {
+        guard playlists.indices.contains(p), let i = playlists[p].index(of: id) else { return }
+        playlists[p].tracks[i].measuredLufs = lufs
+        applyLevelGainToCurrent()
+    }
+
+    private mutating func applyLevelGainToCurrent() {
+        guard let c = current, playlists.indices.contains(c.position.playlist), let i = playlists[c.position.playlist].index(of: c.track) else { return }
+        mixer.setLevelGain(of: c.deck, playlists[c.position.playlist].levelGain(ofTrackAt: i))
+    }
+
     // MARK: playing
 
     /// Starts a track with a cut (the old deck and any voice on top are removed at once) or a crossfade (every deck, a voice on top included, fades out). Does nothing for a position that is not in the playlists.
@@ -207,6 +229,8 @@ public struct PlaylistPlayer<Random: RandomSource> {
             ducking.voiceEnded(v, atFrame: mixer.transport.playFrame)
             topDeck = nil
         }
+        // Level match applies to tracks, not to trigger voices (docs/audio-spec-1.md: "no level match" for a voice-over).
+        mixer.setLevelGain(of: id, playlists[position.playlist].levelGain(ofTrackAt: position.track), atStart: true)
         current = Current(position: position, track: t.id, deck: id)
         if let pb = mixer.deck(id)?.playback { watch.begin(pb, t.triggers, at: mixer.transport.playFrame) }
         serviceTriggers()      // a point at A fires on the first frame

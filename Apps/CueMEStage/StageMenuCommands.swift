@@ -1,9 +1,15 @@
 import SwiftUI
 import StageKit
 
-/// Menu bar skeleton. Every live entry sends a `Command`; entries with nothing behind them yet are disabled.
+/// The menu bar. Every live entry sends a `Command`; entries with nothing behind them yet are disabled.
+/// Shortcuts come from `Shortcuts`; the unmodified ones are kept away from text input by `ShortcutGuard`.
 struct StageMenuCommands: Commands {
     let store: StageStore
+    let ui: OperatorUIState
+    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.dark.rawValue
+    @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
+
+    private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection) }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -15,57 +21,88 @@ struct StageMenuCommands: Commands {
         }
         CommandGroup(replacing: .printItem) {}
 
-        CommandMenu("Show") {
-            Button("Next Slide") { store.send(.next) }
-                .keyboardShortcut(.rightArrow, modifiers: [])
-            Button("Previous Slide") { store.send(.previous) }
-                .keyboardShortcut(.leftArrow, modifiers: [])
+        // View menu (Enter Full Screen stays where the system puts it).
+        CommandGroup(before: .toolbar) {
+            Button("Operator") {}.disabled(true)
+            Button("Editor") {}.disabled(true)
             Divider()
-            Button("Clear Slide") { store.send(.clear(.slide)) }
-                .keyboardShortcut(.delete, modifiers: .command)
-            Button("Clear Messages") { store.send(.clear(.messages)) }
-            Button("Clear All") { store.send(.clear(.all)) }
-                .keyboardShortcut(.delete, modifiers: [.command, .shift])
-            Button(store.state.blackout ? "End Blackout" : "Blackout") { store.send(.blackout(!store.state.blackout)) }
-                .keyboardShortcut("b", modifiers: .command)
+            Menu("Theme") {
+                ForEach(AppTheme.allCases, id: \.self) { theme in
+                    Toggle(theme == .dark ? "Dark" : "Light", isOn: Binding(
+                        get: { AppTheme.resolve(themeRaw) == theme },
+                        set: { if $0 { themeRaw = theme.rawValue } }
+                    ))
+                }
+            }
             Divider()
-            Button("Looks…") {}.disabled(true)
-            Button("Messages…") {}.disabled(true)
-            Button("Timers…") {}.disabled(true)
+            ForEach(BottomTab.allCases) { tab in
+                Toggle(tab.rawValue, isOn: Binding(
+                    get: { BottomTab.resolve(bottomTabRaw) == tab },
+                    set: { if $0 { bottomTabRaw = tab.rawValue } }
+                ))
+                .keyboardShortcut(Shortcuts.tab(tab))
+                .disabled(!tab.isEnabled)
+            }
+            Divider()
         }
 
-        CommandMenu("Audio") {
-            let audio = store.state.audio
-            Button(audio.transport == .paused ? "Resume" : "Pause") {
-                store.send(audio.transport == .paused ? .resumeAudio : .pauseAudio)
+        CommandMenu("Service") {
+            let model = model
+            Button("Go Live") { model.goLiveCommand.map(store.send) }
+                .keyboardShortcut(Shortcuts.goLive)
+                .disabled(model.goLiveCommand == nil)
+            Button("Next Slide") { store.send(.next) }
+                .keyboardShortcut(Shortcuts.nextSlide)
+                .disabled(!model.canNext)
+            Button("Previous Slide") { store.send(.previous) }
+                .keyboardShortcut(Shortcuts.previousSlide)
+                .disabled(!model.canPrevious)
+            Divider()
+            Menu("Clear") {
+                Button("All") { store.send(.clear(.all)) }
+                    .keyboardShortcut(Shortcuts.clearAll)
+                Button("Slide") { store.send(.clear(.slide)) }
+                    .keyboardShortcut(Shortcuts.clearSlide)
+                Button("Media") {}.disabled(true) // no Command clears media yet
+                Button("Audio") { store.send(.clear(.audio)) }
+                Button("Message") { store.send(.clear(.messages)) }
             }
-            .keyboardShortcut("p", modifiers: [.command, .option])
-            .disabled(audio.transport != .playing && audio.transport != .paused)
-            Button("Fade Out") { store.send(.fadeAudio(seconds: 3)) }
-                .keyboardShortcut("f", modifiers: [.command, .option])
-                .disabled(audio.liveTrack == nil)
-            Button("Stop") { store.send(.stopAudio) }
-                .keyboardShortcut(".", modifiers: .command)
-                .disabled(audio.liveTrack == nil)
+            Button(model.blackoutTitle) { store.send(model.blackoutCommand) }
+                .keyboardShortcut(Shortcuts.blackout)
             Divider()
-            Button("Skip Next Trigger") { store.send(.skipNextTrigger) }
-                .keyboardShortcut("s", modifiers: [.command, .option])
-                .disabled(audio.nextTrigger == nil)
+            Menu("Audio") {
+                let toggle = model.audioToggle
+                Button(toggle.title) { toggle.command.map(store.send) }
+                    .keyboardShortcut(Shortcuts.audioPlayPause)
+                    .disabled(toggle.command == nil)
+                Button("Stop") { store.send(.stopAudio) }
+                    .keyboardShortcut(Shortcuts.audioStop)
+                    .disabled(!model.hasTrack)
+                Button("Fade Out") { store.send(.fadeAudio(seconds: 3)) }
+                    .keyboardShortcut(Shortcuts.audioFadeOut)
+                    .disabled(!model.hasTrack)
+                Button("Skip Next Trigger") { store.send(.skipNextTrigger) }
+                    .keyboardShortcut(Shortcuts.skipNextTrigger)
+                    .disabled(!model.canSkipTrigger)
+            }
+            Menu("Messages") {
+                ForEach(store.state.messages) { message in
+                    Toggle(message.text, isOn: Binding(
+                        get: { model.isVisible(message) },
+                        set: { _ in store.send(model.toggleCommand(message)) }
+                    ))
+                }
+            }
+            .disabled(!model.hasMessages)
             Divider()
-            Button("Track Settings…") {}.disabled(true)
-            Button("Audio Devices…") {}.disabled(true)
+            Button("Add Section…") {}.disabled(true)
+            Button("Add Activity…") {}.disabled(true)
         }
 
         CommandMenu("Output") {
             Button("Screens…") {}.disabled(true)
             Button("Outputs…") {}.disabled(true)
             Button("Stage Display…") {}.disabled(true)
-        }
-
-        CommandGroup(before: .toolbar) {
-            Button("Operator") {}.disabled(true)
-            Button("Editor") {}.disabled(true)
-            Divider()
         }
     }
 }

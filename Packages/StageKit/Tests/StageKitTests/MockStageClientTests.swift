@@ -16,6 +16,7 @@ final class MockStageClientTests: XCTestCase {
         let client = MockStageClient(library: lib)
         let state = await client.currentState
         XCTAssertEqual(state.service, lib.service)
+        XCTAssertEqual(state.messages, lib.messages)
         XCTAssertEqual(state.screens.map(\.screenID), lib.screens.map(\.id))
         XCTAssertEqual(state.outputs.map(\.outputID), lib.outputs.map(\.id))
         XCTAssertTrue(state.outputs.allSatisfy { $0.health == .ok })

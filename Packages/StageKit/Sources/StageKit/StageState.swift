@@ -147,6 +147,8 @@ public struct StageState: Codable, Sendable, Hashable {
     public var nextSlide: LiveSlide?
     public var blackout: Bool
     public var activeLook: Look.ID?
+    /// The saved messages of the show, so the operator can pick one to show or hide.
+    public var messages: [Message]
     public var visibleMessages: [Message.ID]
     public var runningTimers: [StageTimer.ID]
     public var audio: AudioState
@@ -155,7 +157,7 @@ public struct StageState: Codable, Sendable, Hashable {
     public init(
         service: Service? = nil, slides: [Item.ID: [Slide]] = [:], screens: [ScreenState] = [], nextSlide: LiveSlide? = nil,
         blackout: Bool = false, activeLook: Look.ID? = nil,
-        visibleMessages: [Message.ID] = [], runningTimers: [StageTimer.ID] = [], audio: AudioState = AudioState(),
+        messages: [Message] = [], visibleMessages: [Message.ID] = [], runningTimers: [StageTimer.ID] = [], audio: AudioState = AudioState(),
         outputs: [OutputStatus] = []
     ) {
         self.service = service
@@ -164,6 +166,7 @@ public struct StageState: Codable, Sendable, Hashable {
         self.nextSlide = nextSlide
         self.blackout = blackout
         self.activeLook = activeLook
+        self.messages = messages
         self.visibleMessages = visibleMessages
         self.runningTimers = runningTimers
         self.audio = audio

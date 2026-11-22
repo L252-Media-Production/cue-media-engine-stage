@@ -41,6 +41,7 @@ public actor MockStageClient: StageClient {
             service: library.service,
             slides: slides,
             screens: library.screens.map { ScreenState(screenID: $0.id, name: $0.name) },
+            messages: library.messages,
             outputs: library.outputs.map { OutputStatus(outputID: $0.id, name: $0.name) }
         )
         // Nothing taken yet: Next starts at the first slide of the service (as `step(forward:)` says).

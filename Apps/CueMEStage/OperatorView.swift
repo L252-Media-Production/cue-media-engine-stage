@@ -6,16 +6,22 @@ import StageKit
 /// every control sends a `Command` through the store.
 struct OperatorView: View {
     let store: StageStore
+    /// Shared with the menu bar (Service > Go Live acts on the selected item).
+    @Bindable var ui: OperatorUIState
     @Environment(\.theme) private var theme
-    /// Pure UI selection (which service item the slide grid shows); not engine state.
-    @State private var selection: Item.ID?
+
+    /// Which service item the slide grid shows; not engine state.
+    private var selection: Item.ID? {
+        get { ui.selection }
+        nonmutating set { ui.selection = newValue }
+    }
 
     private var state: StageState { store.state }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                ServicePanel(state: state, selection: $selection) { item in
+                ServicePanel(state: state, selection: $ui.selection) { item in
                     store.send(.go(itemID: item.id, slideIndex: 0))
                 }
                 .frame(width: 240)
@@ -65,7 +71,8 @@ private struct ServicePanel: View {
                 ServiceRow(item: item, isLive: isLive(item))
                     .tag(item.id)
             }
-            // On macOS the primary action runs on double-click and on Return.
+            // Double-click. Return is Service > Go Live: the menu's key equivalent takes it before the list sees it,
+            // so a press of Return is one Go, never two.
             .contextMenu(forSelectionType: Item.ID.self) { ids in
                 Button("Go Live") { goFirst(of: ids) }.disabled(ids.isEmpty)
             } primaryAction: { ids in
@@ -449,29 +456,19 @@ private struct ActiveStateButtonStyle: ButtonStyle {
 
 // MARK: Bottom panel
 
-private enum BottomTab: String, CaseIterable, Identifiable {
-    case audio = "Audio"
-    case activities = "Activities"
-    case scripture = "Scripture"
-    case media = "Media"
-    case looks = "Looks"
-
-    var id: Self { self }
-    /// Scripture, Media and Looks are placeholders that cannot be opened yet.
-    var isEnabled: Bool { self == .audio || self == .activities }
-}
-
 private struct BottomPanel: View {
     let state: StageState
     let send: (Command) -> Void
     @Environment(\.theme) private var theme
-    @State private var tab: BottomTab = .audio
+    /// Remembered across launches; View > Cmd-4 / Cmd-5 write the same key.
+    @AppStorage(StorageKeys.bottomTab) private var tabRaw = BottomTab.audio.rawValue
+    private var tab: BottomTab { BottomTab.resolve(tabRaw) }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(BottomTab.allCases) { item in
-                    TabButton(title: item.rawValue, isSelected: tab == item, isEnabled: item.isEnabled) { tab = item }
+                    TabButton(title: item.rawValue, isSelected: tab == item, isEnabled: item.isEnabled) { tabRaw = item.rawValue }
                 }
                 Spacer()
             }
@@ -603,6 +600,11 @@ private struct StatusBar: View {
                     }
                 }
             }
+            StatusChip(text: "Audio: \(state.audio.transport.label)", color: audioColor)
+                .help("Audio transport")
+            let engine = EngineChipModel(counters: state.audio.counters)
+            StatusChip(text: "Engine", color: engine.isAlert ? theme.warning : nil)
+                .help(engine.tooltip)
             Spacer()
             if case let .commandRejected(_, reason) = lastEvent {
                 Text("Refused: \(reason)").foregroundStyle(theme.warning)
@@ -612,6 +614,14 @@ private struct StatusBar: View {
         .padding(.horizontal, ThemeTokens.spacingM)
         .padding(.vertical, ThemeTokens.spacingXS + 2)
         .background(theme.surfaceRaised)
+    }
+
+    private var audioColor: Color? {
+        switch state.audio.transport {
+        case .stopped: nil
+        case .playing: theme.ok
+        case .paused, .fading: theme.warning
+        }
     }
 
     private func color(_ health: OutputStatus.Health) -> Color {
@@ -638,6 +648,22 @@ private struct PanelHeader: View {
             .padding(.vertical, ThemeTokens.spacingS)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(theme.surfaceRaised)
+    }
+}
+
+/// A status-bar chip: neutral (`color` nil) or tinted.
+private struct StatusChip: View {
+    let text: String
+    let color: Color?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(text)
+            .foregroundStyle(color ?? theme.textSecondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background((color ?? theme.border).opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(color ?? theme.border, lineWidth: 1))
     }
 }
 
@@ -678,7 +704,7 @@ private func timecode(_ seconds: Double) -> String {
 }
 
 #Preview {
-    OperatorView(store: .mock())
+    OperatorView(store: .mock(), ui: OperatorUIState())
         .modifier(Themed())
         .frame(width: 1200, height: 780)
 }

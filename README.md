@@ -7,41 +7,52 @@ chaining several computers together.
 
 It sits alongside [CueME](https://github.com/L252-Media-Production/cue-media-engine), the audio cue player.
 
-**Status:** early scaffold. Nothing here is usable yet. The first milestone is the *engine spike*:
-prove a stable 1080p60 SDI output while compositing video and text in Metal. See
-[docs/design-v0.md](docs/design-v0.md).
+**Status:** engine spike. There is no operator UI yet (`CueMEStage` is a placeholder window), but the output
+engine already drives SDI from Metal: 1080p59.94 output paced by the card clock, a canvas cut into screens for
+several outputs, SDI input (IMAG) and NDI send and receive. Measured results, including a 4-hour two-card soak,
+are in [docs/engine-spike-results.md](docs/engine-spike-results.md). Not built yet: audio, the app/engine IPC,
+portrait output, and the editors. See [docs/design-v0.md](docs/design-v0.md).
 
 ## Layout
 
 | Path | What it is |
 |---|---|
 | `Apps/StageEngine` | The output process (command-line tool). Runs the compositor and outputs. |
+| `Apps/StageEngine/DeckLink` | Objective-C++ bridge to the DeckLink API: SDI output and input. |
+| `Apps/StageEngine/NDI` | Objective-C++ bridge to the NDI SDK: send and receive. |
 | `Apps/CueMEStage` | The operator UI app (SwiftUI). Placeholder for now. |
-| `Packages/Engine` | Compositor, frame timing, the `OutputSink` protocol. Testable on its own. |
-| `Packages/DeckLinkBridge` | DeckLink SDI output (stub until the SDK wrapper is built). |
-| `docs/` | Design notes and setup guides. |
+| `Packages/Engine` | Compositor, canvas, video loop and text layers, frame timing, the `OutputSink` protocol. Testable on its own. |
+| `docs/` | Design notes, SDK setup and spike results. |
 | `vendor/` | Local SDKs. Not committed. |
 | `project.yml` | XcodeGen spec that generates the Xcode project. |
 
 ## Build
 
 1. `brew install xcodegen`
-2. `xcodegen generate` (creates `CueMEStage.xcodeproj`)
-3. Open `CueMEStage.xcodeproj`, choose the `StageEngine` scheme and run.
+2. Copy the SDKs into `vendor/` as described in [docs/sdk-setup.md](docs/sdk-setup.md).
+3. `xcodegen generate` (creates `CueMEStage.xcodeproj`)
+4. Open `CueMEStage.xcodeproj`, choose the `StageEngine` scheme and run.
 
-Without any hardware, StageEngine can time a bare 60 Hz clock (no arguments), or run the engine spike:
-a looping video with a text layer composited in Metal at 1080p60, with timing reported at the end.
-In Xcode, set arguments under *Product > Scheme > Edit Scheme > Run > Arguments*:
+With no arguments, StageEngine times a bare clock for a few seconds. Set arguments under
+*Product > Scheme > Edit Scheme > Run > Arguments*, or pass them to the built tool in Terminal.
+The common ones:
 
 ```
---video /full/path/to/loop.mp4 --seconds 60
+--list-decklink                              list DeckLink devices (index, output/input support)
+--video /path/to/loop.mp4 --seconds 60       looping video with a text layer in Metal
+--decklink 4 --depth 6                       send to a DeckLink output (one index per output)
+--canvas 6000x1920 --screens "x,y,w,h;..."   canvas cut into screens, one per --decklink index
+--sdi-in 0 --sdi-buffer 2                    use an SDI input as the video source
+--ndi-list, --ndi-in NAME, --ndi-send NAME   NDI discovery, receive and send
+--realtime                                   real-time scheduling for the render thread
 ```
 
-Or run the built tool from Terminal with the same arguments. The report shows output and render-loop frame
-timing, GPU and CPU-encode time per frame, skipped ticks, and video decoder underruns. Run the package
-tests (they include a Metal shader smoke test) with `swift test --package-path Packages/Engine`.
+Each run ends with a report of frame timing, GPU and CPU-encode time, skipped ticks and video underruns, plus
+the card's own late and dropped counters when SDI is used. Run the package tests (they include a Metal shader
+smoke test) with `swift test --package-path Packages/Engine`.
 
-SDK setup for DeckLink and NDI is in [docs/sdk-setup.md](docs/sdk-setup.md).
+SDK and driver notes (including why the bridge uses the v14.2.1 DeckLink interfaces) are in
+[docs/sdk-setup.md](docs/sdk-setup.md).
 
 ## Requirements
 macOS 14 or later, Apple Silicon, Xcode current. For SDI: Blackmagic Desktop Video.

@@ -121,6 +121,19 @@ the tests compare only what the fixture says (`loop_switched_off_in_pass_1_end` 
 - **Quirk 12, switching to `once` mid-play.** Python adds no second pass (it is decided when the track starts). Not pinned by `end_action_switched_mid_play`. Stage has not chosen its own
   behaviour yet; the subject treats that switch as pending.
 
+## Engine types, slice 3a (playlists, play modes, shuffle)
+
+`Playlist` (tracks by stable `TrackID`, `PlaylistMode`, per-track `TrackEnd`, `Trim` and crossfade time; plain values), `PlayOrder` (pure `nextInOrder` and `successor`),
+`ShuffleBag` with an injected `RandomSource` (`SeededRandomSource` for tests, `SystemRandomSource` for a show) and `PlaylistPlayer` (a `Mixer` plus playlists: `advance(frames:)` steps
+to the exact frame a deck ends at and starts what follows there; `setEnd` plays the running pass out and lets the new action decide). Rules taken from the Python source where the
+fixtures are silent: a `stop` end action beats every mode; a `loop` track is "same"; `next_playlist` skips empty playlists and does not wrap after the last one; the shuffle bag refills with
+every track except the one just played (so a round is n - 1 draws, and a playlist of one track repeats it); the bag forgets its round when the mode changes. The successor starts with a cut.
+The shuffle sequence is never compared with Python's, only the listed properties.
+
+Allocation: `advance(frames:)`, `PlayOrder.successor` and `ShuffleBag.draw` allocate nothing once the bag has its capacity (reserved when a playlist's tracks change, a setup path).
+Starting the next track appends a deck to `Mixer.decks`, which can allocate, and ended decks are never removed, so a long show grows that array by one deck per track. `PlayOrder.nextInOrder` and
+the `Playlist`/`PlaylistPlayer` editing methods allocate and are setup or test paths.
+
 ## When the Python side bumps the spec
 
 The Python rule is: a change to audio behaviour regenerates the fixtures and raises the spec version. Then, here:

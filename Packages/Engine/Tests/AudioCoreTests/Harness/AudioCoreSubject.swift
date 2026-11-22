@@ -3,7 +3,7 @@ import AudioCore
 /// The slice of the spec that AudioCore implements so far, as pure functions. Everything else is still pending
 /// (the protocol's default), so those tests are skipped until the transport port provides it.
 ///
-/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
+/// Implemented: trim windows, fades at A and B, passes and end actions (trim.json, end_actions.json), play modes, next_in_order and the shuffle bag (play_modes.json, end_action_switched_mid_play), the fade and crossfade rules (through `Mixer`, `Deck`, `Fade`, `CrossfadeSettings`: fades.json and xfade.json), the background multiplier `10^(-gr/20)`,
 /// `duck_key`, `duck_curve` (hold on / off), `duck_smooth`, `input_target_db`.
 struct AudioCoreSubject: AudioSpecSubject {
     func fadeGain(_ direction: FadeDirection, x: Double) throws -> Double {
@@ -244,6 +244,85 @@ struct AudioCoreSubject: AudioSpecSubject {
 
     func nextEndAction(after action: EndAction) throws -> EndAction {
         endAction(trackEnd(action).next)
+    }
+
+    // MARK: play_modes.json and end_action_switched_mid_play
+
+    private func playlistMode(_ m: PlayMode) -> PlaylistMode {
+        switch m {
+        case .stop: return .stop
+        case .loopPlaylist: return .loopPlaylist
+        case .nextPlaylist: return .nextPlaylist
+        case .shuffle: return .shuffle
+        }
+    }
+
+    /// Playlists of `counts` tracks of 2 s each, all in `mode`. Track ids are `100 * playlist + index`.
+    private func playlists(_ counts: [Int], mode: PlayMode) -> [Playlist] {
+        counts.enumerated().map { p, n in
+            Playlist(tracks: (0..<n).map { PlaylistTrack(id: TrackID(100 * p + $0), lengthSeconds: 2) }, mode: playlistMode(mode))
+        }
+    }
+
+    func successor(mode: PlayMode, endAction: EndAction, playlistTrackCounts: [Int], from: (playlist: Int, track: Int)) throws -> Successor {
+        var lists = playlists(playlistTrackCounts, mode: mode)
+        lists[from.playlist].tracks[from.track].end = trackEnd(endAction)
+        var random = SeededRandomSource(seed: 1234)
+        switch PlayOrder.successor(after: TrackPosition(playlist: from.playlist, track: from.track), in: &lists, using: &random) {
+        case .stopped: return .stopped
+        case .same: return .same
+        case .track(let p): return .track(playlist: p.playlist, track: p.track)
+        }
+    }
+
+    func nextInOrder(mode: PlayMode, fromTrack: Int, trackCount: Int, loopingTracks: Set<Int>) throws -> [Int] {
+        PlayOrder.nextInOrder(mode: playlistMode(mode), from: fromTrack, trackCount: trackCount, trackLoops: loopingTracks.contains(fromTrack))
+    }
+
+    func shuffleDraws(trackCount: Int, startTrack: Int, count: Int) throws -> [Int] {
+        var lists = playlists([trackCount], mode: .shuffle)
+        var random = SeededRandomSource(seed: 20_240_229)
+        var current = startTrack
+        var draws = [Int]()
+        for _ in 0..<count {
+            guard case .track(let next) = PlayOrder.successor(after: TrackPosition(playlist: 0, track: current), in: &lists, using: &random) else { break }
+            draws.append(next.track)
+            current = next.track
+        }
+        return draws
+    }
+
+    func shuffleTracksLeftAfterOneDraw(trackCount: Int, startTrack: Int) throws -> Int {
+        var lists = playlists([trackCount], mode: .shuffle)
+        var random = SeededRandomSource(seed: 7)
+        _ = PlayOrder.successor(after: TrackPosition(playlist: 0, track: startTrack), in: &lists, using: &random)
+        return lists[0].bag.remaining.count
+    }
+
+    func shuffleForgetsRoundOnModeChange() throws -> Bool {
+        var lists = playlists([3], mode: .shuffle)
+        var random = SeededRandomSource(seed: 7)
+        _ = PlayOrder.successor(after: TrackPosition(playlist: 0, track: 0), in: &lists, using: &random)
+        guard !lists[0].bag.remaining.isEmpty else { return false }   // there has to be a round to forget
+        lists[0].mode = .loopPlaylist
+        lists[0].mode = .shuffle
+        return lists[0].bag.remaining.isEmpty
+    }
+
+    /// Two tracks of 2 s; track 0 starts with `from`, the end action is switched to `to` at `atS`, and the player runs to the exact end of the pass that
+    /// was running. Reports what plays then.
+    func liveAfterEndActionSwitch(playMode: PlayMode, from: EndAction, to: EndAction, atS: Double) throws -> LiveTrack? {
+        guard trackEnd(to) != .twice else { throw pending("switching an end action to once while the track plays (not specified)") }
+        var lists = playlists([2], mode: playMode)
+        lists[0].tracks[0].end = trackEnd(from)
+        var player = PlaylistPlayer(playlists: lists, policy: TrimPolicy(defaultFadeOutMs: 0, defaultFadeInMs: 0), random: SeededRandomSource(seed: 1))
+        player.play(TrackPosition(playlist: 0, track: 0))
+        player.advance(frames: player.mixer.transport.frames(seconds: atS))
+        player.setEnd(trackEnd(to), ofTrack: TrackID(0), inPlaylist: 0)
+        guard let c = player.current, let end = player.mixer.deck(c.deck)?.playback?.endFrame else { throw pending("a deck with no end after the switch") }
+        player.advance(frames: end - player.mixer.transport.playFrame)
+        guard let now = player.current, let pass = player.mixer.deck(now.deck)?.pass(at: player.mixer.transport.playFrame) else { return nil }
+        return LiveTrack(track: now.position.track, passNo: pass.number)
     }
 
     func backgroundMultiplier(reductionDb: Double) throws -> Double {

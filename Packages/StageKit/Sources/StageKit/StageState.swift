@@ -138,7 +138,13 @@ public struct OutputStatus: Codable, Sendable, Hashable, Identifiable {
 public struct StageState: Codable, Sendable, Hashable {
     /// The loaded service, so the operator can pick items (read-only here; editing goes through commands).
     public var service: Service?
+    /// The slides of every slide-based item in `service`, keyed by `Item.ID`, so the operator can see and pick them
+    /// without the library. Items without slides (media, blank) have no entry.
+    public var slides: [Item.ID: [Slide]]
     public var screens: [ScreenState]
+    /// The slide `Command.next` would take live now (nil at the end of the service). Follows the engine's cursor,
+    /// so after a clear it is still the slide after the one that was cleared.
+    public var nextSlide: LiveSlide?
     public var blackout: Bool
     public var activeLook: Look.ID?
     public var visibleMessages: [Message.ID]
@@ -147,12 +153,15 @@ public struct StageState: Codable, Sendable, Hashable {
     public var outputs: [OutputStatus]
 
     public init(
-        service: Service? = nil, screens: [ScreenState] = [], blackout: Bool = false, activeLook: Look.ID? = nil,
+        service: Service? = nil, slides: [Item.ID: [Slide]] = [:], screens: [ScreenState] = [], nextSlide: LiveSlide? = nil,
+        blackout: Bool = false, activeLook: Look.ID? = nil,
         visibleMessages: [Message.ID] = [], runningTimers: [StageTimer.ID] = [], audio: AudioState = AudioState(),
         outputs: [OutputStatus] = []
     ) {
         self.service = service
+        self.slides = slides
         self.screens = screens
+        self.nextSlide = nextSlide
         self.blackout = blackout
         self.activeLook = activeLook
         self.visibleMessages = visibleMessages

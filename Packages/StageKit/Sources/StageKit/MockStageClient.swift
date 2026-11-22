@@ -31,11 +31,22 @@ public actor MockStageClient: StageClient {
 
     public init(library: Library = .sample) {
         self.library = library
+        var slides: [Item.ID: [Slide]] = [:]
+        for item in library.service.items {
+            if case let .song(songID) = item.content, let song = library.song(songID), !song.slides.isEmpty {
+                slides[item.id] = song.slides
+            }
+        }
         self.state = StageState(
             service: library.service,
+            slides: slides,
             screens: library.screens.map { ScreenState(screenID: $0.id, name: $0.name) },
             outputs: library.outputs.map { OutputStatus(outputID: $0.id, name: $0.name) }
         )
+        // Nothing taken yet: Next starts at the first slide of the service (as `step(forward:)` says).
+        if let item = library.service.items.first(where: { slides[$0.id] != nil }), let slide = slides[item.id]?.first {
+            state.nextSlide = LiveSlide(itemID: item.id, slideIndex: 0, slideID: slide.id, label: slide.label, lines: slide.lines)
+        }
     }
 
     // MARK: StageClient
@@ -65,6 +76,7 @@ public actor MockStageClient: StageClient {
 
     public func send(_ command: Command) {
         apply(command)
+        refreshNextSlide()
         publish()
     }
 
@@ -246,14 +258,22 @@ public actor MockStageClient: StageClient {
         return library.song(songID)?.slides ?? []
     }
 
-    private func takeLive(itemIndex: Int, slideIndex: Int) -> Bool {
+    private func liveSlide(itemIndex: Int, slideIndex: Int) -> LiveSlide? {
         let slides = slides(ofItemAt: itemIndex)
-        guard slides.indices.contains(slideIndex) else { return false }
+        guard slides.indices.contains(slideIndex) else { return nil }
         let slide = slides[slideIndex]
-        let live = LiveSlide(
+        return LiveSlide(
             itemID: library.service.items[itemIndex].id, slideIndex: slideIndex, slideID: slide.id,
             label: slide.label, lines: slide.lines
         )
+    }
+
+    private func refreshNextSlide() {
+        state.nextSlide = step(forward: true).flatMap { liveSlide(itemIndex: $0.item, slideIndex: $0.slide) }
+    }
+
+    private func takeLive(itemIndex: Int, slideIndex: Int) -> Bool {
+        guard let live = liveSlide(itemIndex: itemIndex, slideIndex: slideIndex) else { return false }
         for i in state.screens.indices { state.screens[i].live = live }
         cursor = (itemIndex, slideIndex)
         emit(.slideLive(live))

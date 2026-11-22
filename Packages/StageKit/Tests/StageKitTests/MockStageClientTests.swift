@@ -23,6 +23,30 @@ final class MockStageClientTests: XCTestCase {
         XCTAssertEqual(state.audio, AudioState())
     }
 
+    func testStateCarriesSlidesAndNextSlide() async {
+        let client = MockStageClient(library: lib)
+        var state = await client.currentState
+        XCTAssertEqual(state.slides[amazing.id], lib.songs[0].slides)
+        XCTAssertEqual(state.slides[doxology.id]?.count, 2)
+        XCTAssertNil(state.slides[walkInItem.id], "media items have no slides")
+        // Nothing live: Next would start at the first slide of the first song.
+        XCTAssertEqual(state.nextSlide?.itemID, amazing.id)
+        XCTAssertEqual(state.nextSlide?.slideIndex, 0)
+
+        await client.send(.go(itemID: amazing.id, slideIndex: 2))
+        state = await client.currentState
+        XCTAssertEqual(state.nextSlide?.itemID, doxology.id, "crosses the blank item")
+        XCTAssertEqual(state.nextSlide?.label, "Verse")
+
+        await client.send(.clear(.slide)) // the cursor survives a clear
+        state = await client.currentState
+        XCTAssertEqual(state.nextSlide?.itemID, doxology.id)
+
+        await client.send(.go(itemID: doxology.id, slideIndex: 1))
+        state = await client.currentState
+        XCTAssertNil(state.nextSlide, "end of service")
+    }
+
     func testGoPutsSlideLiveOnEveryScreen() async {
         let client = MockStageClient(library: lib)
         await client.send(.go(itemID: amazing.id, slideIndex: 1))

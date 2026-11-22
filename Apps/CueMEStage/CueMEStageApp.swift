@@ -14,7 +14,7 @@ struct CueMEStageApp: App {
         WindowGroup("CueME Stage") {
             OperatorView(store: store)
                 .modifier(Themed())
-                .frame(minWidth: 1000, minHeight: 620)
+                .frame(minWidth: 1100, minHeight: 720)
         }
         .commands {
             StageMenuCommands(store: store)

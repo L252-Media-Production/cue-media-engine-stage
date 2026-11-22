@@ -5,7 +5,9 @@ import Foundation
 ///
 /// The audio behaviour is a rough stand-in, not the contract in docs/audio-spec-1.md: triggers fire when the
 /// playhead crosses them, a trigger reached while a voice is on top is skipped, the background is ducked by a
-/// fixed amount while a voice plays, and the track ends at its trim Out (or the end of the file).
+/// fixed amount while a voice plays, and the track ends at its trim Out (or the end of the file). The end action of
+/// `playAudio` decides the passes: `.loop` wraps to trim In for ever, `.once` plays two passes, `.default` and
+/// `.stop` one (the mock has no playlist, so both then stop). Volume and fade-in are checked but not simulated.
 public actor MockStageClient: StageClient {
     /// Reduction shown while a voice-over plays.
     public static let fakeDuckingDB = 8.0
@@ -23,6 +25,8 @@ public actor MockStageClient: StageClient {
     private var skipped: Set<TriggerPoint.ID> = []
     private var voiceRemaining = 0.0
     private var fadeRemaining: Double?
+    /// Passes still to play after the running one; nil = loop for ever.
+    private var passesLeft: Int? = 0
     private var telemetryTask: Task<Void, Never>?
 
     public init(library: Library = .sample) {
@@ -114,7 +118,7 @@ public actor MockStageClient: StageClient {
             }
             let item = library.service.items[itemIndex]
             if case let .media(mediaID) = item.content {
-                return apply(.playAudio(mediaID: mediaID))
+                return apply(.playAudio(mediaID: mediaID, options: AudioPlayOptions()))
             }
             guard takeLive(itemIndex: itemIndex, slideIndex: slideIndex) else {
                 return reject(command, "no slide \(slideIndex) in \(item.title)")
@@ -132,7 +136,11 @@ public actor MockStageClient: StageClient {
             if target == .slide || target == .all {
                 for i in state.screens.indices { state.screens[i].live = nil }
             }
-            if target == .messages || target == .all { state.visibleMessages = [] }
+            if target == .messages || target == .all {
+                state.visibleMessages = []
+                for i in state.screens.indices { state.screens[i].messages = [] }
+            }
+            if target == .audio { endTrack() }
             emit(.cleared(target))
 
         case let .blackout(on):
@@ -144,12 +152,20 @@ public actor MockStageClient: StageClient {
             guard library.looks.contains(where: { $0.id == id }) else { return reject(command, "unknown look") }
             state.activeLook = id
 
-        case let .showMessage(id):
+        case let .showMessage(id, screens):
             guard library.messages.contains(where: { $0.id == id }) else { return reject(command, "unknown message") }
+            let known = Set(state.screens.map(\.screenID))
+            guard screens.allSatisfy(known.contains) else { return reject(command, "unknown screen") }
+            let targets = screens.isEmpty ? known : Set(screens)
+            for i in state.screens.indices {
+                state.screens[i].messages.removeAll { $0 == id }
+                if targets.contains(state.screens[i].screenID) { state.screens[i].messages.append(id) }
+            }
             if !state.visibleMessages.contains(id) { state.visibleMessages.append(id) }
 
         case let .hideMessage(id):
             state.visibleMessages.removeAll { $0 == id }
+            for i in state.screens.indices { state.screens[i].messages.removeAll { $0 == id } }
 
         case let .startTimer(id):
             guard library.timers.contains(where: { $0.id == id }) else { return reject(command, "unknown timer") }
@@ -158,10 +174,11 @@ public actor MockStageClient: StageClient {
         case let .stopTimer(id), let .resetTimer(id):
             state.runningTimers.removeAll { $0 == id }
 
-        case let .playAudio(mediaID):
+        case let .playAudio(mediaID, options):
             guard let media = library.mediaItem(mediaID), media.kind == .audio else {
                 return reject(command, "not an audio item")
             }
+            if let reason = options.invalidReason { return reject(command, reason) }
             if let old = state.audio.liveTrack { emit(.audioEnded(mediaID: old)) }
             // A new track cuts everything, the voice-over and the ducking included.
             let settings = library.audioSettings[mediaID]
@@ -172,6 +189,11 @@ public actor MockStageClient: StageClient {
             skipped = []
             voiceRemaining = 0
             fadeRemaining = nil
+            switch options.endAction ?? .default {
+            case .default, .stop: passesLeft = 0
+            case .once: passesLeft = 1
+            case .loop: passesLeft = nil
+            }
             refreshNextTrigger()
             emit(.audioStarted(mediaID: mediaID))
 
@@ -311,7 +333,13 @@ public actor MockStageClient: StageClient {
             fadeRemaining = remaining - dt
             if remaining - dt <= 0 { return endTrack() }
         }
-        if to >= end { return endTrack() }
+        if to >= end {
+            // Another pass (a loop or the second pass of `once`) starts again at trim In; a fade still ends it.
+            guard passesLeft != 0, end.isFinite else { return endTrack() }
+            if let left = passesLeft { passesLeft = left - 1 }
+            state.audio.position = window(of: track).0
+            skipped = []
+        }
         refreshNextTrigger()
     }
 

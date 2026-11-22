@@ -160,9 +160,8 @@ public struct Message: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-/// A countdown or count-up timer. Named `Timer` as in the design notes; inside an app that also imports
-/// Foundation, refer to it as `StageKit.Timer`.
-public struct Timer: Codable, Sendable, Identifiable, Hashable {
+/// A countdown or count-up timer. Called `StageTimer` (not `Timer`) so it never clashes with `Foundation.Timer`.
+public struct StageTimer: Codable, Sendable, Identifiable, Hashable {
     public enum Mode: String, Codable, Sendable { case countdown, countUp }
 
     public var id: UUID
@@ -231,13 +230,13 @@ public struct Library: Codable, Sendable, Hashable {
     public var audioSettings: [MediaItem.ID: AudioSettings]
     public var looks: [Look]
     public var messages: [Message]
-    public var timers: [Timer]
+    public var timers: [StageTimer]
     public var screens: [Screen]
     public var outputs: [Output]
 
     public init(
         service: Service, songs: [Song] = [], media: [MediaItem] = [], audioSettings: [MediaItem.ID: AudioSettings] = [:],
-        looks: [Look] = [], messages: [Message] = [], timers: [Timer] = [], screens: [Screen] = [], outputs: [Output] = []
+        looks: [Look] = [], messages: [Message] = [], timers: [StageTimer] = [], screens: [Screen] = [], outputs: [Output] = []
     ) {
         self.service = service
         self.songs = songs

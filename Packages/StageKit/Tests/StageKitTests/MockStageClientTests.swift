@@ -114,7 +114,90 @@ final class MockStageClientTests: XCTestCase {
         state = await client.currentState
         XCTAssertFalse(state.blackout)
         XCTAssertEqual(state.visibleMessages, [])
+        XCTAssertTrue(state.screens.allSatisfy { $0.messages.isEmpty })
         XCTAssertEqual(state.runningTimers, [])
+    }
+
+    func testShowMessageOnChosenScreens() async {
+        let client = MockStageClient(library: lib)
+        let message = lib.messages[0].id
+        let main = lib.screens[0].id, stage = lib.screens[1].id
+
+        await client.send(.showMessage(message)) // empty = every screen
+        var state = await client.currentState
+        XCTAssertEqual(state.screens.map(\.messages), [[message], [message]])
+
+        await client.send(.showMessage(message, screens: [stage])) // replaces the screens it is on
+        state = await client.currentState
+        XCTAssertEqual(state.screens.first { $0.screenID == main }?.messages, [])
+        XCTAssertEqual(state.screens.first { $0.screenID == stage }?.messages, [message])
+        XCTAssertEqual(state.visibleMessages, [message])
+
+        await client.send(.showMessage(message, screens: [UUID()]))
+        state = await client.currentState
+        XCTAssertEqual(state.screens.first { $0.screenID == stage }?.messages, [message], "unknown screen is refused")
+
+        await client.send(.hideMessage(message))
+        state = await client.currentState
+        XCTAssertEqual(state.visibleMessages, [])
+        XCTAssertTrue(state.screens.allSatisfy { $0.messages.isEmpty })
+    }
+
+    func testClearAllKeepsAudioAndClearAudioStopsIt() async {
+        let client = MockStageClient(library: lib)
+        await client.send(.go(itemID: amazing.id, slideIndex: 0))
+        await client.send(.playAudio(mediaID: walkInID))
+        await client.tick(seconds: 28.5) // voice-over on top
+        await client.send(.clear(.all))
+        var state = await client.currentState
+        XCTAssertNil(state.primaryLive)
+        XCTAssertEqual(state.audio.liveTrack, walkInID)
+        XCTAssertTrue(state.audio.voicePlaying)
+
+        await client.send(.clear(.audio))
+        state = await client.currentState
+        XCTAssertNil(state.audio.liveTrack)
+        XCTAssertFalse(state.audio.voicePlaying)
+        XCTAssertEqual(state.audio.transport, .stopped)
+        XCTAssertEqual(state.audio.duckingReductionDB, 0)
+    }
+
+    func testEndActionsLoopAndOnce() async {
+        let client = MockStageClient(library: lib)
+        // Window is 2...170 (168 s per pass).
+        await client.send(.playAudio(mediaID: walkInID, options: AudioPlayOptions(endAction: .loop)))
+        for _ in 0..<5 { await client.tick(seconds: 168) }
+        var audio = await client.currentState.audio
+        XCTAssertEqual(audio.liveTrack, walkInID, "a loop never ends")
+
+        await client.send(.playAudio(mediaID: walkInID, options: AudioPlayOptions(endAction: .once)))
+        await client.tick(seconds: 168)
+        audio = await client.currentState.audio
+        XCTAssertEqual(audio.liveTrack, walkInID, "once plays a second pass")
+        XCTAssertEqual(audio.position, 2)
+        await client.tick(seconds: 168)
+        audio = await client.currentState.audio
+        XCTAssertNil(audio.liveTrack)
+
+        for action in [AudioPlayOptions.EndAction.default, .stop] {
+            await client.send(.playAudio(mediaID: walkInID, options: AudioPlayOptions(endAction: action)))
+            await client.tick(seconds: 168)
+            audio = await client.currentState.audio
+            XCTAssertNil(audio.liveTrack, "\(action) plays one pass")
+        }
+    }
+
+    func testInvalidPlayOptionsAreRejected() async {
+        let client = MockStageClient(library: lib)
+        let events = await client.events()
+        let bad = Command.playAudio(mediaID: walkInID, options: AudioPlayOptions(volumePercent: 120))
+        await client.send(bad)
+        await client.send(.playAudio(mediaID: walkInID, options: AudioPlayOptions(fadeInSeconds: -1)))
+        let audio = await client.currentState.audio
+        XCTAssertNil(audio.liveTrack)
+        var iterator = events.makeAsyncIterator()
+        let first = await iterator.next()
+        XCTAssertEqual(first, .commandRejected(bad, reason: "volume must be 0-100 %"))
     }
 
     func testPlayStartsAtTrimInWithFirstTriggerNext() async {

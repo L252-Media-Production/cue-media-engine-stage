@@ -194,7 +194,7 @@ private struct AudioPanel: View {
                 Divider()
                 Grid(alignment: .leading, horizontalSpacing: ThemeTokens.spacingM, verticalSpacing: ThemeTokens.spacingXS) {
                     row("Voice", audio.voicePlaying ? "ON TOP" : "—", color: audio.voicePlaying ? theme.warning : nil)
-                    row("Ducking", String(format: "-%.1f dB", audio.duckingReductionDB))
+                    row("Ducking", audio.duckingText)
                     row("Next trigger", audio.nextTrigger.map { timecode($0.at) } ?? "—")
                     Divider().gridCellColumns(2)
                     row("Dropped ends", "\(audio.counters.droppedEnds)", color: counterColor(audio.counters.droppedEnds))

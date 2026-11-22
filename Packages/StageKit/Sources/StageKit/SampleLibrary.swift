@@ -43,7 +43,7 @@ extension Library {
             audioSettings: [walkIn.id: walkInSettings],
             looks: [Look(name: "Default"), Look(name: "Lower third", fontSize: 48)],
             messages: [Message(text: "Parking lot B: your lights are on")],
-            timers: [Timer(name: "Service start", mode: .countdown, duration: 300)],
+            timers: [StageTimer(name: "Service start", mode: .countdown, duration: 300)],
             screens: [
                 Screen(name: "Main", role: .audience, outputID: sdi1.id),
                 Screen(name: "Stage", role: .stage, x: 1920, outputID: sdi2.id),

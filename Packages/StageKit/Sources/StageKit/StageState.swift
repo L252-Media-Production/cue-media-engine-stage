@@ -22,11 +22,14 @@ public struct ScreenState: Codable, Sendable, Hashable, Identifiable {
     public var screenID: Screen.ID
     public var name: String
     public var live: LiveSlide?
+    /// Overlay messages visible on this screen, in the order they were shown.
+    public var messages: [Message.ID]
 
-    public init(screenID: Screen.ID, name: String, live: LiveSlide? = nil) {
+    public init(screenID: Screen.ID, name: String, live: LiveSlide? = nil, messages: [Message.ID] = []) {
         self.screenID = screenID
         self.name = name
         self.live = live
+        self.messages = messages
     }
 }
 
@@ -67,8 +70,11 @@ public struct AudioState: Codable, Sendable, Hashable {
     /// Playhead of the live track, seconds in the FILE.
     public var position: Double
     public var voicePlaying: Bool
-    /// Current sidechain reduction applied to the background, in dB (>= 0).
-    public var duckingReductionDB: Double
+    /// Current sidechain reduction applied to the background, in dB. Always >= 0 and never -0: any value at or
+    /// below zero (or NaN) is stored as 0. Use `duckingText` to show it.
+    public var duckingReductionDB: Double {
+        didSet { duckingReductionDB = Self.normalisedReduction(duckingReductionDB) }
+    }
     public var nextTrigger: NextTrigger?
     public var counters: AudioCounters
 
@@ -80,9 +86,34 @@ public struct AudioState: Codable, Sendable, Hashable {
         self.transport = transport
         self.position = position
         self.voicePlaying = voicePlaying
-        self.duckingReductionDB = duckingReductionDB
+        self.duckingReductionDB = Self.normalisedReduction(duckingReductionDB)
         self.nextTrigger = nextTrigger
         self.counters = counters
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            liveTrack: try c.decodeIfPresent(MediaItem.ID.self, forKey: .liveTrack),
+            transport: try c.decode(Transport.self, forKey: .transport),
+            position: try c.decode(Double.self, forKey: .position),
+            voicePlaying: try c.decode(Bool.self, forKey: .voicePlaying),
+            duckingReductionDB: try c.decode(Double.self, forKey: .duckingReductionDB),
+            nextTrigger: try c.decodeIfPresent(NextTrigger.self, forKey: .nextTrigger),
+            counters: try c.decode(AudioCounters.self, forKey: .counters)
+        )
+    }
+
+    /// A reduction as the operator reads it: "0.0 dB" when nothing is ducked, otherwise "-8.0 dB". Never "-0.0 dB",
+    /// also for a reduction that rounds to zero.
+    public var duckingText: String {
+        let rounded = (Self.normalisedReduction(duckingReductionDB) * 10).rounded() / 10
+        return rounded == 0 ? "0.0 dB" : String(format: "-%.1f dB", rounded)
+    }
+
+    static func normalisedReduction(_ db: Double) -> Double {
+        // `db > 0` is false for -0, 0 and NaN; `+ 0` would keep the sign of -0, so return a literal 0.
+        db > 0 ? db : 0
     }
 }
 
@@ -111,13 +142,13 @@ public struct StageState: Codable, Sendable, Hashable {
     public var blackout: Bool
     public var activeLook: Look.ID?
     public var visibleMessages: [Message.ID]
-    public var runningTimers: [StageKit.Timer.ID]
+    public var runningTimers: [StageTimer.ID]
     public var audio: AudioState
     public var outputs: [OutputStatus]
 
     public init(
         service: Service? = nil, screens: [ScreenState] = [], blackout: Bool = false, activeLook: Look.ID? = nil,
-        visibleMessages: [Message.ID] = [], runningTimers: [StageKit.Timer.ID] = [], audio: AudioState = AudioState(),
+        visibleMessages: [Message.ID] = [], runningTimers: [StageTimer.ID] = [], audio: AudioState = AudioState(),
         outputs: [OutputStatus] = []
     ) {
         self.service = service

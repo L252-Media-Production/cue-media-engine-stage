@@ -28,9 +28,13 @@ final class CodableTests: XCTestCase {
         let id = UUID()
         let commands: [Command] = [
             .go(itemID: id, slideIndex: 3), .next, .previous,
-            .clear(.slide), .clear(.messages), .clear(.all), .blackout(true), .blackout(false),
-            .applyLook(id), .showMessage(id), .hideMessage(id), .startTimer(id), .stopTimer(id), .resetTimer(id),
-            .playAudio(mediaID: id), .pauseAudio, .resumeAudio, .stopAudio, .fadeAudio(seconds: 2.5),
+            .clear(.slide), .clear(.messages), .clear(.all), .clear(.audio), .blackout(true), .blackout(false),
+            .applyLook(id), .showMessage(id), .showMessage(id, screens: [UUID(), UUID()]), .hideMessage(id),
+            .startTimer(id), .stopTimer(id), .resetTimer(id),
+            .playAudio(mediaID: id),
+            .playAudio(mediaID: id, options: AudioPlayOptions(volumePercent: 80, fadeInSeconds: 1.5, endAction: .loop)),
+            .playAudio(mediaID: id, options: AudioPlayOptions(endAction: .once)),
+            .pauseAudio, .resumeAudio, .stopAudio, .fadeAudio(seconds: 2.5),
             .seekAudio(seconds: 42.25), .skipNextTrigger,
         ]
         for command in commands {
@@ -40,9 +44,44 @@ final class CodableTests: XCTestCase {
     }
 
     func testEnvelopeCarriesVersion() throws {
+        XCTAssertEqual(commandVersion, 2)
         let data = try JSONEncoder().encode(CommandEnvelope(.next))
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(object?["version"] as? Int, commandVersion)
+    }
+
+    func testAudioPlayOptionsAreAllOptional() throws {
+        let empty = try JSONDecoder().decode(AudioPlayOptions.self, from: Data("{}".utf8))
+        XCTAssertEqual(empty, AudioPlayOptions())
+        let full = try JSONDecoder().decode(
+            AudioPlayOptions.self, from: Data(#"{"volumePercent":50,"fadeInSeconds":2,"endAction":"stop"}"#.utf8)
+        )
+        XCTAssertEqual(full, AudioPlayOptions(volumePercent: 50, fadeInSeconds: 2, endAction: .stop))
+        XCTAssertEqual(AudioPlayOptions.EndAction.allCases.map(\.rawValue), ["default", "once", "loop", "stop"])
+    }
+
+    func testDuckingNeverNegativeZero() throws {
+        var audio = AudioState(duckingReductionDB: -0.0)
+        XCTAssertEqual(audio.duckingReductionDB.sign, .plus)
+        XCTAssertEqual(audio.duckingText, "0.0 dB")
+        audio.duckingReductionDB = -0.0
+        XCTAssertEqual(audio.duckingReductionDB.sign, .plus)
+        audio.duckingReductionDB = -3
+        XCTAssertEqual(audio.duckingReductionDB, 0)
+        audio.duckingReductionDB = .nan
+        XCTAssertEqual(audio.duckingReductionDB, 0)
+        audio.duckingReductionDB = 0.04 // rounds to zero
+        XCTAssertEqual(audio.duckingText, "0.0 dB")
+        audio.duckingReductionDB = 8
+        XCTAssertEqual(audio.duckingText, "-8.0 dB")
+
+        // A snapshot from the wire with -0 (or a negative value) is normalised on decode too.
+        var json = String(decoding: try JSONEncoder().encode(AudioState()), as: UTF8.self)
+        json = json.replacingOccurrences(of: #""duckingReductionDB":0"#, with: #""duckingReductionDB":-0.0"#)
+        XCTAssertTrue(json.contains("-0.0"))
+        let decoded = try JSONDecoder().decode(AudioState.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.duckingReductionDB.sign, .plus)
+        XCTAssertEqual(decoded.duckingText, "0.0 dB")
     }
 
     func testStateAndEventsRoundTrip() async throws {

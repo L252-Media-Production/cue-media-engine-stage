@@ -153,12 +153,23 @@ public struct StageState: Codable, Sendable, Hashable {
     public var runningTimers: [StageTimer.ID]
     public var audio: AudioState
     public var outputs: [OutputStatus]
+    /// The looks of the show, so a screen's look can be picked.
+    public var looks: [Look]
+    /// Every connector the engine has, as it reports them. The app never adds, removes or edits one.
+    public var connectors: [Connector]
+    /// One entry per screen, in `screens` order.
+    public var assignments: [OutputAssignment]
+    /// Keyed by `Screen.ID`; every screen has one.
+    public var screenSetups: [Screen.ID: ScreenSetup]
+    /// The test pattern being sent, or nil.
+    public var testPattern: ActiveTestPattern?
 
     public init(
         service: Service? = nil, slides: [Item.ID: [Slide]] = [:], screens: [ScreenState] = [], nextSlide: LiveSlide? = nil,
         blackout: Bool = false, activeLook: Look.ID? = nil,
         messages: [Message] = [], visibleMessages: [Message.ID] = [], runningTimers: [StageTimer.ID] = [], audio: AudioState = AudioState(),
-        outputs: [OutputStatus] = []
+        outputs: [OutputStatus] = [], looks: [Look] = [], connectors: [Connector] = [], assignments: [OutputAssignment] = [],
+        screenSetups: [Screen.ID: ScreenSetup] = [:], testPattern: ActiveTestPattern? = nil
     ) {
         self.service = service
         self.slides = slides
@@ -171,10 +182,32 @@ public struct StageState: Codable, Sendable, Hashable {
         self.runningTimers = runningTimers
         self.audio = audio
         self.outputs = outputs
+        self.looks = looks
+        self.connectors = connectors
+        self.assignments = assignments
+        self.screenSetups = screenSetups
+        self.testPattern = testPattern
     }
 
-    /// The live slide on the first screen (all screens take the same slide in v0).
-    public var primaryLive: LiveSlide? { screens.first?.live }
+    /// The live slide on the first output screen (all screens take the same slide in v0).
+    public var primaryLive: LiveSlide? { outputScreens.first?.live }
+
+    /// The screens that send a picture out (every type but `.input`). A screen without a setup counts as output.
+    public var outputScreens: [ScreenState] { screens.filter { screenSetups[$0.screenID]?.type.isInput != true } }
+
+    public func connectorID(for screenID: Screen.ID) -> Connector.ID? {
+        assignments.first { $0.screenID == screenID }?.connectorID
+    }
+
+    public func connector(_ id: Connector.ID?) -> Connector? {
+        guard let id else { return nil }
+        return connectors.first { $0.id == id }
+    }
+
+    /// `outputWarnings` for this state.
+    public var outputWarnings: [OutputWarning] {
+        StageKit.outputWarnings(connectors: connectors, assignments: assignments, screenSetups: screenSetups)
+    }
 }
 
 /// Something that happened, for logs, toasts and status flashes. State changes are also in the next snapshot.
@@ -189,4 +222,5 @@ public enum StageEvent: Codable, Sendable, Hashable {
     case triggerSkipped(triggerID: TriggerPoint.ID)
     case countersChanged(AudioCounters)
     case outputHealthChanged(OutputStatus)
+    case testPatternChanged(ActiveTestPattern?)
 }

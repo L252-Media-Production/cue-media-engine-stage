@@ -1,7 +1,7 @@
 import Foundation
 
 /// Version of the `Command` wire format. Bump it whenever a case is added, removed or changes shape.
-public let commandVersion = 2
+public let commandVersion = 3
 
 /// Everything the operator UI can ask the engine to do. Views never call an engine directly; every control
 /// sends one of these through a `StageClient`.
@@ -49,6 +49,15 @@ public enum Command: Codable, Sendable, Hashable {
     /// Seek the live track to `seconds` in the FILE.
     case seekAudio(seconds: Double)
     case skipNextTrigger
+
+    // Output setup
+    /// Send `screen` out of `connector` (in from it, for an input screen); nil unassigns. Refused when the connector
+    /// is unknown, unavailable, of the wrong direction, or already used by another screen.
+    case assignScreen(Screen.ID, connector: Connector.ID?)
+    case setScreenSetup(Screen.ID, ScreenSetup)
+    /// Replace what the target outputs show with a test pattern. The live slide is not changed.
+    case showTestPattern(TestPatternTarget, TestPattern)
+    case hideTestPattern
 }
 
 /// Per-run overrides for `Command.playAudio`. Every field is optional: nil keeps the track's own setting.

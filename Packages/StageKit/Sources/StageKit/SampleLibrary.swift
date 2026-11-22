@@ -2,7 +2,8 @@ import Foundation
 
 extension Library {
     /// A small show for the mock client, previews and tests: two songs, one walk-in track with two
-    /// voice-over triggers, one message, one timer, two screens on two SDI outputs.
+    /// voice-over triggers, one message, one timer, and four screens: two audience screens side by side on the canvas
+    /// (Left, Right), a stage display and the IMAG input.
     public static let sample: Library = {
         let amazing = Song(title: "Amazing Grace", author: "John Newton", slides: [
             Slide(label: "Verse 1", lines: ["Amazing grace, how sweet the sound", "That saved a wretch like me"]),
@@ -45,8 +46,10 @@ extension Library {
             messages: [Message(text: "Parking lot B: your lights are on")],
             timers: [StageTimer(name: "Service start", mode: .countdown, duration: 300)],
             screens: [
-                Screen(name: "Main", role: .audience, outputID: sdi1.id),
-                Screen(name: "Stage", role: .stage, x: 1920, outputID: sdi2.id),
+                Screen(name: "Left", type: .audience, outputID: sdi1.id),
+                Screen(name: "Stage", type: .stage, outputID: sdi2.id),
+                Screen(name: "Right", type: .audience, x: 1920),
+                Screen(name: "IMAG", type: .input),
             ],
             outputs: [sdi1, sdi2]
         )

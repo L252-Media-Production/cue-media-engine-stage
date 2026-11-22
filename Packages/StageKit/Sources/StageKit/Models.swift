@@ -178,23 +178,22 @@ public struct StageTimer: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-/// A rectangle of the canvas sent to one output.
+/// A screen of the show: a rectangle of the canvas (audience), a stage display, or an input (IMAG). The rect is the
+/// screen's starting canvas position; the live setup is `StageState.screenSetups`.
 public struct Screen: Codable, Sendable, Identifiable, Hashable {
-    public enum Role: String, Codable, Sendable { case audience, stage, imag }
-
     public var id: UUID
     public var name: String
-    public var role: Role
+    public var type: ScreenType
     public var x: Int
     public var y: Int
     public var width: Int
     public var height: Int
     public var outputID: Output.ID?
 
-    public init(id: UUID = UUID(), name: String, role: Role, x: Int = 0, y: Int = 0, width: Int = 1920, height: Int = 1080, outputID: Output.ID? = nil) {
+    public init(id: UUID = UUID(), name: String, type: ScreenType, x: Int = 0, y: Int = 0, width: Int = 1920, height: Int = 1080, outputID: Output.ID? = nil) {
         self.id = id
         self.name = name
-        self.role = role
+        self.type = type
         self.x = x
         self.y = y
         self.width = width

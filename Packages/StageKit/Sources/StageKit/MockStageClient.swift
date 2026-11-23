@@ -83,7 +83,7 @@ public actor MockStageClient: StageClient {
                 )
             },
             screenSetups: Dictionary(uniqueKeysWithValues: library.screens.map { screen in
-                (screen.id, ScreenSetup(
+                (screen.id, library.screenSetups[screen.id] ?? ScreenSetup(
                     type: screen.type, onCanvas: screen.type == .audience,
                     canvas: CanvasRect(x: screen.x, y: screen.y, width: screen.width, height: screen.height)
                 ))

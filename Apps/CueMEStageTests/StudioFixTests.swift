@@ -233,8 +233,9 @@ final class StudioFixTests: TempFolderTestCase {
         // panel) and the right column's monitor (under the 30 pt output picker).
         let right = size.width - OperatorLayout.rightColumnWidth
         let left = ServicePanelLayout.width + 2
-        let grid = NSRect(x: left, y: 0, width: right - left - 1,
-                          height: size.height - OperatorLayout.statusBarHeight - OperatorLayout.bottomPanelHeight - 2)
+        // Below the grid header (its disabled "Edit ✎" is in the accent green).
+        let grid = NSRect(x: left, y: 48, width: right - left - 1,
+                          height: size.height - OperatorLayout.statusBarHeight - OperatorLayout.bottomPanelHeight - 50)
         let monitorWidth = OperatorLayout.rightColumnWidth - 2 * OperatorLayout.columnPadding
         let monitor = NSRect(x: right + OperatorLayout.columnPadding, y: OperatorLayout.columnPadding + 30 + OperatorLayout.columnSpacing,
                              width: monitorWidth, height: monitorWidth * 9 / 16)

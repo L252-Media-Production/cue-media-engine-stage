@@ -339,5 +339,6 @@ struct LiveChip: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 1)
             .background(theme.live, in: RoundedRectangle(cornerRadius: 4))
+            .fixedSize()
     }
 }

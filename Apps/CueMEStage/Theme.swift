@@ -31,6 +31,11 @@ struct ThemeTokens {
     var onWarning: Color
     /// Text on a live-red fill (the LIVE chip): `#fff` in `Main.dc.html` L85, both themes.
     var onLive: Color
+    /// A slide picture's placeholder background, top-left to bottom-right (`linear-gradient(135deg,#1c3a5e,#0d1b2e)`,
+    /// `Main.dc.html` L123), both themes. Real slides will show their own background.
+    var slideGradient: [Color] = [Color(hex: 0x1C3A5E), Color(hex: 0x0D1B2E)]
+    /// Slide text on that background (`#fff`, L123).
+    var slideText: Color = Color(hex: 0xFFFFFF)
 
     /// `Main.dc.html` L844.
     static let dark = ThemeTokens(

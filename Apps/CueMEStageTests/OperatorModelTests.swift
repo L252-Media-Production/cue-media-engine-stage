@@ -169,7 +169,9 @@ final class OperatorModelTests: XCTestCase {
     // MARK: Right column: Clear row
 
     func testClearRowButtonsSendTheExistingCommands() async {
-        let model = ClearRowModel(state: await state([]))
+        // With every layer on air (an unlit button sends nothing: see ClearBlockTests).
+        let model = ClearRowModel(state: await state([.go(itemID: amazing.id, slideIndex: 0), .playAudio(mediaID: walkInID),
+                                                      .showMessage(lib.messages[0].id, screens: [])]))
         XCTAssertEqual(ClearButton.allCases.map(\.rawValue), ["All", "Slide", "Media", "Audio", "Message", "Black"], "board order")
         XCTAssertEqual(model.commands(.all), [.clear(.all), .clear(.audio)], "All also clears audio, .all first")
         XCTAssertEqual(model.commands(.slide), [.clear(.slide)])

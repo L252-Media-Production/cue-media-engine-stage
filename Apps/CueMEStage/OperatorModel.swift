@@ -182,17 +182,23 @@ enum ClearButton: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
-/// The Clear row under Previous / Next: a scope picker and six buttons. Pure, so it is tested without the UI.
+/// The Clear block between the monitor and Previous / Next: a header row (CLEAR and the scope) and six icon buttons.
+/// Pure, so it is tested without the UI.
 ///
-/// Uses the existing Commands only. `Command.clear` and `Command.blackout` act on every screen, so the scope is always
-/// All screens; the per-screen entries are listed but cannot be picked. There is no media layer, so Media is off.
+/// The buttons are resets with a lit state (as in ProPresenter and FreeShow): a layer that is on air is lit in the
+/// live red; clicking it clears it, and the light goes out when the engine's state says so. An unlit button does
+/// nothing. Black is the one toggle, in amber. Uses the existing Commands only. `Command.clear` and `Command.blackout`
+/// act on every screen, so the scope is always All; the per-screen entries are listed but cannot be picked. There is
+/// no media layer, so Media is off and never lit.
 struct ClearRowModel {
     let state: StageState
 
     static let perScreenHelp = "Per-screen clear is not available in v0.1"
     static let mediaHelp = "Media clear is not available in v0.1"
+    /// The scope chip's title for every screen (the menu entry says "All screens").
+    static let allTitle = "All"
 
-    /// "All screens" first, then each output screen (Main.dc.html L980 `scopeNames`).
+    /// "All screens" first, then each output screen (Main.dc.html L980 `scopeNames`): the menu's entries.
     var scopes: [(scope: ClearScope, title: String)] {
         [(.allScreens, "All screens")] + state.outputScreens.map { (.screen($0.screenID), $0.name) }
     }
@@ -200,34 +206,130 @@ struct ClearRowModel {
     var scope: ClearScope { .allScreens }
     func canPick(_ scope: ClearScope) -> Bool { scope == .allScreens }
 
-    /// What a press sends, in order. All clears audio too (the board's All), and `.all` leaves audio alone, so it is
-    /// `.all` then `.audio`. Black toggles the global blackout, as Service > Black Out and Cmd-. do.
+    /// The chip: "All", or a screen's name (the view truncates a long one).
+    func chipTitle(_ scope: ClearScope) -> String {
+        switch scope {
+        case .allScreens: Self.allTitle
+        case let .screen(id): state.outputScreens.first { $0.screenID == id }?.name ?? Self.allTitle
+        }
+    }
+
+    /// Spoken after "Clear scope": "All screens" or the screen's name.
+    func scopeAccessibilityValue(_ scope: ClearScope) -> String {
+        scopes.first { $0.scope == scope }?.title ?? "All screens"
+    }
+
+    // MARK: Lit state (derived from StageState only)
+
+    var slideActive: Bool { state.outputScreens.contains { $0.live != nil } }
+    /// A track playing, paused or fading; not stopped.
+    var audioActive: Bool { state.audio.liveTrack != nil && state.audio.transport != .stopped }
+    var messageActive: Bool { !state.visibleMessages.isEmpty || state.outputScreens.contains { !$0.messages.isEmpty } }
+
+    /// Lit: the layer is on air. All is lit when Slide, Audio or Message is. Media and Black are never lit (Black has
+    /// its own amber on-state, `isBlack`).
+    func isLit(_ button: ClearButton) -> Bool {
+        switch button {
+        case .all: slideActive || audioActive || messageActive
+        case .slide: slideActive
+        case .audio: audioActive
+        case .message: messageActive
+        case .media, .black: false
+        }
+    }
+
+    /// What a press sends, in order: nothing for an unlit button. All clears audio too (the board's All), and `.all`
+    /// leaves audio alone, so it is `.all` then `.audio`. Black toggles the global blackout, as Service > Black Out
+    /// and Cmd-. do.
     func commands(_ button: ClearButton) -> [Command] {
         switch button {
-        case .all: [.clear(.all), .clear(.audio)]
-        case .slide: [.clear(.slide)]
-        case .media: []
-        case .audio: [.clear(.audio)]
-        case .message: [.clear(.messages)]
-        case .black: [.blackout(!state.blackout)]
+        case .black: return [.blackout(!state.blackout)]
+        case .media: return []
+        default: break
+        }
+        guard isLit(button) else { return [] }
+        switch button {
+        case .all: return [.clear(.all), .clear(.audio)]
+        case .slide: return [.clear(.slide)]
+        case .audio: return [.clear(.audio)]
+        case .message: return [.clear(.messages)]
+        case .media, .black: return []
         }
     }
 
     func isEnabled(_ button: ClearButton) -> Bool { button != .media }
 
-    /// Black is the one button with a state: filled amber while blackout is on.
+    /// Black is the one toggle: filled amber while on.
     var isBlack: Bool { state.blackout }
 
     func help(_ button: ClearButton) -> String {
         switch button {
-        case .all: "Clear slide, messages and audio on all screens"
-        case .slide: "Clear the slide on all screens"
+        case .all: "Clear all: slide, messages and audio on all screens"
+        case .slide: "Clear slide on all screens"
         case .media: Self.mediaHelp
-        case .audio: "Stop audio"
-        case .message: "Hide all messages"
-        case .black: state.blackout ? "Blackout is on. Click to end it (Cmd-.)" : "Black out the outputs (Cmd-.)"
+        case .audio: "Clear audio (stop the track)"
+        case .message: "Clear message: hide all messages"
+        case .black: state.blackout ? "Blackout is on. Click to end it (Cmd-.)" : "Black out all screens (Cmd-.)"
         }
     }
+
+    func accessibilityLabel(_ button: ClearButton) -> String {
+        switch button {
+        case .all: "Clear all"
+        case .slide: "Clear slide"
+        case .media: "Clear media"
+        case .audio: "Clear audio"
+        case .message: "Clear message"
+        case .black: "Black out all screens"
+        }
+    }
+
+    func accessibilityValue(_ button: ClearButton) -> String {
+        button == .black ? (isBlack ? "on" : "off") : (isLit(button) ? "active" : "empty")
+    }
+
+    /// How a button is drawn, as theme roles (so both themes follow and the tests can check it).
+    func look(_ button: ClearButton) -> ClearButtonLook {
+        if button == .black {
+            return isBlack ? ClearButtonLook(fill: .warning, border: .warning, icon: .onWarning)
+                : ClearButtonLook(fill: .surfaceRaised, border: .border, icon: .warning)
+        }
+        return isLit(button) ? ClearButtonLook(fill: .liveTint, border: .border, icon: .live)
+            : ClearButtonLook(fill: .surfaceRaised, border: .border, icon: .textSecondary)
+    }
+}
+
+/// A Clear button's colours as theme roles.
+struct ClearButtonLook: Equatable {
+    enum Role: Equatable { case surfaceRaised, border, textSecondary, live, liveTint, warning, onWarning }
+    var fill: Role
+    var border: Role
+    var icon: Role
+}
+
+extension ClearButton {
+    /// SF Symbols, none slashed, none repeated; all exist on macOS 14 (tested).
+    var symbol: String {
+        switch self {
+        case .all: "square.stack.3d.up"
+        case .slide: "text.rectangle"
+        case .media: "photo"
+        case .audio: "music.note"
+        case .message: "bubble.left"
+        case .black: "rectangle.fill"
+        }
+    }
+}
+
+/// Sizes of the Clear block.
+enum ClearBlockLayout {
+    static let buttonHeight: CGFloat = 32
+    static let buttonSpacing: CGFloat = 4
+    static let minButtonWidth: CGFloat = 28
+    /// Between the header row and the buttons; small so the block is no taller than the old Clear row (53 pt).
+    static let rowSpacing: CGFloat = 2
+    /// The scope chip never grows past this; a long screen name is cut with an ellipsis.
+    static let scopeMaxWidth: CGFloat = 150
 }
 
 /// The status bar's "Outputs n / m" and "Dropped n" (Main.dc.html L682, L685). Machine data only: the output screens

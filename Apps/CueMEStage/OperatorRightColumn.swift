@@ -16,8 +16,16 @@ enum OperatorLayout {
     static let columnSpacing: CGFloat = 10
 }
 
-/// The right column (Main.dc.html L511): the output picker, ONE monitor, Previous / Next, the Clear row, then the
-/// Audio / Message / Timer tabs filling the rest.
+/// The right column's parts, top to bottom.
+enum RightColumnPart: String, CaseIterable, Identifiable {
+    case outputPicker, monitor, clear, previousNext, tabs
+    var id: Self { self }
+    static let order: [RightColumnPart] = allCases
+}
+
+/// The right column (Main.dc.html L511): the output picker, ONE monitor, the Clear block, Previous / Next, then the
+/// Audio / Message / Timer tabs filling the rest. (The board has Clear below Previous / Next with worded buttons; the
+/// owner moved it up and made it icons with a lit state, 2026-11-23.)
 struct RightColumn: View {
     let state: StageState
     @Bindable var ui: OperatorUIState
@@ -32,31 +40,40 @@ struct RightColumn: View {
         let screen = choice.screen(in: state)
         let menu = ServiceMenuModel(state: state, selection: ui.selection, isModalOpen: ui.isModalOpen)
         VStack(spacing: OperatorLayout.columnSpacing) {
-            HStack(spacing: 6) {
-                OutputPicker(state: state, screen: screen, ui: ui) { id in
-                    monitorRaw = choice.choosing(id, for: state.studio).raw
+            ForEach(RightColumnPart.order) { part in
+                switch part {
+                case .outputPicker:
+                    HStack(spacing: 6) {
+                        OutputPicker(state: state, screen: screen, ui: ui) { id in
+                            monitorRaw = choice.choosing(id, for: state.studio).raw
+                        }
+                        // The board's multiview toggle (MainMultiview.dc.html); one monitor in v0.1.
+                        Button("⊞") {}
+                            .buttonStyle(PanelButtonStyle(kind: .secondary, width: 30, height: 30, font: .system(size: 15)))
+                            .disabled(true)
+                            .help("Multiview is not available in v0.1")
+                            .accessibilityLabel("Multiview")
+                    }
+                case .monitor:
+                    ColumnMonitor(state: state, screen: screen)
+                case .clear:
+                    ClearBlock(model: ClearRowModel(state: state), send: send)
+                case .previousNext:
+                    HStack(spacing: ThemeTokens.spacingS) {
+                        // Also on ← / → (Service menu).
+                        Button("◀ Previous") { send(.previous) }
+                            .buttonStyle(PanelButtonStyle(kind: .secondary))
+                            .disabled(!menu.canPrevious)
+                            .accessibilityLabel("Previous slide")
+                        Button("Next ▶") { send(.next) }
+                            .buttonStyle(PanelButtonStyle(kind: .primary))
+                            .disabled(!menu.canNext)
+                            .accessibilityLabel("Next slide")
+                    }
+                case .tabs:
+                    SideTabsPanel(state: state, send: send)
                 }
-                // The board's multiview toggle (MainMultiview.dc.html); one monitor in v0.1.
-                Button("⊞") {}
-                    .buttonStyle(PanelButtonStyle(kind: .secondary, width: 30, height: 30, font: .system(size: 15)))
-                    .disabled(true)
-                    .help("Multiview is not available in v0.1")
-                    .accessibilityLabel("Multiview")
             }
-            ColumnMonitor(state: state, screen: screen)
-            HStack(spacing: ThemeTokens.spacingS) {
-                // Also on ← / → (Service menu).
-                Button("◀ Previous") { send(.previous) }
-                    .buttonStyle(PanelButtonStyle(kind: .secondary))
-                    .disabled(!menu.canPrevious)
-                    .accessibilityLabel("Previous slide")
-                Button("Next ▶") { send(.next) }
-                    .buttonStyle(PanelButtonStyle(kind: .primary))
-                    .disabled(!menu.canNext)
-                    .accessibilityLabel("Next slide")
-            }
-            ClearRow(model: ClearRowModel(state: state), send: send)
-            SideTabsPanel(state: state, send: send)
         }
         .padding(OperatorLayout.columnPadding)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -190,52 +207,93 @@ extension ThemeTokens {
     }
 }
 
-// MARK: Clear row
+// MARK: Clear block
 
-/// CLEAR, the scope chip, and six 28 pt buttons (Main.dc.html L589, L975).
-private struct ClearRow: View {
+/// Two rows: CLEAR with the scope chip, then six equal icon buttons filling the width (4 pt apart, 32 pt tall).
+struct ClearBlock: View {
     let model: ClearRowModel
     let send: (Command) -> Void
-    @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: ClearBlockLayout.rowSpacing) {
             HStack {
                 SectionLabel(text: "CLEAR")
-                Spacer()
-                ScopePicker(model: model)
+                Spacer(minLength: 8)
+                ScopeChip(model: model)
             }
-            HStack(spacing: 6) {
+            HStack(spacing: ClearBlockLayout.buttonSpacing) {
                 ForEach(ClearButton.allCases) { button in
-                    Button(button.rawValue) { model.commands(button).forEach(send) }
-                        .buttonStyle(PanelButtonStyle(kind: button == .black ? .black(on: model.isBlack) : .secondary,
-                                                      height: 28, font: .system(size: 12)))
-                        .disabled(!model.isEnabled(button))
-                        .help(model.help(button))
-                        .accessibilityLabel(button == .black ? "Black" : "Clear \(button.rawValue)")
-                        .accessibilityValue(button == .black ? (model.isBlack ? "On" : "Off") : "")
+                    ClearIconButton(model: model, button: button) { model.commands(button).forEach(send) }
                 }
             }
         }
     }
 }
 
-/// "All screens ▾" (Main.dc.html L590). Only All screens can be picked in v0.1.
-private struct ScopePicker: View {
+/// One icon button. Unlit: the neutral button with a dim icon. Lit: a red tint with a red icon. Black: neutral with an
+/// amber icon while off, filled amber with a dark icon while on (no red, no amber border).
+struct ClearIconButton: View {
     let model: ClearRowModel
+    let button: ClearButton
+    let action: () -> Void
+    @Environment(\.theme) private var theme
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        let look = model.look(button)
+        Button(action: action) {
+            Image(systemName: button.symbol)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(theme.color(look.icon))
+                .frame(minWidth: ClearBlockLayout.minButtonWidth, maxWidth: .infinity)
+                .frame(height: ClearBlockLayout.buttonHeight)
+                .background(theme.color(look.fill), in: RoundedRectangle(cornerRadius: ThemeTokens.radius))
+                .overlay(RoundedRectangle(cornerRadius: ThemeTokens.radius).stroke(theme.color(look.border), lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!model.isEnabled(button))
+        .opacity(model.isEnabled(button) ? 1 : 0.4)
+        .help(model.help(button))
+        .accessibilityLabel(model.accessibilityLabel(button))
+        .accessibilityValue(model.accessibilityValue(button))
+    }
+}
+
+extension ThemeTokens {
+    func color(_ role: ClearButtonLook.Role) -> Color {
+        switch role {
+        case .surfaceRaised: surfaceRaised
+        case .border: border
+        case .textSecondary: textSecondary
+        case .live: live
+        case .liveTint: live.opacity(0.18)
+        case .warning: warning
+        case .onWarning: onWarning
+        }
+    }
+}
+
+/// "All ▾" (was "All screens ▾", Main.dc.html L590). Only All can be picked in v0.1; a screen's name would be cut with
+/// an ellipsis at `ClearBlockLayout.scopeMaxWidth`.
+struct ScopeChip: View {
+    let model: ClearRowModel
+    var scope: ClearScope?
     @Environment(\.theme) private var theme
 
     var body: some View {
-        let title = model.scopes.first { $0.scope == model.scope }?.title ?? "All screens"
+        let current = scope ?? model.scope
+        let title = model.chipTitle(current)
         Menu {
             ForEach(model.scopes, id: \.scope) { entry in
-                Toggle(entry.title, isOn: Binding(get: { entry.scope == model.scope }, set: { _ in }))
+                Toggle(entry.title, isOn: Binding(get: { entry.scope == current }, set: { _ in }))
                     .disabled(!model.canPick(entry.scope))
                     .help(model.canPick(entry.scope) ? "" : ClearRowModel.perScreenHelp)
             }
         } label: {
             HStack(spacing: 6) {
                 Text(title).font(.system(size: 12)).foregroundStyle(theme.textPrimary)
+                    .lineLimit(1).truncationMode(.tail)
                 Text("▾").font(.system(size: 10)).foregroundStyle(theme.textSecondary)
             }
             .padding(.horizontal, ThemeTokens.spacingS)
@@ -247,10 +305,10 @@ private struct ScopePicker: View {
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
-        .fixedSize()
+        .frame(maxWidth: ClearBlockLayout.scopeMaxWidth, alignment: .trailing)
         .help("What Clear acts on. \(ClearRowModel.perScreenHelp)")
         .accessibilityLabel("Clear scope")
-        .accessibilityValue(title)
+        .accessibilityValue(model.scopeAccessibilityValue(current).lowercased())
     }
 }
 

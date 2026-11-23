@@ -31,12 +31,13 @@ struct OperatorView: View {
                 // Main.dc.html L44: service and slide grid, the bottom panel under both; the right column beside them.
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
-                        ServicePanel(state: state, selection: $ui.selection) { item in
-                            store.send(.go(itemID: item.id, slideIndex: 0))
+                        ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport,
+                                     selection: $ui.selection) { id in
+                            store.send(.go(itemID: id, slideIndex: 0))
                         }
-                        .frame(width: 240)
+                        .frame(width: ServicePanelLayout.width)
                         Divider()
-                        SlideGrid(state: state, item: state.item(selection)) { item, index in
+                        SlideGrid(state: state, studio: studios.studios.studio, item: state.item(selection)) { item, index in
                             store.send(.go(itemID: item.id, slideIndex: index))
                         }
                     }
@@ -70,90 +71,6 @@ struct OperatorView: View {
         }
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
-    }
-}
-
-// MARK: Service
-
-private struct ServicePanel: View {
-    let state: StageState
-    @Binding var selection: Item.ID?
-    let go: (Item) -> Void
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PanelHeader(title: state.service?.name ?? "No service")
-            List(state.service?.items ?? [], selection: $selection) { item in
-                ServiceRow(item: item, isLive: isLive(item))
-                    .tag(item.id)
-                    // The mockup's selected row is tinted `--sel` (Main.dc.html L927).
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: ThemeTokens.radius)
-                            .fill(selection == item.id ? theme.selection : .clear)
-                    )
-            }
-            // Double-click. Return is Service > Go Live: the menu's key equivalent takes it before the list sees it,
-            // so a press of Return is one Go, never two.
-            .contextMenu(forSelectionType: Item.ID.self) { ids in
-                Button("Go Live") { goFirst(of: ids) }.disabled(ids.isEmpty)
-            } primaryAction: { ids in
-                goFirst(of: ids)
-            }
-            .scrollContentBackground(.hidden)
-            Text("Double-click or Return takes an item live")
-                .font(.caption)
-                .foregroundStyle(theme.textSecondary)
-                .padding(ThemeTokens.spacingS)
-        }
-        .background(theme.surface)
-    }
-
-    private func goFirst(of ids: Set<Item.ID>) {
-        guard let item = state.service?.items.first(where: { ids.contains($0.id) }) else { return }
-        go(item)
-    }
-
-    private func isLive(_ item: Item) -> Bool {
-        if state.primaryLive?.itemID == item.id { return true }
-        guard case let .media(id) = item.content else { return false }
-        return state.audio.liveTrack == id
-    }
-}
-
-/// A service entry. Selection is the list's own highlight; LIVE is a red bar on the leading edge plus a chip,
-/// so the two read differently also when the live item is the selected one.
-private struct ServiceRow: View {
-    let item: Item
-    let isLive: Bool
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        HStack(spacing: ThemeTokens.spacingS) {
-            Rectangle()
-                .fill(isLive ? theme.live : .clear)
-                .frame(width: 3)
-            Image(systemName: icon)
-                .foregroundStyle(isLive ? theme.live : theme.textSecondary)
-                .frame(width: 16)
-            Text(item.title)
-                .fontWeight(isLive ? .semibold : .regular)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            if isLive { Chip(text: "LIVE", color: theme.live, filled: true) }
-        }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(isLive ? "Live" : "")
-    }
-
-    private var icon: String {
-        switch item.content {
-        case .song: "music.note.list"
-        case .media: "waveform"
-        case .blank: "rectangle"
-        }
     }
 }
 
@@ -197,20 +114,25 @@ struct SlideText: View {
 
 // MARK: Slide grid
 
+/// The slide grid (Main.dc.html L94–L125): header, then the item's slides in titled groups, four columns.
 private struct SlideGrid: View {
     let state: StageState
+    let studio: Studio?
     let item: Item?
     let go: (Item, Int) -> Void
     @Environment(\.theme) private var theme
+    /// The card with keyboard focus is the selected one (accent border); a click takes a slide live.
+    @FocusState private var focusedSlide: Slide.ID?
 
-    private let columns = [GridItem(.adaptive(minimum: 190), spacing: ThemeTokens.spacingM)]
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 40), spacing: SlideGridLayout.spacing), count: SlideGridLayout.columns)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PanelHeader(title: item?.title ?? "Slides")
+            SlideGridHeader(model: SlideGridHeaderModel(item: item, studio: studio))
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(theme.background)
     }
 
     @ViewBuilder private var content: some View {
@@ -230,15 +152,31 @@ private struct SlideGrid: View {
         let live = state.primaryLive?.itemID == item.id ? state.primaryLive?.slideIndex : nil
         return ScrollViewReader { proxy in
             ScrollView {
-                LazyVGrid(columns: columns, spacing: ThemeTokens.spacingM) {
-                    ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
-                        SlideCard(number: index + 1, slide: slide, isLive: index == live) {
-                            go(item, index)
+                VStack(alignment: .leading, spacing: SlideGridLayout.groupSpacing) {
+                    ForEach(SlideGrouping.groups(slides)) { group in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                SectionLabel(text: group.title)
+                                Text("· \(group.count)").font(ThemeTokens.mono(11)).foregroundStyle(theme.textSecondary)
+                                    .accessibilityLabel(group.count == 1 ? "1 slide" : "\(group.count) slides")
+                            }
+                            .accessibilityElement(children: .combine)
+                            LazyVGrid(columns: columns, spacing: SlideGridLayout.spacing) {
+                                ForEach(Array(group.slides.enumerated()), id: \.element.id) { offset, slide in
+                                    let index = group.firstIndex + offset
+                                    SlideCard(number: index + 1, slide: slide, isLive: index == live,
+                                              isSelected: focusedSlide == slide.id) {
+                                        go(item, index)
+                                    }
+                                    .focused($focusedSlide, equals: slide.id)
+                                    .id(slide.id)
+                                }
+                            }
                         }
-                        .id(slide.id)
                     }
                 }
-                .padding(ThemeTokens.spacingM)
+                .padding(.vertical, SlideGridLayout.verticalPadding)
+                .padding(.horizontal, SlideGridLayout.horizontalPadding)
             }
             .onAppear { reveal(live, in: slides, proxy, animated: false) }
             .onChange(of: state.primaryLive?.slideID) { _, _ in reveal(live, in: slides, proxy, animated: true) }
@@ -266,55 +204,123 @@ private struct SlideGrid: View {
     }
 }
 
-/// One slide. LIVE: solid red border and a filled chip. (No "next" marking: the operator view shows what is live.)
+/// Title 15/700, file chips, "Send to ▾" and "Edit ✎" (Main.dc.html L95–L104).
+private struct SlideGridHeader: View {
+    let model: SlideGridHeaderModel
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(model.title)
+                .font(.system(size: 15, weight: .bold))
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(model.chips, id: \.self) { chip in
+                Text(chip)
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(theme.surfaceRaised, in: Capsule())
+                    .overlay(Capsule().stroke(theme.border, lineWidth: 1))
+                    .accessibilityLabel("File: \(chip)")
+            }
+            Spacer(minLength: 8)
+            Button {} label: {
+                HStack(spacing: 6) {
+                    Text("Send to").foregroundStyle(theme.textSecondary)
+                    Text(SlideGridHeaderModel.sendToTitle).fontWeight(.semibold).foregroundStyle(theme.textPrimary)
+                    Text("▾").foregroundStyle(theme.textSecondary)
+                }
+                .font(.system(size: 12))
+                .padding(.horizontal, 10)
+                .frame(height: 26)
+                .background(theme.surfaceRaised, in: RoundedRectangle(cornerRadius: ThemeTokens.radius))
+                .overlay(RoundedRectangle(cornerRadius: ThemeTokens.radius).stroke(theme.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(true)
+            .opacity(0.5)
+            .help(SlideGridHeaderModel.sendToHelp)
+            .accessibilityLabel("Send to \(SlideGridHeaderModel.sendToTitle)")
+            if model.showsEdit {
+                Button("Edit ✎") {}
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+                    .disabled(true)
+                    .opacity(0.5)
+                    .help(SlideGridHeaderModel.editHelp)
+                    .accessibilityLabel("Edit")
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .frame(minHeight: 46)
+        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+}
+
+/// One slide (Main.dc.html L121–L124): the picture first, then a footer with the label and the number in mono.
+/// LIVE: solid red border and a filled chip. Selected (keyboard focus): accent border. No "next" marking.
 private struct SlideCard: View {
     let number: Int
     let slide: Slide
     let isLive: Bool
+    let isSelected: Bool
     let action: () -> Void
     @Environment(\.theme) private var theme
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: ThemeTokens.spacingXS) {
-                    Text("\(number)")
-                        .font(ThemeTokens.mono(11, weight: .bold))
-                        .foregroundStyle(theme.textSecondary)
-                    Text(slide.label)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if isLive {
-                        Chip(text: "LIVE", color: theme.live, filled: true)
-                    }
+            VStack(spacing: 0) {
+                VStack(spacing: 2) {
+                    ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in Text(line) }
                 }
-                .padding(.horizontal, ThemeTokens.spacingS)
-                .padding(.vertical, ThemeTokens.spacingXS + 1)
-                .background(theme.surfaceRaised)
+                .font(.system(size: 12))
+                .lineSpacing(2)
+                .foregroundStyle(theme.slideText)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.6)
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .background(LinearGradient(colors: theme.slideGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                .clipped()
 
-                SlideText(lines: slide.lines, size: 12)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .background(Color.black)
+                HStack(spacing: ThemeTokens.spacingXS) {
+                    Text(slide.label).lineLimit(1)
+                    Spacer(minLength: 2)
+                    if isLive { LiveChip() }
+                    Text("\(number)").font(ThemeTokens.mono(11))
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(theme.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
             }
+            .background(theme.surfaceRaised)
             .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.radius))
             .overlay(
                 RoundedRectangle(cornerRadius: ThemeTokens.radius)
-                    .stroke(borderColor, lineWidth: isLive ? 3 : 2)
+                    .stroke(borderColor, lineWidth: 2)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
         .onHover { hovering = $0 }
         .help("Take \(slide.label) live")
         .accessibilityLabel("Slide \(number), \(slide.label)")
         .accessibilityValue(isLive ? "Live" : "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var borderColor: Color {
         if isLive { return theme.live }
+        if isSelected { return theme.accent }
         return hovering ? theme.textSecondary : theme.border
     }
 }
@@ -592,22 +598,6 @@ private struct StatusChip: View {
             .padding(.vertical, 1)
             .background((color ?? theme.border).opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(color ?? theme.border, lineWidth: 1))
-    }
-}
-
-struct Chip: View {
-    let text: String
-    let color: Color
-    let filled: Bool
-
-    var body: some View {
-        Text(text)
-            .font(ThemeTokens.mono(9, weight: .bold))
-            .foregroundStyle(filled ? .white : color)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(filled ? color : .clear, in: RoundedRectangle(cornerRadius: 3))
-            .overlay(RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: filled ? 0 : 1))
     }
 }
 

@@ -86,10 +86,13 @@ public enum StudioItemPayload: Sendable, Hashable {
         }
     }
 
-    /// Media the item needs (a look's background).
+    /// Media the item needs (a look's background; a song's audio track and background).
     public var mediaIDs: [MediaItem.ID] {
-        if case let .look(look) = self, let bg = look.backgroundMediaID { return [bg] }
-        return []
+        switch self {
+        case let .look(look): [look.backgroundMediaID].compactMap { $0 }
+        case let .song(song): [song.audioTrackID, song.backgroundID].compactMap { $0 }
+        case .message, .timer: []
+        }
     }
 
     func data() throws -> JSONValue {

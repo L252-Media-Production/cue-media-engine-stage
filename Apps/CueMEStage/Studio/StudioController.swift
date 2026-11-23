@@ -227,6 +227,55 @@ final class StudioController {
         return section.id
     }
 
+    /// A song changed in the Song editor: stored, and every service row that plays it gets its title and slide count.
+    func updateSong(_ song: Song) {
+        edit { studio in
+            guard let i = studio.songs.firstIndex(where: { $0.id == song.id }) else { return }
+            studio.songs[i] = song
+            for s in studio.services.indices {
+                for j in studio.services[s].items.indices where studio.services[s].items[j].content == .song(song.id) {
+                    studio.services[s].items[j].title = song.title
+                    studio.services[s].items[j].slideCount = song.slides.count
+                }
+            }
+        }
+    }
+
+    /// File > New Song…: an untitled song with one empty slide, in no collection. Returns its id.
+    @discardableResult
+    func newSong() -> Song.ID? {
+        guard studios.studio != nil else { return nil }
+        let song = Song(title: "Untitled Song", slides: [Slide(label: "", lines: [])])
+        edit { $0.songs.append(song) }
+        return song.id
+    }
+
+    /// The song a service item plays, when it is one.
+    func song(for item: Item?) -> Song? {
+        guard case let .song(id)? = item?.content else { return nil }
+        return studios.studio?.songs.first { $0.id == id }
+    }
+
+    /// File > Export Selected Item…: one song as a .stgitem file, with refs to the media it uses.
+    func exportSong(_ id: Song.ID) {
+        guard let studio = studios.studio, let song = studio.songs.first(where: { $0.id == id }) else { return }
+        guard let target = dialogs.chooseSave(title: "Export Selected Item", name: "\(song.title).\(StudioFormat.itemExtension)",
+                                              type: .cuemeItems, directory: nil) else { return }
+        do {
+            try writeItemFile([.song(song)], to: target)
+            notice = "Exported “\(song.title)” to \(target.lastPathComponent)."
+        } catch {
+            dialogs.showError("“\(song.title)” could not be exported", error)
+        }
+    }
+
+    func writeItemFile(_ items: [StudioItemPayload], to url: URL) throws {
+        guard let studio = studios.studio else { return }
+        let data = try StudioItemCodec.encode(items, media: studio.media, appVersion: studios.environment.appVersion,
+                                              exported: studios.environment.now())
+        try AtomicFile.write(data, to: url)
+    }
+
     // MARK: Engine state back into the Studio and the machine
 
     /// Screen layouts changed in Output Setup go into the Studio (screens.json); connector assignments go to this

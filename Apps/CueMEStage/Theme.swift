@@ -36,6 +36,10 @@ struct ThemeTokens {
     var slideGradient: [Color] = [Color(hex: 0x1C3A5E), Color(hex: 0x0D1B2E)]
     /// Slide text on that background (`#fff`, L123).
     var slideText: Color = Color(hex: 0xFFFFFF)
+    /// Text on a song group's colour (`#fff`, SongEditor.dc.html group headers), both themes.
+    var onGroup: Color = Color(hex: 0xFFFFFF)
+    /// Behind the Song editor's slide canvas (SongEditor.dc.html `stageBg`).
+    var editorStage: Color = Color(hex: 0x4A4A4C)
 
     /// `Main.dc.html` L844.
     static let dark = ThemeTokens(
@@ -57,7 +61,7 @@ struct ThemeTokens {
         onLive: Color(hex: 0xFFFFFF)
     )
 
-    /// `Main.dc.html` L843. (`QuitDialog.dc.html` L37 has slightly different light --warn and --live; Main wins.)
+    /// `Main.dc.html` L843; `editorStage` from SongEditor.dc.html. (`QuitDialog.dc.html` L37 has slightly different light --warn and --live; Main wins.)
     static let light = ThemeTokens(
         background: Color(hex: 0xF3F3F1),    // --bg
         surface: Color(hex: 0xE8E8E5),       // --chrome
@@ -74,7 +78,8 @@ struct ThemeTokens {
         selection: Color(hex: 0xD6EEDE),     // --sel
         onAccent: Color(hex: 0xFFFFFF),
         onWarning: Color(hex: 0x111111),
-        onLive: Color(hex: 0xFFFFFF)
+        onLive: Color(hex: 0xFFFFFF),
+        editorStage: Color(hex: 0x9A9A96)
     )
 
     static func `for`(_ scheme: ColorScheme) -> ThemeTokens { scheme == .dark ? .dark : .light }

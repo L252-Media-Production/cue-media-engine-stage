@@ -6,7 +6,9 @@ import SwiftUI
 ///
 /// 1. While a text field or text view is being edited, so those keys do what they do in text (move the cursor, end
 ///    the line).
-/// 2. While a sheet or dialog is open (`isModalOpen`, set from `OperatorUIState.isModalOpen`), so nothing is taken
+/// 2. In an editor window (the Song editor), always: editing is never show control. Text input gets the key; then
+///    the window's own key equivalents; anything else is swallowed, so the menu never sees it.
+/// 3. While a sheet or dialog is open (`isModalOpen`, set from `OperatorUIState.isModalOpen`), so nothing is taken
 ///    live behind the sheet. The monitor never lets these keys go on to the menu then. Inside the sheet they still
 ///    do two things: a key equivalent of the sheet's own controls (Return on a default button) and typing in a
 ///    focused text field. Any other use is swallowed: a key a focused view does not use climbs the responder chain
@@ -22,6 +24,12 @@ enum ShortcutGuard {
 
     /// True while any sheet or dialog of the app is open.
     static var isModalOpen = false
+
+    /// Editor windows (weak): show-control keys never act from them.
+    private static let editorWindows = NSHashTable<NSWindow>.weakObjects()
+
+    static func registerEditorWindow(_ window: NSWindow) { editorWindows.add(window) }
+    static func isEditorWindow(_ window: NSWindow?) -> Bool { window.map(editorWindows.contains) ?? false }
 
     /// Installs the monitor once per process.
     static func install() {
@@ -52,6 +60,14 @@ enum ShortcutGuard {
 
     /// The monitor's body: returns the event to let it go on, or nil after delivering or swallowing it.
     static func handle(_ event: NSEvent, window: NSWindow?) -> NSEvent? {
+        if let window, isEditorWindow(window), isGuardedShortcut(event) {
+            if let responder = window.firstResponder, isTextInput(responder) {
+                responder.keyDown(with: event)
+            } else {
+                _ = window.performKeyEquivalent(with: event)
+            }
+            return nil
+        }
         if isModalOpen, isGuardedShortcut(event) {
             // The window behind a sheet gets nothing. The sheet gets its own key equivalents, then text input; the
             // menu never sees the key.

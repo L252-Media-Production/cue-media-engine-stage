@@ -212,7 +212,7 @@ public struct Studio: Sendable, Hashable {
     public func library() -> Library {
         Library(
             service: activeService ?? Service(name: "No service", items: []),
-            songs: songs,
+            songs: songs.map(\.capitalizationApplied),
             media: media.map { MediaItem(id: $0.id, name: $0.name, kind: $0.kind, location: $0.lastKnownPath ?? "", duration: $0.duration) },
             audioSettings: audioSettings,
             looks: looks,
@@ -269,6 +269,17 @@ public struct Studio: Sendable, Hashable {
         let collectionIDs = Set(collections.map(\.id))
         for song in songs {
             if let c = song.collectionID, !collectionIDs.contains(c) { issues.append("song \(song.title) is in an unknown collection") }
+            for (what, ref) in [("audio track", song.audioTrackID), ("background", song.backgroundID)] {
+                if let ref, !media.contains(where: { $0.id == ref }) { issues.append("song \(song.title) uses unknown media as its \(what)") }
+            }
+            let slideIDs = Set(song.slides.map(\.id))
+            var grouped: Set<Slide.ID> = []
+            for group in song.groups ?? [] {
+                for id in group.slideIDs {
+                    if !slideIDs.contains(id) { issues.append("song \(song.title): group \(group.name) has an unknown slide") }
+                    if !grouped.insert(id).inserted { issues.append("song \(song.title): a slide is in more than one group") }
+                }
+            }
         }
         let serviceIDs = Set(services.map(\.id))
         for id in sections.keys where !serviceIDs.contains(id) { issues.append("sections for unknown service \(id)") }

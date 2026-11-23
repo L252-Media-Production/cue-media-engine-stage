@@ -23,16 +23,70 @@ public struct Song: Codable, Sendable, Identifiable, Hashable {
     public var title: String
     public var author: String?
     public var slides: [Slide]
+    public var copyright: String?
+    public var ccliNumber: String?
+    /// Musical key as written ("G", "Bb", "F#m").
+    public var key: String?
+    /// Beats per minute.
+    public var tempo: Int?
     /// The one collection the song belongs to (`StudioCollection.id`); nil = none.
     public var collectionID: UUID?
+    /// Named, coloured groups of slides ("Verse 1", "Chorus"). nil = never edited: the editor shows groups derived
+    /// from the slide labels (`SongLyrics.groups`) and writes real ones on the first lyrics edit.
+    public var groups: [SongGroup]?
+    /// When set, lyrics typed in the editor are split into slides of at most this many lines.
+    public var linesPerSlide: Int?
+    /// How the slide text is capitalized on the outputs. The typed text is kept; `Studio.library()` applies it.
+    public var capitalization: SongCapitalization?
+    /// The song's audio track: a media library item by id (never a path).
+    public var audioTrackID: MediaItem.ID?
+    /// The song's background: a media library item by id (never a path).
+    public var backgroundID: MediaItem.ID?
 
-    public init(id: UUID = UUID(), title: String, author: String? = nil, slides: [Slide], collectionID: UUID? = nil) {
+    public init(
+        id: UUID = UUID(), title: String, author: String? = nil, slides: [Slide], copyright: String? = nil,
+        ccliNumber: String? = nil, key: String? = nil, tempo: Int? = nil, collectionID: UUID? = nil, groups: [SongGroup]? = nil,
+        linesPerSlide: Int? = nil, capitalization: SongCapitalization? = nil, audioTrackID: MediaItem.ID? = nil,
+        backgroundID: MediaItem.ID? = nil
+    ) {
         self.id = id
         self.title = title
         self.author = author
         self.slides = slides
+        self.copyright = copyright
+        self.ccliNumber = ccliNumber
+        self.key = key
+        self.tempo = tempo
         self.collectionID = collectionID
+        self.groups = groups
+        self.linesPerSlide = linesPerSlide
+        self.capitalization = capitalization
+        self.audioTrackID = audioTrackID
+        self.backgroundID = backgroundID
     }
+}
+
+/// A named, coloured group of a song's slides. A slide is in at most one group.
+public struct SongGroup: Codable, Sendable, Identifiable, Hashable {
+    public var id: UUID
+    public var name: String
+    /// "#RRGGBB".
+    public var color: String
+    public var slideIDs: [Slide.ID]
+
+    public init(id: UUID = UUID(), name: String, color: String, slideIDs: [Slide.ID] = []) {
+        self.id = id
+        self.name = name
+        self.color = color
+        self.slideIDs = slideIDs
+    }
+}
+
+/// Song text capitalization (the Song editor's Text tab).
+public enum SongCapitalization: String, Codable, Sendable, CaseIterable {
+    case none
+    case allCaps
+    case sentenceCase
 }
 
 /// A media file (audio or video). The `id` is the identity: per-track settings are keyed by it

@@ -10,6 +10,7 @@ struct OperatorView: View {
     @Bindable var ui: OperatorUIState
     let studios: StudioController
     @Environment(\.theme) private var theme
+    @Environment(\.openWindow) private var openWindow
     /// Panel sizes, on this machine (`PanelSizes`). View > Reset Panel Sizes writes the same keys.
     @AppStorage private var serviceWidth: Double
     @AppStorage private var rightWidth: Double
@@ -111,6 +112,7 @@ struct OperatorView: View {
         .sheet(isPresented: $ui.showNewCollection) {
             NewCollectionSheet { name in studios.addCollection(named: name) }.modifier(Themed())
         }
+        .environment(\.editSong, { id in SongEditorScene.open(id, studios: studios, with: openWindow) })
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
     }
@@ -249,6 +251,7 @@ private struct SlideGrid: View {
 /// Title 15/700, file chips, "Send to ▾" and "Edit ✎" (Main.dc.html L95–L104).
 private struct SlideGridHeader: View {
     let model: SlideGridHeaderModel
+    @Environment(\.editSong) private var editSong
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -287,13 +290,12 @@ private struct SlideGridHeader: View {
             .help(SlideGridHeaderModel.sendToHelp)
             .accessibilityLabel("Send to \(SlideGridHeaderModel.sendToTitle)")
             if model.showsEdit {
-                Button("Edit ✎") {}
+                Button("Edit ✎") { if let id = model.songID { editSong?(id) } }
                     .buttonStyle(.plain)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.accent)
-                    .disabled(true)
-                    .opacity(0.5)
-                    .help(SlideGridHeaderModel.editHelp)
+                    .disabled(editSong == nil || model.songID == nil)
+                    .help("Open the Song editor (⌘E)")
                     .accessibilityLabel("Edit")
             }
         }

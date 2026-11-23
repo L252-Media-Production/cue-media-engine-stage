@@ -298,6 +298,13 @@ enum Shortcuts {
     static let closeWindow = KeyboardShortcut("w", modifiers: .command)
     /// File > New Collection… (MenuBar.dc.html `file`).
     static let newCollection = KeyboardShortcut("n", modifiers: [.command, .shift])
+    /// File > New Song… (MenuBar.dc.html `file`).
+    static let newSong = KeyboardShortcut("n", modifiers: [.command, .option])
+    /// Edit > Edit Selected Item… (MenuBarRef.dc.html, Edit).
+    static let editSelectedItem = KeyboardShortcut("e", modifiers: .command)
+    /// Edit > Undo and Redo (the system's, replaced so a Song editor can take them).
+    static let undo = KeyboardShortcut("z", modifiers: .command)
+    static let redo = KeyboardShortcut("z", modifiers: [.command, .shift])
     /// Cmd-1 ... Cmd-5 in `BottomTab.allCases` order.
     static func tab(_ tab: BottomTab) -> KeyboardShortcut {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
@@ -306,7 +313,7 @@ enum Shortcuts {
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
-         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow, newCollection] + BottomTab.allCases.map(tab)
+         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow, newCollection, newSong, editSelectedItem, undo, redo] + BottomTab.allCases.map(tab)
     }
 
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
@@ -364,6 +371,8 @@ struct ServiceMenuModel {
 struct FileMenuModel {
     let hasStudio: Bool
     let isModalOpen: Bool
+    /// The song of the selected service row, when it is a song.
+    var selectedSong: Song.ID? = nil
 
     var canNew: Bool { !isModalOpen }
     var canOpen: Bool { !isModalOpen }
@@ -375,8 +384,11 @@ struct FileMenuModel {
     var canNewCollection: Bool { hasStudio && !isModalOpen }
     /// Not while a sheet is open: the sheet is the key window, and closing under it is not wanted.
     var canCloseWindow: Bool { !isModalOpen }
-    /// Until UI-3b brings the editors.
-    var canExportSelectedItem: Bool { false }
+    /// Songs only for now (presentations and announcements come with their editors).
+    var canExportSelectedItem: Bool { hasStudio && !isModalOpen && selectedSong != nil }
+    /// File > New Song… and Edit > Edit Selected Item… open an editor window (not modal).
+    var canNewSong: Bool { hasStudio && !isModalOpen }
+    var canEditSelectedItem: Bool { hasStudio && !isModalOpen && selectedSong != nil }
 }
 
 /// The status-bar "Engine" chip: neutral while every audio counter is 0, amber when any is above 0.

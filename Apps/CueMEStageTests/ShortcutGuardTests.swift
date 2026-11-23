@@ -70,6 +70,60 @@ final class ShortcutGuardTests: XCTestCase {
         )!
     }
 
+    // MARK: Editor windows
+
+    /// In a Song editor window, Return and the arrows never reach show control, even with no text field focused.
+    func testInAnEditorWindowShowKeysNeverReachTheMenu() {
+        ShortcutGuard.registerEditorWindow(window)
+        let keys = KeyView(frame: NSRect(x: 0, y: 0, width: 50, height: 50))
+        window.contentView?.addSubview(keys)
+        XCTAssertTrue(window.makeFirstResponder(keys))
+
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        NSApp.sendEvent(keyDown("\r", keyCode: 36))
+        XCTAssertEqual(counter.count, 0, "Next Slide did not fire")
+        XCTAssertEqual(goLive.count, 0, "Go Live did not fire")
+    }
+
+    func testInAnEditorWindowTextStillGetsReturnAndArrows() {
+        ShortcutGuard.registerEditorWindow(window)
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        textView.string = "ab"
+        window.contentView?.addSubview(textView)
+        XCTAssertTrue(window.makeFirstResponder(textView))
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        NSApp.sendEvent(keyDown("\r", keyCode: 36))
+        NSApp.sendEvent(keyDown(" ", keyCode: 49))
+        XCTAssertEqual(textView.string, "a\n b", "the arrow moved, Return broke the line, space typed a space")
+        XCTAssertEqual(counter.count + goLive.count, 0, "nothing reached show control")
+    }
+
+    func testAWindowThatIsNotAnEditorStillGetsTheMenu() {
+        XCTAssertFalse(ShortcutGuard.isEditorWindow(window))
+        XCTAssertFalse(ShortcutGuard.isEditorWindow(nil))
+        let plain = PlainView(frame: NSRect(x: 0, y: 0, width: 50, height: 50))
+        window.contentView?.addSubview(plain)
+        XCTAssertTrue(window.makeFirstResponder(plain))
+        NSApp.sendEvent(keyDown("\r", keyCode: 36))
+        XCTAssertEqual(goLive.count, 1)
+    }
+
+    /// The real Song editor view marks the window it is in as an editor window.
+    func testTheSongEditorMarksItsWindow() {
+        let delegate = AppDelegate()
+        defer { delegate.studios.shutdown() }
+        let target = SongEditorTarget(studioID: UUID(), songID: UUID())
+        let view = SongEditorView(model: delegate.editors.model(for: target, controller: delegate.studios)) {}
+            .modifier(Themed())
+        window.contentView = NSHostingView(rootView: view)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertTrue(ShortcutGuard.isEditorWindow(window))
+        NSApp.sendEvent(keyDown("\r", keyCode: 36))
+        XCTAssertEqual(goLive.count, 0)
+    }
+
     func testArrowFiresTheMenuWhenNoTextHasFocus() {
         let plain = PlainView(frame: NSRect(x: 0, y: 0, width: 50, height: 50))
         window.contentView?.addSubview(plain)

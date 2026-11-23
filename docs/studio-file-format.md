@@ -92,6 +92,20 @@ when the service has sections.
 | Field | Type | Meaning |
 |---|---|---|
 | `collectionID` | UUID | The collection the song belongs to. |
+| `copyright` | string | Copyright line. |
+| `ccliNumber` | string | CCLI song number (kept as text). |
+| `key` | string | Musical key as written ("G", "Bb", "F#m"). |
+| `tempo` | int | Beats per minute. |
+| `groups` | `[{ id, name, color, slideIDs }]` | Named, coloured groups of slides ("Verse 1", "Chorus"); `color` is "#RRGGBB"; a slide is in at most one group. Absent until the song's lyrics or groups are first edited: until then the editor derives groups from the slide labels (one per distinct label). |
+| `linesPerSlide` | int ≥ 1 | Lyrics typed in the editor are split into slides of at most this many lines; setting it re-splits each group's slides. |
+| `capitalization` | "none" \| "allCaps" \| "sentenceCase" | How slide text is shown on the outputs. The stored lines keep what was typed; the app applies it when it hands the songs to the engine (`Studio.library()`). |
+| `audioTrackID` | UUID | The song's audio track: a media index entry by id, never a path. |
+| `backgroundID` | UUID | The song's background: a media index entry by id, never a path. |
+
+Slides are unchanged (`id`, `label`, `lines`): a slide's `label` is still what the operator view groups by, and
+the editor sets it to the slide's group name unless the operator gave the slide a label of its own. A song in a
+`.stgitem` file carries these fields too, and its `audioTrackID` / `backgroundID` go into the file's `mediaRefs`.
+An imported song that names a collection the Studio does not have is put in no collection.
 
 ## Versions
 

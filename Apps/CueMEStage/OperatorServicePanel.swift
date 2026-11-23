@@ -88,6 +88,7 @@ private struct CollectionsList: View {
     let model: CollectionsModel
     let toggle: (String) -> Void
     @Environment(\.theme) private var theme
+    @Environment(\.editSong) private var editSong
 
     var body: some View {
         let rows = model.rows
@@ -114,6 +115,11 @@ private struct CollectionsList: View {
                     case let .entry(entry):
                         CollectionLine(icon: entry.icon, title: entry.title, meta: entry.meta, weight: .regular, indent: 18)
                             .accessibilityElement(children: .combine)
+                            .contextMenu {
+                                if let song = entry.songID {
+                                    Button("Edit…") { editSong?(song) }.disabled(editSong == nil)
+                                }
+                            }
                     }
                 }
             }
@@ -262,6 +268,7 @@ private struct ItemList: View {
     @Binding var selection: Item.ID?
     let go: (Item.ID) -> Void
     @Environment(\.theme) private var theme
+    @Environment(\.editSong) private var editSong
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -295,7 +302,12 @@ private struct ItemList: View {
                                         selection = row.id
                                         focused = true
                                     })
-                                    .contextMenu { Button("Go Live") { go(row.id) } }
+                                    .contextMenu {
+                                        Button("Go Live") { go(row.id) }
+                                        if let song = row.songID {
+                                            Button("Edit…") { editSong?(song) }.disabled(editSong == nil)
+                                        }
+                                    }
                             }
                         }
                     }

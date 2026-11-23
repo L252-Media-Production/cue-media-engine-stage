@@ -31,6 +31,8 @@ struct ServiceRowInfo: Equatable, Identifiable {
     var meta: String?
     var metaTone: RowMetaTone = .dim
     var isLive: Bool
+    /// The song the row plays (for "Edit…"); nil for other items.
+    var songID: Song.ID?
 }
 
 /// One block of the service list: a section header (nil for the items above the first section) and its rows.
@@ -78,8 +80,9 @@ struct ServiceListModel {
     func row(_ item: Item) -> ServiceRowInfo {
         var row = ServiceRowInfo(id: item.id, title: item.title, icon: "rectangle", isLive: isLive(item))
         switch item.content {
-        case .song:
+        case let .song(id):
             row.icon = "music.note"
+            row.songID = id
         case let .media(id):
             let entry = studio?.media.first { $0.id == id }
             row.icon = Self.icon(entry?.kind ?? .audio)

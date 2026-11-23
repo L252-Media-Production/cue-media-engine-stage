@@ -25,6 +25,10 @@ struct ThemeTokens {
     var danger: Color
     /// A selected row's tint (`--sel`).
     var selection: Color
+    /// Text on an accent fill (Next, Play, Show): `onAccent` in `Main.dc.html` L948.
+    var onAccent: Color
+    /// Text on an amber fill (Black while on): `#111` in `Main.dc.html` L979, both themes.
+    var onWarning: Color
 
     /// `Main.dc.html` L844.
     static let dark = ThemeTokens(
@@ -40,7 +44,9 @@ struct ThemeTokens {
         ok: Color(hex: 0x47C86E),            // --ok
         warning: Color(hex: 0xFFB020),       // --warn
         danger: Color(hex: 0xE5483F),        // --live
-        selection: Color(hex: 0x1F3A29)      // --sel
+        selection: Color(hex: 0x1F3A29),     // --sel
+        onAccent: Color(hex: 0x0D0D0D),
+        onWarning: Color(hex: 0x111111)
     )
 
     /// `Main.dc.html` L843. (`QuitDialog.dc.html` L37 has slightly different light --warn and --live; Main wins.)
@@ -57,7 +63,9 @@ struct ThemeTokens {
         ok: Color(hex: 0x17803C),            // --ok
         warning: Color(hex: 0xA85A00),       // --warn
         danger: Color(hex: 0xC4231C),        // --live
-        selection: Color(hex: 0xD6EEDE)      // --sel
+        selection: Color(hex: 0xD6EEDE),     // --sel
+        onAccent: Color(hex: 0xFFFFFF),
+        onWarning: Color(hex: 0x111111)
     )
 
     static func `for`(_ scheme: ColorScheme) -> ThemeTokens { scheme == .dark ? .dark : .light }
@@ -68,6 +76,9 @@ struct ThemeTokens {
     static let spacingM: CGFloat = 12
     static let spacingL: CGFloat = 20
     static let radius: CGFloat = 6
+
+    /// The mockup's section label (`label`, Main.dc.html L845): mono 11, weight 600, letter-spacing .06em.
+    static let labelTracking: CGFloat = 0.66
 
     // Type.
     static let monoPostScriptName = "JetBrainsMono-Regular"

@@ -9,6 +9,7 @@ struct StageMenuCommands: Commands {
     let studios: StudioController
     @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
     @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
+    @AppStorage(StorageKeys.monitorScreens) private var monitorRaw = ""
 
     private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection, isModalOpen: ui.isModalOpen) }
 
@@ -149,10 +150,18 @@ struct StageMenuCommands: Commands {
                 .keyboardShortcut(Shortcuts.visuals)
                 .disabled(true)
             Divider()
+            // The right column's monitor; the same per-Studio choice as its output picker.
             Menu("Monitor") {
-                ForEach(store.state.outputScreens) { screen in Button(screen.name) {} }
+                let state = store.state
+                let choice = MonitorChoice(raw: monitorRaw)
+                ForEach(state.outputScreens) { screen in
+                    Toggle(screen.name, isOn: Binding(
+                        get: { choice.screenID(in: state) == screen.screenID },
+                        set: { _ in monitorRaw = choice.choosing(screen.screenID, for: state.studio).raw }
+                    ))
+                }
             }
-            .disabled(true)
+            .disabled(store.state.outputScreens.isEmpty)
             Menu("Test Pattern") {
                 let model = TestPatternMenuModel(state: store.state)
                 ForEach(TestPattern.allCases, id: \.self) { pattern in

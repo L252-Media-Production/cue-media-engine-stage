@@ -78,6 +78,8 @@ struct StageMenuCommands: Commands {
                     ))
                 }
             }
+            // Panel sizes are this machine's (PanelSizes); the defaults are the mockup's.
+            Button("Reset Panel Sizes") { PanelSizes.resetAll(in: .standard) }
             Divider()
             ForEach(BottomTab.allCases) { tab in
                 Toggle(tab.rawValue, isOn: Binding(

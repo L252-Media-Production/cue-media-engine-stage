@@ -10,6 +10,31 @@ struct OperatorView: View {
     @Bindable var ui: OperatorUIState
     let studios: StudioController
     @Environment(\.theme) private var theme
+    /// Panel sizes, on this machine (`PanelSizes`). View > Reset Panel Sizes writes the same keys.
+    @AppStorage private var serviceWidth: Double
+    @AppStorage private var rightWidth: Double
+    @AppStorage private var bottomHeight: Double
+
+    /// `layoutDefaults` is where the panel sizes are kept: the app's defaults, or a scratch suite in tests.
+    init(store: StageStore, ui: OperatorUIState, studios: StudioController, layoutDefaults: UserDefaults = .standard) {
+        self.store = store
+        self.ui = ui
+        self.studios = studios
+        let d = PanelSizes.defaults
+        _serviceWidth = AppStorage(wrappedValue: Double(d.service), StorageKeys.servicePanelWidth, store: layoutDefaults)
+        _rightWidth = AppStorage(wrappedValue: Double(d.right), StorageKeys.rightColumnWidth, store: layoutDefaults)
+        _bottomHeight = AppStorage(wrappedValue: Double(d.bottom), StorageKeys.bottomPanelHeight, store: layoutDefaults)
+    }
+
+    private var storedSizes: PanelSizes {
+        PanelSizes(service: serviceWidth, right: rightWidth, bottom: bottomHeight)
+    }
+
+    private func keep(_ sizes: PanelSizes) {
+        serviceWidth = sizes.service
+        rightWidth = sizes.right
+        bottomHeight = sizes.bottom
+    }
 
     /// Which service item the slide grid shows; not engine state.
     private var selection: Item.ID? {
@@ -18,6 +43,8 @@ struct OperatorView: View {
     }
 
     private var state: StageState { store.state }
+    /// The operator view's height (the bottom panel may take 60 % of it).
+    @State private var windowHeight: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,33 +54,44 @@ struct OperatorView: View {
                 }
                 Divider()
             }
-            HStack(spacing: 0) {
-                // Main.dc.html L44: service and slide grid, the bottom panel under both; the right column beside them.
-                VStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport,
-                                     selection: $ui.selection) { id in
-                            store.send(.go(itemID: id, slideIndex: 0))
+            GeometryReader { area in
+                let w = area.size.width, h = area.size.height, window = windowHeight
+                let sizes = storedSizes.fitted(width: w, height: h, windowHeight: window)
+                HStack(spacing: 0) {
+                    // Main.dc.html L44: service and slide grid, the bottom panel under both; the right column beside them.
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport,
+                                         selection: $ui.selection) { id in
+                                store.send(.go(itemID: id, slideIndex: 0))
+                            }
+                            .frame(width: sizes.service)
+                            PanelDivider(axis: .vertical, value: sizes.service, direction: 1, label: "Service panel width") {
+                                keep(sizes.setting(.service, to: $0, width: w, height: h, windowHeight: window))
+                            } reset: { keep(sizes.resetting(.service)) }
+                            SlideGrid(state: state, studio: studios.studios.studio, item: state.item(selection)) { item, index in
+                                store.send(.go(itemID: item.id, slideIndex: index))
+                            }
                         }
-                        .frame(width: ServicePanelLayout.width)
-                        Divider()
-                        SlideGrid(state: state, studio: studios.studios.studio, item: state.item(selection)) { item, index in
-                            store.send(.go(itemID: item.id, slideIndex: index))
-                        }
+                        PanelDivider(axis: .horizontal, value: sizes.bottom, direction: -1, label: "Bottom panel height") {
+                            keep(sizes.setting(.bottom, to: $0, width: w, height: h, windowHeight: window))
+                        } reset: { keep(sizes.resetting(.bottom)) }
+                        BottomPanel(state: state, send: store.send)
+                            .frame(height: sizes.bottom)
                     }
-                    Divider()
-                    BottomPanel(state: state, send: store.send)
-                        .frame(height: OperatorLayout.bottomPanelHeight)
+                    PanelDivider(axis: .vertical, value: sizes.right, direction: -1, label: "Right column width") {
+                        keep(sizes.setting(.right, to: $0, width: w, height: h, windowHeight: window))
+                    } reset: { keep(sizes.resetting(.right)) }
+                    RightColumn(state: state, ui: ui, send: store.send)
+                        .frame(width: sizes.right)
                 }
-                Divider()
-                RightColumn(state: state, ui: ui, send: store.send)
-                    .frame(width: OperatorLayout.rightColumnWidth)
             }
             Divider()
             StatusBar(state: state, lastEvent: store.lastEvent, send: store.send)
         }
         .background(theme.background)
         .foregroundStyle(theme.textPrimary)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { windowHeight = $0 }
         // When a different item goes live (Next across items, Go from elsewhere), the grid follows it; also when the
         // view appears with something already live.
         .onChange(of: state.primaryLive?.itemID, initial: true) { _, itemID in

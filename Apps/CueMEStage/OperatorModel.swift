@@ -34,6 +34,10 @@ enum StorageKeys {
     static let monitorScreens = "cueme.operator.monitorScreens"
     /// `SideTab.rawValue` of the right column's Audio / Message / Timer tabs.
     static let sideTab = "cueme.operator.sideTab"
+    /// Panel sizes in points (`PanelSizes`), on this machine only.
+    static let servicePanelWidth = "cueme.layout.servicePanelWidth"
+    static let rightColumnWidth = "cueme.layout.rightColumnWidth"
+    static let bottomPanelHeight = "cueme.layout.bottomPanelHeight"
 }
 
 /// View > Theme. A fresh install is dark (the `@AppStorage` default); Auto follows the system appearance.

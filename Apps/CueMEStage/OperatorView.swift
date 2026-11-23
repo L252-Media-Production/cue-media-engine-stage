@@ -112,6 +112,7 @@ struct OperatorView: View {
         .sheet(isPresented: $ui.showNewCollection) {
             NewCollectionSheet { name in studios.addCollection(named: name) }.modifier(Themed())
         }
+        .background(ShortcutGuardWindowMarker(role: .operator))
         .environment(\.editSong, { id in SongEditorScene.open(id, studios: studios, with: openWindow) })
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }

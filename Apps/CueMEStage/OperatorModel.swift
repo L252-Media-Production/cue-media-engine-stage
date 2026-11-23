@@ -316,6 +316,13 @@ enum Shortcuts {
          skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow, newCollection, newSong, editSelectedItem, undo, redo] + BottomTab.allCases.map(tab)
     }
 
+    /// Show shortcuts that are also standard text-editing keys. Checked against Cmd-Left/Right/Up/Down, Cmd-A, Cmd-Z,
+    /// Cmd-C/V/X, Cmd-Delete and Option-Delete: only Clear Slide (Cmd-Delete, "delete to start of line") and Clear All
+    /// (Shift-Cmd-Delete, its shifted form) collide. Black Out (Cmd-.) and the Option-Cmd audio keys are emergency
+    /// stops, not text keys. `ShortcutGuard` keeps these away from the menu while text has focus outside the operator
+    /// window.
+    static var textEditingCollisions: [KeyboardShortcut] { [clearSlide, clearAll] }
+
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
     static var unmodified: [KeyboardShortcut] {
         all.filter { $0.modifiers.intersection([.command, .control, .option]).isEmpty }

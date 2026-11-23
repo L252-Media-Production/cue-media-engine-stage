@@ -45,21 +45,8 @@ struct SongEditorView: View {
             }
         }
         .focusedSceneValue(\.songEditor, model)
-        .background(EditorWindowMarker())
+        .background(ShortcutGuardWindowMarker(role: .editor))
         .onDisappear(perform: onClose)
-    }
-}
-
-/// Registers the hosting window with `ShortcutGuard` as an editor window, so show-control keys never act from it.
-private struct EditorWindowMarker: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { MarkerView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    final class MarkerView: NSView {
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            if let window { ShortcutGuard.registerEditorWindow(window) }
-        }
     }
 }
 

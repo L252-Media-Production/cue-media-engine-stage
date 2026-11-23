@@ -4,6 +4,10 @@ import StageKit
 
 @main
 struct CueMEStageApp: App {
+    /// First of all: a second copy hands over to the running one and quits here. Stored properties are initialised in
+    /// order and before `init`, so this runs before the delegate below (and with it the store, any Studio or lock file)
+    /// is created.
+    private let singleInstance: Void = SingleInstance.enforce()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var app
 
     init() {

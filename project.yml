@@ -28,6 +28,7 @@ targets:
       - path: Apps/CueMEStage
         excludes:
           - Resources/Fonts
+          - Info.plist
       # Folder reference: the fonts and their OFL licence land in Contents/Resources/Fonts/ (see BundledFonts.swift).
       - path: Apps/CueMEStage/Resources/Fonts
         type: folder
@@ -35,6 +36,41 @@ targets:
     dependencies:
       - package: Engine
       - package: StageKit
+    # Document types and the three exported UTIs, declared once. xcodegen writes Apps/CueMEStage/Info.plist from
+    # this; Xcode merges it with the generated keys (GENERATE_INFOPLIST_FILE).
+    info:
+      path: Apps/CueMEStage/Info.plist
+      properties:
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: CueME Stage Studio
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [com.l252mp.cuemestage.studio]
+          - CFBundleTypeName: CueME Stage Studio Bundle
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.l252mp.cuemestage.studio-bundle]
+          - CFBundleTypeName: CueME Stage Items
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.l252mp.cuemestage.item]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.l252mp.cuemestage.studio
+            UTTypeDescription: CueME Stage Studio
+            UTTypeConformsTo: [com.apple.package, public.composite-content]
+            UTTypeTagSpecification:
+              public.filename-extension: [stg]
+          - UTTypeIdentifier: com.l252mp.cuemestage.studio-bundle
+            UTTypeDescription: CueME Stage Studio Bundle
+            UTTypeConformsTo: [public.zip-archive, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [stgbundle]
+          - UTTypeIdentifier: com.l252mp.cuemestage.item
+            UTTypeDescription: CueME Stage Items
+            UTTypeConformsTo: [public.json, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [stgitem]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage

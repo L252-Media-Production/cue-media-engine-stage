@@ -232,10 +232,13 @@ public struct Library: Codable, Sendable, Hashable {
     public var timers: [StageTimer]
     public var screens: [Screen]
     public var outputs: [Output]
+    /// Layouts by screen (look, canvas, rotation). A screen without one starts from its own type and rect.
+    public var screenSetups: [Screen.ID: ScreenSetup]
 
     public init(
         service: Service, songs: [Song] = [], media: [MediaItem] = [], audioSettings: [MediaItem.ID: AudioSettings] = [:],
-        looks: [Look] = [], messages: [Message] = [], timers: [StageTimer] = [], screens: [Screen] = [], outputs: [Output] = []
+        looks: [Look] = [], messages: [Message] = [], timers: [StageTimer] = [], screens: [Screen] = [], outputs: [Output] = [],
+        screenSetups: [Screen.ID: ScreenSetup] = [:]
     ) {
         self.service = service
         self.songs = songs
@@ -246,7 +249,11 @@ public struct Library: Codable, Sendable, Hashable {
         self.timers = timers
         self.screens = screens
         self.outputs = outputs
+        self.screenSetups = screenSetups
     }
+
+    /// Nothing loaded: no service, no screens.
+    public static let empty = Library(service: Service(name: "No Studio", items: []))
 
     public func song(_ id: Song.ID) -> Song? { songs.first { $0.id == id } }
     public func mediaItem(_ id: MediaItem.ID) -> MediaItem? { media.first { $0.id == id } }

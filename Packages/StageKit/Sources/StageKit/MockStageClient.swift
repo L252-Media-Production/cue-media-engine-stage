@@ -58,41 +58,125 @@ public actor MockStageClient: StageClient {
         }
     }
 
+    /// A Studio as the mock loads it. The app reads the package and this machine's output assignments; the mock
+    /// does no file IO (StageKit is Foundation only).
+    public struct LoadedStudio: Sendable {
+        public var info: StudioInfo
+        public var library: Library
+        public var assignments: [OutputAssignment]
+
+        public init(info: StudioInfo, library: Library, assignments: [OutputAssignment]) {
+            self.info = info
+            self.library = library
+            self.assignments = assignments
+        }
+    }
+
+    /// Where `openStudio` and `reloadStudio` find a Studio by id; nil = unknown.
+    public typealias StudioSource = @Sendable (UUID) -> LoadedStudio?
+
+    private let connectors: [Connector]
+    private let studioSource: StudioSource?
+    /// Health and dropped frames per connector, kept while screens move between connectors.
+    private var connectorHealth: [Connector.ID: (health: OutputStatus.Health, dropped: Int)] = [:]
+    /// A stable `OutputStatus.outputID` per connector for the life of the mock.
+    private var outputIDs: [Connector.ID: UUID] = [:]
+
     /// `assignments` nil = `defaultAssignments`.
-    public init(library: Library = .sample, connectors: [Connector] = MockStageClient.sampleConnectors, assignments: [OutputAssignment]? = nil) {
+    public init(library: Library = .sample, connectors: [Connector] = MockStageClient.sampleConnectors, assignments: [OutputAssignment]? = nil,
+                studioSource: StudioSource? = nil) {
         self.library = library
+        self.connectors = connectors
+        self.studioSource = studioSource
+        var state = Self.makeState(library: library, connectors: connectors,
+                                   assignments: assignments ?? Self.defaultAssignments(screens: library.screens, connectors: connectors))
+        var ids: [Connector.ID: UUID] = [:]
+        state.outputs = Self.outputs(of: state, ids: &ids, health: [:])
+        self.state = state
+        self.outputIDs = ids
+    }
+
+    private func refreshOutputs() {
+        state.outputs = Self.outputs(of: state, ids: &outputIDs, health: connectorHealth)
+    }
+
+    /// The status-bar outputs: one per output connector a screen is assigned to, in screen order. Machine data
+    /// (connectors and this machine's assignments), never the show's. No assignments, no outputs.
+    private static func outputs(of state: StageState, ids: inout [Connector.ID: UUID],
+                                health: [Connector.ID: (health: OutputStatus.Health, dropped: Int)]) -> [OutputStatus] {
+        var seen: Set<Connector.ID> = []
+        return state.assignments.compactMap { assignment in
+            guard let id = assignment.connectorID, let connector = state.connector(id), !connector.kind.isInput,
+                  seen.insert(id).inserted else { return nil }
+            let outputID = ids[id] ?? UUID()
+            ids[id] = outputID
+            let kept = health[id]
+            return OutputStatus(outputID: outputID, name: chipName(connector),
+                                health: connector.available ? kept?.health ?? .ok : .offline,
+                                droppedFrames: kept?.dropped ?? 0, connectorID: id)
+        }
+    }
+
+    /// "SDI 1 (A)" for a connector on a card ("DeckLink Duo 2 (A)"), the label alone otherwise.
+    static func chipName(_ connector: Connector) -> String {
+        guard let card = connector.cardName else { return connector.label }
+        if let open = card.lastIndex(of: "("), let close = card.lastIndex(of: ")"), open < close {
+            return "\(connector.label) (\(card[card.index(after: open)..<close]))"
+        }
+        return "\(connector.label) (\(card))"
+    }
+
+    /// A fresh snapshot for a library: nothing live, nothing playing.
+    private static func makeState(library: Library, connectors: [Connector], assignments: [OutputAssignment], studio: StudioInfo? = nil) -> StageState {
+        var state = StageState(
+            service: library.service,
+            slides: slides(of: library),
+            screens: library.screens.map { ScreenState(screenID: $0.id, name: $0.name) },
+            messages: library.messages,
+            looks: library.looks,
+            connectors: connectors,
+            assignments: library.screens.map { screen in
+                OutputAssignment(screenID: screen.id, connectorID: assignments.first { $0.screenID == screen.id }?.connectorID)
+            },
+            screenSetups: Dictionary(uniqueKeysWithValues: library.screens.map { screen in
+                (screen.id, library.screenSetups[screen.id] ?? ScreenSetup(
+                    type: screen.type, onCanvas: screen.type == .audience,
+                    canvas: CanvasRect(x: screen.x, y: screen.y, width: screen.width, height: screen.height)
+                ))
+            })
+        )
+        state.studio = studio
+        // Nothing taken yet: Next starts at the first slide of the service (as `step(forward:)` says).
+        if let item = library.service.items.first(where: { state.slides[$0.id] != nil }), let slide = state.slides[item.id]?.first {
+            state.nextSlide = LiveSlide(itemID: item.id, slideIndex: 0, slideID: slide.id, label: slide.label, lines: slide.lines)
+        }
+        return state
+    }
+
+    private static func slides(of library: Library) -> [Item.ID: [Slide]] {
         var slides: [Item.ID: [Slide]] = [:]
         for item in library.service.items {
             if case let .song(songID) = item.content, let song = library.song(songID), !song.slides.isEmpty {
                 slides[item.id] = song.slides
             }
         }
-        self.state = StageState(
-            service: library.service,
-            slides: slides,
-            screens: library.screens.map { ScreenState(screenID: $0.id, name: $0.name) },
-            messages: library.messages,
-            outputs: library.outputs.map { OutputStatus(outputID: $0.id, name: $0.name) },
-            looks: library.looks,
-            connectors: connectors,
-            assignments: library.screens.map { screen in
-                OutputAssignment(
-                    screenID: screen.id,
-                    connectorID: (assignments ?? Self.defaultAssignments(screens: library.screens, connectors: connectors))
-                        .first { $0.screenID == screen.id }?.connectorID
-                )
-            },
-            screenSetups: Dictionary(uniqueKeysWithValues: library.screens.map { screen in
-                (screen.id, ScreenSetup(
-                    type: screen.type, onCanvas: screen.type == .audience,
-                    canvas: CanvasRect(x: screen.x, y: screen.y, width: screen.width, height: screen.height)
-                ))
-            })
-        )
-        // Nothing taken yet: Next starts at the first slide of the service (as `step(forward:)` says).
-        if let item = library.service.items.first(where: { slides[$0.id] != nil }), let slide = slides[item.id]?.first {
-            state.nextSlide = LiveSlide(itemID: item.id, slideIndex: 0, slideID: slide.id, label: slide.label, lines: slide.lines)
-        }
+        return slides
+    }
+
+    /// Switches to another library: everything live stops (slides, messages, audio, test pattern, blackout).
+    private func load(_ library: Library, assignments: [OutputAssignment], studio: StudioInfo?) {
+        if let track = state.audio.liveTrack { emit(.audioEnded(mediaID: track)) }
+        let counters = state.audio.counters
+        self.library = library
+        state = Self.makeState(library: library, connectors: state.connectors, assignments: assignments, studio: studio)
+        state.audio.counters = counters
+        refreshOutputs()
+        cursor = nil
+        spentOnce = []
+        skipped = []
+        voiceRemaining = 0
+        fadeRemaining = nil
+        passesLeft = 0
     }
 
     // MARK: StageClient
@@ -162,6 +246,9 @@ public actor MockStageClient: StageClient {
         guard let i = state.outputs.firstIndex(where: { $0.outputID == outputID }) else { return }
         state.outputs[i].health = health
         if let droppedFrames { state.outputs[i].droppedFrames = droppedFrames }
+        if let connector = state.outputs[i].connectorID {
+            connectorHealth[connector] = (health, state.outputs[i].droppedFrames)
+        }
         emit(.outputHealthChanged(state.outputs[i]))
         publish()
     }
@@ -170,6 +257,7 @@ public actor MockStageClient: StageClient {
     public func simulateConnector(_ id: Connector.ID, available: Bool) {
         guard let i = state.connectors.firstIndex(where: { $0.id == id }) else { return }
         state.connectors[i].available = available
+        refreshOutputs()
         publish()
     }
 
@@ -313,6 +401,7 @@ public actor MockStageClient: StageClient {
                 }
             }
             state.assignments[a].connectorID = connectorID
+            refreshOutputs()
 
         case let .setScreenSetup(screenID, setup):
             guard state.screenSetups[screenID] != nil else { return reject(command, "unknown screen") }
@@ -336,6 +425,26 @@ public actor MockStageClient: StageClient {
             guard state.testPattern != nil else { return reject(command, "no test pattern running") }
             state.testPattern = nil
             emit(.testPatternChanged(nil))
+
+        case let .openStudio(id):
+            guard let loaded = studioSource?(id) else { return reject(command, "unknown Studio") }
+            load(loaded.library, assignments: loaded.assignments, studio: loaded.info)
+            emit(.studioOpened(loaded.info))
+
+        case .closeStudio:
+            guard let info = state.studio else { return reject(command, "no Studio open") }
+            load(.empty, assignments: [], studio: nil)
+            emit(.studioClosed(info))
+
+        case let .reloadStudio(id):
+            guard state.studio?.id == id, let loaded = studioSource?(id) else { return reject(command, "not the open Studio") }
+            // Show data changed (items imported, media relinked): new content, nothing live is stopped.
+            library = loaded.library
+            state.service = loaded.library.service
+            state.slides = Self.slides(of: loaded.library)
+            state.messages = loaded.library.messages
+            state.looks = loaded.library.looks
+            state.studio = loaded.info
         }
     }
 

@@ -6,19 +6,54 @@ import StageKit
 struct StageMenuCommands: Commands {
     let store: StageStore
     let ui: OperatorUIState
+    let studios: StudioController
     @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
     @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
 
     private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection, isModalOpen: ui.isModalOpen) }
 
     var body: some Commands {
+        // Replacing the New group also removes the WindowGroup's New Window, so Cmd-N is New Studio only.
         CommandGroup(replacing: .newItem) {
+            let file = FileMenuModel(hasStudio: studios.studios.studio != nil, isModalOpen: ui.isModalOpen)
+            Button("New Studio…") { studios.newStudio() }
+                .keyboardShortcut(Shortcuts.newStudio)
+                .disabled(!file.canNew)
+            Button("Open Studio…") { studios.chooseAndOpen() }
+                .keyboardShortcut(Shortcuts.openStudio)
+                .disabled(!file.canOpen)
+            Menu("Open Recent") {
+                let others = studios.recentMenuURLs
+                if others.isEmpty {
+                    Button("No Other Studios") {}.disabled(true)
+                }
+                ForEach(others, id: \.self) { url in
+                    Button(url.deletingPathExtension().lastPathComponent) { studios.open(url) }
+                }
+                Divider()
+                Button("Clear Menu") { studios.recents.clear() }
+                    .disabled(studios.recents.urls.isEmpty)
+            }
+            .disabled(!file.canOpen)
+            Button("Close Studio") { studios.closeStudio() }
+                .disabled(!file.canClose)
+            Divider()
+            Button("Import Studio…") { studios.chooseAndImportStudio() }
+                .disabled(!file.canImportStudio)
+            Button("Import Items…") { studios.chooseAndImportItems() }
+                .disabled(!file.canImportItems)
+            Button("Export Studio…") { studios.exportStudio() }
+                .disabled(!file.canExport)
+            Button("Export Selected Item…") {}
+                .disabled(!file.canExportSelectedItem)
+            Divider()
+            Button("Relink Media…") { ui.showRelink = true }
+                .disabled(!file.canRelink)
+            Divider()
             Button("New Service") {}.disabled(true)
-            Button("Open Service…") {}.disabled(true)
         }
-        CommandGroup(replacing: .saveItem) {
-            Button("Save Service") {}.disabled(true)
-        }
+        // A Studio saves itself (autosave), so there is no Save; the system's Save items are removed.
+        CommandGroup(replacing: .saveItem) {}
         CommandGroup(replacing: .printItem) {}
 
         // View menu (Enter Full Screen stays where the system puts it).

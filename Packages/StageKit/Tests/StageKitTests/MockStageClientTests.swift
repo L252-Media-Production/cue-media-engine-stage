@@ -18,7 +18,7 @@ final class MockStageClientTests: XCTestCase {
         XCTAssertEqual(state.service, lib.service)
         XCTAssertEqual(state.messages, lib.messages)
         XCTAssertEqual(state.screens.map(\.screenID), lib.screens.map(\.id))
-        XCTAssertEqual(state.outputs.map(\.outputID), lib.outputs.map(\.id))
+        XCTAssertEqual(state.outputs.map(\.name), ["SDI 1 (A)", "SDI 2 (A)", "SDI 3 (A)"], "assigned output connectors, not the IMAG input")
         XCTAssertTrue(state.outputs.allSatisfy { $0.health == .ok })
         XCTAssertNil(state.primaryLive)
         XCTAssertEqual(state.audio, AudioState())
@@ -319,7 +319,8 @@ final class MockStageClientTests: XCTestCase {
         await client.simulateCounters(AudioCounters(droppedEnds: 1, droppedFires: 2, poolExhausted: 3))
         await client.send(.playAudio(mediaID: walkInID))
         await client.send(.stopAudio)
-        await client.simulateOutput(lib.outputs[1].id, health: .offline, droppedFrames: 12)
+        let second = await client.currentState.outputs[1].outputID
+        await client.simulateOutput(second, health: .offline, droppedFrames: 12)
         let state = await client.currentState
         XCTAssertEqual(state.audio.counters, AudioCounters(droppedEnds: 1, droppedFires: 2, poolExhausted: 3))
         XCTAssertEqual(state.outputs[1].health, .offline)

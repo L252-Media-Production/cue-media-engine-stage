@@ -32,7 +32,7 @@ One native macOS app that combines the ProPresenter / FreeShow content model (so
 
 ## UI priorities
 Because the app UI is the primary control surface, the operator view is part of v0, not a polish item. Order of importance:
-1. **Operator (run) view:** show/playlist panel, current and next slide, preview and live monitors, one-key go/next/previous, clear and blackout, status indicators (outputs, IMAG signal, CueME connection, dropped frames).
+1. **Operator (run) view:** show/playlist panel, the live slide, a live monitor per output screen, one-key go/next/previous, clear and blackout, status indicators (outputs, IMAG signal, CueME connection, dropped frames). The operator view does not show the next slide (no NEXT monitor or marker); the engine still computes it for stage displays and control surfaces.
 2. **Slide and song content:** simple song/lyrics editor, scripture lookup, background assignment, per-song CueME track.
 3. **Stage layouts:** pick and tweak a few ProPresenter-style layouts (lyrics, timer, messages, next slide).
 4. **Output setup:** assign virtual screens and stage layouts to DeckLink connectors.

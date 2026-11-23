@@ -125,12 +125,26 @@ public struct OutputStatus: Codable, Sendable, Hashable, Identifiable {
     public var name: String
     public var health: Health
     public var droppedFrames: Int
+    /// The engine connector this output is (machine data); nil for an output not tied to one.
+    public var connectorID: Connector.ID?
 
-    public init(outputID: Output.ID, name: String, health: Health = .ok, droppedFrames: Int = 0) {
+    public init(outputID: Output.ID, name: String, health: Health = .ok, droppedFrames: Int = 0, connectorID: Connector.ID? = nil) {
         self.outputID = outputID
         self.name = name
         self.health = health
         self.droppedFrames = droppedFrames
+        self.connectorID = connectorID
+    }
+}
+
+/// Which Studio the engine has loaded.
+public struct StudioInfo: Codable, Sendable, Hashable {
+    public var id: UUID
+    public var name: String
+
+    public init(id: UUID, name: String) {
+        self.id = id
+        self.name = name
     }
 }
 
@@ -163,6 +177,8 @@ public struct StageState: Codable, Sendable, Hashable {
     public var screenSetups: [Screen.ID: ScreenSetup]
     /// The test pattern being sent, or nil.
     public var testPattern: ActiveTestPattern?
+    /// The loaded Studio; nil when none is open.
+    public var studio: StudioInfo?
 
     public init(
         service: Service? = nil, slides: [Item.ID: [Slide]] = [:], screens: [ScreenState] = [], nextSlide: LiveSlide? = nil,
@@ -223,4 +239,6 @@ public enum StageEvent: Codable, Sendable, Hashable {
     case countersChanged(AudioCounters)
     case outputHealthChanged(OutputStatus)
     case testPatternChanged(ActiveTestPattern?)
+    case studioOpened(StudioInfo)
+    case studioClosed(StudioInfo)
 }

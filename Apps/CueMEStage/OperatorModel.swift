@@ -10,11 +10,12 @@ import StageKit
 final class OperatorUIState {
     var selection: Item.ID?
     var showOutputSetup = false
+    var showRelink = false
 
     /// True while any sheet or dialog of the app is open. While it is, Go Live, Next and Previous are off in the menu
     /// and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added here.
     /// (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the sheet.)
-    var isModalOpen: Bool { showOutputSetup }
+    var isModalOpen: Bool { showOutputSetup || showRelink }
 }
 
 /// UserDefaults keys used through @AppStorage.
@@ -27,6 +28,8 @@ enum StorageKeys {
     static let outputSetupTab = "cueme.outputSetup.tab"
     /// `Screen.ID.uuidString` of the screen selected in Output Setup.
     static let outputSetupScreen = "cueme.outputSetup.screen"
+    /// Path of the last opened Studio package; reopened at launch.
+    static let lastStudio = "cueme.studio.last"
 }
 
 /// View > Theme. A fresh install is dark (the `@AppStorage` default); Auto follows the system appearance.
@@ -75,6 +78,10 @@ enum Shortcuts {
     static let skipNextTrigger = KeyboardShortcut("s", modifiers: [.command, .option])
     static let outputSetup = KeyboardShortcut("o", modifiers: [.command, .shift])
     static let visuals = KeyboardShortcut("v", modifiers: [.command, .shift])
+    /// File > New Studio… and Open Studio…. The File menu's New group is replaced, so the WindowGroup's own
+    /// New Window (Cmd-N) is gone and nothing else uses these.
+    static let newStudio = KeyboardShortcut("n", modifiers: .command)
+    static let openStudio = KeyboardShortcut("o", modifiers: .command)
     /// Cmd-1 ... Cmd-5 in `BottomTab.allCases` order.
     static func tab(_ tab: BottomTab) -> KeyboardShortcut {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
@@ -83,7 +90,7 @@ enum Shortcuts {
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
-         skipNextTrigger, outputSetup, visuals] + BottomTab.allCases.map(tab)
+         skipNextTrigger, outputSetup, visuals, newStudio, openStudio] + BottomTab.allCases.map(tab)
     }
 
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
@@ -133,6 +140,23 @@ struct ServiceMenuModel {
     func toggleCommand(_ message: Message) -> Command {
         isVisible(message) ? .hideMessage(message.id) : .showMessage(message.id, screens: [])
     }
+}
+
+/// What the File menu's Studio entries allow. While a sheet or dialog is open nothing switches, creates, closes,
+/// imports or exports a Studio (as Go Live is off then).
+struct FileMenuModel {
+    let hasStudio: Bool
+    let isModalOpen: Bool
+
+    var canNew: Bool { !isModalOpen }
+    var canOpen: Bool { !isModalOpen }
+    var canClose: Bool { hasStudio && !isModalOpen }
+    var canImportStudio: Bool { !isModalOpen }
+    var canImportItems: Bool { hasStudio && !isModalOpen }
+    var canExport: Bool { hasStudio && !isModalOpen }
+    var canRelink: Bool { hasStudio && !isModalOpen }
+    /// Until UI-3b brings the editors.
+    var canExportSelectedItem: Bool { false }
 }
 
 /// The status-bar "Engine" chip: neutral while every audio counter is 0, amber when any is above 0.

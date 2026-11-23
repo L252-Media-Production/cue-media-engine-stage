@@ -138,7 +138,8 @@ final class StudioFixTests: TempFolderTestCase {
     }
 
     func testReturnAndEscapeBothCancelTheWarnings() {
-        for make in [{ StudioAlerts.switchWarning(live: "Left showing slides", action: "Switch Studio") }, { StudioAlerts.lockWarning("held") }] {
+        for make in [{ StudioAlerts.switchWarning(live: "Left showing slides", action: "Switch Studio") }, { StudioAlerts.lockWarning("held") },
+                     { StudioAlerts.quitWarning(subject: "Sunday 10:00") }] {
             XCTAssertEqual(answer(make(), keyCode: 36, characters: "\r"), .alertFirstButtonReturn, "Return = Cancel")
             XCTAssertEqual(answer(make(), keyCode: 53, characters: "\u{1b}"), .alertFirstButtonReturn, "Escape = Cancel")
         }

@@ -34,6 +34,30 @@ enum LiveSummary {
     }
 }
 
+/// Quitting while live (MainQuitLive.dc.html → QuitDialog.dc.html `kind="quit"`). Live here means what quitting
+/// would visibly or audibly stop: a slide on any output, or audio playing (or fading out). Paused audio, a message or a
+/// timer alone do not ask.
+enum QuitWarning {
+    static func isLive(_ state: StageState) -> Bool {
+        if state.outputScreens.contains(where: { $0.live != nil }) { return true }
+        switch state.audio.transport {
+        case .playing, .fading: return true
+        case .stopped, .paused: return false
+        }
+    }
+
+    /// The board's subject is the service ("Nov 22 Service is live."); the Studio name stands in without one.
+    static func subject(_ state: StageState) -> String {
+        state.service?.name ?? state.studio?.name ?? "The show"
+    }
+
+    /// QuitDialog.dc.html L41.
+    static let title = "Quit CueME Stage?"
+    static func body(subject: String) -> String {
+        "\(subject) is live. Quitting stops the engine too, so the displays and audio will stop."
+    }
+}
+
 enum LockChoice: Equatable { case cancel, openAnyway, openCopy }
 enum BundleImportChoice: Equatable { case cancel, openAsNew, replaceCurrent }
 
@@ -50,6 +74,8 @@ protocol StudioDialogs {
     func chooseFolder(title: String) -> URL?
     func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL?
     func showError(_ title: String, _ error: Error)
+    /// True = quit. Asked only when something is live (`QuitWarning.isLive`).
+    func confirmQuit(subject: String) -> Bool
 }
 
 /// Alerts built in one place so tests can check their buttons. The first button is the default (Return).
@@ -99,6 +125,19 @@ enum StudioAlerts {
         return alert
     }
 
+    /// QuitDialog.dc.html: Cancel, then Quit (red: the board's `goStyle` uses --live for this dangerous action).
+    static func quitWarning(subject: String) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = QuitWarning.title
+        alert.informativeText = QuitWarning.body(subject: subject)
+        alert.addButton(withTitle: "Cancel")          // default: Return (and Escape) keep the show running
+        alert.addButton(withTitle: "Quit")
+        alert.buttons[1].hasDestructiveAction = true
+        makeCancelDefault(alert)
+        return alert
+    }
+
     static func bundleImport(name: String) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = "Import “\(name)”"
@@ -139,6 +178,10 @@ enum ModalRunner {
 struct AppKitStudioDialogs: StudioDialogs {
     func confirmSwitch(live: String, action: String) -> Bool {
         ModalRunner.run { StudioAlerts.runCancellable(StudioAlerts.switchWarning(live: live, action: action)) == .alertSecondButtonReturn }
+    }
+
+    func confirmQuit(subject: String) -> Bool {
+        ModalRunner.run { StudioAlerts.runCancellable(StudioAlerts.quitWarning(subject: subject)) == .alertSecondButtonReturn }
     }
 
     func lockChoice(message: String) -> LockChoice {

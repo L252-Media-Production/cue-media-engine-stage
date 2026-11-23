@@ -11,6 +11,8 @@ final class FakeDialogs: StudioDialogs {
     var lockAnswer = LockChoice.cancel
     var switchAsked: [String] = []
     var lockAsked: [String] = []
+    var quitAnswer = false
+    var quitAsked: [String] = []
 
     func confirmSwitch(live: String, action: String) -> Bool { switchAsked.append(live); return switchAnswer }
     func lockChoice(message: String) -> LockChoice { lockAsked.append(message); return lockAnswer }
@@ -20,6 +22,7 @@ final class FakeDialogs: StudioDialogs {
     func chooseFolder(title: String) -> URL? { nil }
     func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL? { nil }
     func showError(_ title: String, _ error: Error) { XCTFail("\(title): \(error)") }
+    func confirmQuit(subject: String) -> Bool { quitAsked.append(subject); return quitAnswer }
 }
 
 @MainActor
@@ -167,7 +170,7 @@ final class StudioControllerTests: TempFolderTestCase {
     }
 
     func testAlertsDefaultToCancel() {
-        for alert in [StudioAlerts.switchWarning(live: "x", action: "Switch Studio"), StudioAlerts.lockWarning("x")] {
+        for alert in [StudioAlerts.switchWarning(live: "x", action: "Switch Studio"), StudioAlerts.lockWarning("x"), StudioAlerts.quitWarning(subject: "x")] {
             XCTAssertEqual(alert.buttons.first?.title, "Cancel")
             XCTAssertEqual(alert.buttons.first?.keyEquivalent, "\r", "Cancel is the default button")
             XCTAssertFalse(alert.buttons.dropFirst().contains { $0.keyEquivalent == "\r" }, "no other button takes Return")
@@ -193,6 +196,86 @@ final class StudioControllerTests: TempFolderTestCase {
         XCTAssertEqual(controller.title, "Sunday copy")
     }
 
+    // MARK: Quit while live
+
+    /// Opens a Studio and puts its first song's first slide on the outputs.
+    private func openAndGoLive(_ name: String) async throws -> URL {
+        let url = try makeStudio(name)
+        controller.open(url)
+        await until("\(name) loaded") { stage.state.studio?.name == name }
+        let item = try XCTUnwrap(stage.state.service?.items.first { stage.state.slides[$0.id] != nil })
+        stage.send(.go(itemID: item.id, slideIndex: 0))
+        await until("live") { stage.state.primaryLive != nil }
+        return url
+    }
+
+    func testQuitWithNothingLiveDoesNotAsk() async throws {
+        controller.open(try makeStudio("Quiet"))
+        await until("loaded") { stage.state.studio?.name == "Quiet" }
+        XCTAssertTrue(controller.shouldQuit())
+        XCTAssertEqual(AppDelegate.terminateReply(controller), .terminateNow)
+        XCTAssertEqual(dialogs.quitAsked, [], "nothing live: quits at once, no dialog")
+    }
+
+    func testQuitWhileLiveAsksAndCancelKeepsEverythingRunning() async throws {
+        let url = try await openAndGoLive("Sunday")
+        dialogs.quitAnswer = false // Cancel (also Return and Escape)
+        XCTAssertFalse(controller.shouldQuit())
+        XCTAssertEqual(AppDelegate.terminateReply(controller), .terminateCancel)
+        let service = try XCTUnwrap(stage.state.service?.name)
+        XCTAssertEqual(dialogs.quitAsked, [service, service], "asked each time, about the service that is live")
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertNotNil(stage.state.primaryLive, "still live")
+        XCTAssertEqual(controller.title, "Sunday", "the Studio stays open")
+        XCTAssertNotNil(StudioLocking(identity: MachineIdentity(id: UUID(), name: "x"), appVersion: "").read(StudioPackage(url: url)),
+                        "the lock is still held")
+    }
+
+    func testQuitWhileLiveConfirmedQuitsAndShutdownStillSavesAndUnlocks() async throws {
+        let url = try await openAndGoLive("Sunday")
+        dialogs.quitAnswer = true
+        XCTAssertEqual(AppDelegate.terminateReply(controller), .terminateNow)
+        XCTAssertEqual(dialogs.quitAsked.count, 1)
+        // AppKit then calls applicationWillTerminate, which runs shutdown().
+        controller.shutdown()
+        XCTAssertNil(StudioLocking(identity: MachineIdentity(id: UUID(), name: "x"), appVersion: "").read(StudioPackage(url: url)),
+                     "the lock is released")
+        controller = nil
+    }
+
+    func testWhatCountsAsLiveForQuit() async {
+        let lib = Library.sample
+        let client = MockStageClient(library: lib)
+        var state = await client.currentState
+        XCTAssertFalse(QuitWarning.isLive(state), "nothing")
+        await client.send(.playAudio(mediaID: lib.media[0].id))
+        state = await client.currentState
+        XCTAssertTrue(QuitWarning.isLive(state), "audio playing alone")
+        await client.send(.pauseAudio)
+        state = await client.currentState
+        XCTAssertFalse(QuitWarning.isLive(state), "paused audio is not heard")
+        await client.send(.go(itemID: lib.service.items[1].id, slideIndex: 0))
+        state = await client.currentState
+        XCTAssertTrue(QuitWarning.isLive(state), "a slide on the outputs")
+        XCTAssertEqual(QuitWarning.subject(state), "Sunday 10:00")
+        XCTAssertEqual(QuitWarning.subject(StageState()), "The show")
+    }
+
+    func testQuitAlertWording() {
+        let alert = StudioAlerts.quitWarning(subject: "Nov 22 Service")
+        XCTAssertEqual(alert.messageText, "Quit CueME Stage?")
+        XCTAssertEqual(alert.informativeText, "Nov 22 Service is live. Quitting stops the engine too, so the displays and audio will stop.")
+        XCTAssertEqual(alert.buttons.map(\.title), ["Cancel", "Quit"])
+        XCTAssertTrue(alert.buttons[1].hasDestructiveAction, "Quit is the red button, as on the board")
+    }
+
+    func testClosingTheLastWindowDoesNotQuit() {
+        let delegate = AppDelegate()
+        XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
+        XCTAssertEqual(delegate.applicationShouldTerminate(NSApp), .terminateNow, "nothing live in a fresh app: no dialog")
+        delegate.studios.shutdown()
+    }
+
     // MARK: Menus and types
 
     func testFileMenuWhileASheetIsOpen() {
@@ -206,6 +289,9 @@ final class StudioControllerTests: TempFolderTestCase {
         XCTAssertTrue(closed.canNew && closed.canOpen && closed.canClose && closed.canImportItems && closed.canExport && closed.canRelink)
         XCTAssertFalse(closed.canExportSelectedItem, "until UI-3b")
         XCTAssertFalse(FileMenuModel(hasStudio: false, isModalOpen: false).canClose)
+        XCTAssertTrue(closed.canCloseWindow)
+        XCTAssertFalse(open.canCloseWindow, "not under a sheet")
+        XCTAssertTrue(FileMenuModel(hasStudio: false, isModalOpen: false).canCloseWindow, "also without a Studio")
     }
 
     func testStudioShortcuts() {
@@ -213,6 +299,8 @@ final class StudioControllerTests: TempFolderTestCase {
         XCTAssertEqual(Shortcuts.openStudio, KeyboardShortcut("o", modifiers: .command))
         XCTAssertTrue(Shortcuts.all.contains(Shortcuts.newStudio))
         XCTAssertTrue(Shortcuts.all.contains(Shortcuts.openStudio))
+        XCTAssertEqual(Shortcuts.closeWindow, KeyboardShortcut("w", modifiers: .command))
+        XCTAssertTrue(Shortcuts.all.contains(Shortcuts.closeWindow))
         XCTAssertEqual(Set(Shortcuts.all).count, Shortcuts.all.count, "no shortcut used twice")
     }
 

@@ -180,6 +180,8 @@ final class StudioFixTests: TempFolderTestCase {
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua) // the pixel checks use the dark tokens
+        // Render in sRGB (the tokens' space), not the display's profile, so the colours do not depend on the screen.
+        window.colorSpace = .sRGB
         window.contentView = hosting
         window.orderFront(nil)
         RunLoop.main.run(until: Date().addingTimeInterval(0.4))
@@ -217,16 +219,24 @@ final class StudioFixTests: TempFolderTestCase {
         let (window, hosting) = host(store, ui: ui, size: size)
         defer { window.orderOut(nil) }
 
-        // Centre column (right of the 240 pt service panel), from the top down to the transport bar.
-        let area = NSRect(x: 242, y: 0, width: size.width - 242, height: size.height - MonitorLayout.reservedBelow - 30)
-        XCTAssertEqual(try pixels(of: (0x4D, 0xA3, 0xFF), in: hosting, rect: area), 0, "no next (preview) marking")
-        XCTAssertEqual(try pixels(of: (0x47, 0xC8, 0x6E), in: hosting, rect: area), 0, "nor in the ok/accent green")
-        XCTAssertGreaterThan(try pixels(of: (0xE5, 0x48, 0x3F), in: hosting, rect: area), 100, "sanity: the live red is drawn")
+        // The slide grid (right of the 240 pt service panel, left of the 360 pt right column, above the 330 pt bottom
+        // panel) and the right column's monitor (under the 30 pt output picker).
+        let right = size.width - OperatorLayout.rightColumnWidth
+        let grid = NSRect(x: 242, y: 0, width: right - 243,
+                          height: size.height - OperatorLayout.statusBarHeight - OperatorLayout.bottomPanelHeight - 2)
+        let monitorWidth = OperatorLayout.rightColumnWidth - 2 * OperatorLayout.columnPadding
+        let monitor = NSRect(x: right + OperatorLayout.columnPadding, y: OperatorLayout.columnPadding + 30 + OperatorLayout.columnSpacing,
+                             width: monitorWidth, height: monitorWidth * 9 / 16)
+        for (name, area) in [("grid", grid), ("monitor", monitor)] {
+            XCTAssertEqual(try pixels(of: (0x4D, 0xA3, 0xFF), in: hosting, rect: area), 0, "\(name): no next (preview) marking")
+            XCTAssertEqual(try pixels(of: (0x47, 0xC8, 0x6E), in: hosting, rect: area), 0, "\(name): nor in the ok/accent green")
+            XCTAssertGreaterThan(try pixels(of: (0xE5, 0x48, 0x3F), in: hosting, rect: area), 100, "\(name): sanity, the live red is drawn")
+        }
         let statusBar = NSRect(x: 0, y: size.height - 22, width: 400, height: 22)
         XCTAssertGreaterThan(try pixels(of: (0x47, 0xC8, 0x6E), in: hosting, rect: statusBar), 0,
-                             "control: the detector sees that green where it is drawn (the output chips' dots)")
-        XCTAssertTrue(MonitorRowTitles.titles(store.state).allSatisfy { $0 != "Next" }, "monitors are the output screens only")
-        XCTAssertEqual(MonitorRowTitles.titles(store.state), ["Left", "Stage", "Right"])
+                             "control: the detector sees that green where it is drawn (the status dots)")
+        XCTAssertEqual(store.state.outputScreens.map(\.name), ["Left", "Stage", "Right"])
+        XCTAssertEqual(MonitorChoice().screen(in: store.state)?.name, "Left", "one monitor: the first output screen by default")
         XCTAssertNotNil(store.state.nextSlide, "the data is still there")
     }
 
@@ -245,25 +255,6 @@ final class StudioFixTests: TempFolderTestCase {
         store.send(.go(itemID: song.id, slideIndex: 0))
         await until("store state") { store.state.nextSlide?.slideIndex == 1 }
         XCTAssertTrue(ServiceMenuModel(state: store.state, selection: nil).canNext, "Next still works from it")
-    }
-
-    func testMonitorsFillTheRowAndKeepTheirAspect() {
-        // Centre column at the minimum window (1100 x 720): 1100 - 240 (service) - 1 (divider).
-        // Centre column sizes for windows of 1100 x 720 (the minimum), 1440 x 900, 1920 x 1080 and 2560 x 1440.
-        for (width, height) in [(859.0, 697.0), (1199.0, 877.0), (1679.0, 1057.0), (2319.0, 1417.0)] {
-            for count in [2, 3] { // Main and Stage; Left, Stage and Right
-                let w = MonitorLayout.monitorWidth(rowWidth: width, columnHeight: height, count: count)
-                let row = CGFloat(count) * w + CGFloat(count - 1) * MonitorLayout.spacing + 2 * MonitorLayout.padding
-                XCTAssertEqual(row, width, accuracy: 0.5, "\(count) monitors fill \(width) x \(height)")
-                let rowHeight = w / MonitorLayout.aspect + MonitorLayout.titleHeight + 2 * MonitorLayout.padding
-                XCTAssertGreaterThanOrEqual(height - rowHeight - MonitorLayout.reservedBelow, MonitorLayout.minGridHeight - 0.5, "the grid keeps its room")
-            }
-        }
-        // Very wide and short (2560 x 720): capped by height, still 16:9; the row centres them.
-        let capped = MonitorLayout.monitorWidth(rowWidth: 2319, columnHeight: 697, count: 3)
-        XCTAssertLessThan(3 * capped + 48, 2319)
-        XCTAssertEqual(capped / MonitorLayout.aspect + MonitorLayout.titleHeight + 2 * MonitorLayout.padding,
-                       697 - MonitorLayout.reservedBelow - MonitorLayout.minGridHeight, accuracy: 0.5)
     }
 
     /// Renders the real operator view at several window sizes into PNGs when TEST_RUNNER_CUEME_SNAPSHOT_DIR is set

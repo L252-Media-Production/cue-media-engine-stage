@@ -165,4 +165,155 @@ final class OperatorModelTests: XCTestCase {
         XCTAssertTrue(Shortcuts.all.contains(Shortcuts.outputSetup))
         XCTAssertTrue(Shortcuts.all.contains(Shortcuts.visuals))
     }
+
+    // MARK: Right column: Clear row
+
+    func testClearRowButtonsSendTheExistingCommands() async {
+        let model = ClearRowModel(state: await state([]))
+        XCTAssertEqual(ClearButton.allCases.map(\.rawValue), ["All", "Slide", "Media", "Audio", "Message", "Black"], "board order")
+        XCTAssertEqual(model.commands(.all), [.clear(.all), .clear(.audio)], "All also clears audio, .all first")
+        XCTAssertEqual(model.commands(.slide), [.clear(.slide)])
+        XCTAssertEqual(model.commands(.audio), [.clear(.audio)])
+        XCTAssertEqual(model.commands(.message), [.clear(.messages)])
+        XCTAssertEqual(model.commands(.media), [], "no media layer in v0.1")
+        XCTAssertEqual(ClearButton.allCases.filter { !model.isEnabled($0) }, [.media])
+        XCTAssertEqual(model.help(.media), "Media clear is not available in v0.1")
+    }
+
+    func testBlackIsTheGlobalBlackoutLikeTheMenu() async {
+        for on in [false, true] {
+            let s = await state(on ? [.blackout(true)] : [])
+            let model = ClearRowModel(state: s)
+            XCTAssertEqual(model.commands(.black), [ServiceMenuModel(state: s, selection: nil).blackoutCommand],
+                           "the same command as Service > Black Out and Cmd-.")
+            XCTAssertEqual(model.isBlack, on, "filled amber while on")
+            XCTAssertTrue(model.isEnabled(.black))
+        }
+    }
+
+    func testClearAllEmptiesSlideMessagesAndAudio() async {
+        let message = lib.messages[0]
+        let client = MockStageClient(library: lib)
+        for command in [Command.go(itemID: amazing.id, slideIndex: 0), .showMessage(message.id, screens: []), .playAudio(mediaID: walkInID)] {
+            await client.send(command)
+        }
+        var s = await client.currentState
+        XCTAssertNotNil(s.primaryLive)
+        XCTAssertFalse(s.visibleMessages.isEmpty)
+        XCTAssertNotNil(s.audio.liveTrack)
+        for command in ClearRowModel(state: s).commands(.all) { await client.send(command) }
+        s = await client.currentState
+        XCTAssertNil(s.primaryLive, "slide cleared")
+        XCTAssertTrue(s.visibleMessages.isEmpty, "messages hidden")
+        XCTAssertNil(s.audio.liveTrack, "audio cleared")
+    }
+
+    func testClearScopeIsAllScreensOnly() async {
+        let s = await state([])
+        let model = ClearRowModel(state: s)
+        XCTAssertEqual(model.scopes.map(\.title), ["All screens", "Left", "Stage", "Right"], "All screens, then each output screen")
+        XCTAssertEqual(model.scope, .allScreens)
+        XCTAssertTrue(model.canPick(.allScreens))
+        for screen in s.outputScreens {
+            XCTAssertFalse(model.canPick(.screen(screen.screenID)), "\(screen.name): no per-screen Command in v0.1")
+        }
+        XCTAssertEqual(ClearRowModel.perScreenHelp, "Per-screen clear is not available in v0.1")
+    }
+
+    // MARK: Right column: monitor
+
+    func testMonitorChoiceIsRememberedPerStudio() async throws {
+        var s = await state([])
+        let sunday = StudioInfo(id: UUID(), name: "Sunday"), youth = StudioInfo(id: UUID(), name: "Youth")
+        let stage = try XCTUnwrap(s.outputScreens.first { $0.name == "Stage" })
+        let right = try XCTUnwrap(s.outputScreens.first { $0.name == "Right" })
+
+        s.studio = sunday
+        XCTAssertEqual(MonitorChoice().screen(in: s)?.name, "Left", "nothing chosen: the first output screen")
+        var choice = MonitorChoice().choosing(stage.screenID, for: sunday)
+        s.studio = youth
+        XCTAssertEqual(choice.screen(in: s)?.name, "Left", "another Studio keeps its own (none yet)")
+        choice = choice.choosing(right.screenID, for: youth)
+
+        // Stored as the app stores it, then read back (a relaunch, or another window).
+        let suite = "cueme.tests.monitor.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(choice.raw, forKey: StorageKeys.monitorScreens)
+        let reread = MonitorChoice(raw: defaults.string(forKey: StorageKeys.monitorScreens) ?? "")
+        s.studio = sunday
+        XCTAssertEqual(reread.screen(in: s)?.name, "Stage")
+        s.studio = youth
+        XCTAssertEqual(reread.screen(in: s)?.name, "Right")
+
+        // The chosen screen is gone (removed, or now an input): back to the first output screen.
+        s.screens.removeAll { $0.screenID == right.screenID }
+        XCTAssertEqual(reread.screen(in: s)?.name, "Left")
+        XCTAssertEqual(MonitorChoice(raw: "not json").screen(in: s)?.name, "Left")
+    }
+
+    func testMonitorStatus() async throws {
+        let live = await state([.go(itemID: amazing.id, slideIndex: 0)])
+        let left = try XCTUnwrap(live.outputScreens.first)
+        XCTAssertEqual(MonitorStatus.of(left, in: live), .live)
+        let idle = await state([])
+        XCTAssertEqual(MonitorStatus.of(try XCTUnwrap(idle.outputScreens.first), in: idle), .clear)
+        let black = await state([.go(itemID: amazing.id, slideIndex: 0), .blackout(true)])
+        XCTAssertEqual(MonitorStatus.of(try XCTUnwrap(black.outputScreens.first), in: black), .black)
+    }
+
+    func testOutputPickerGroupsByScreenType() async {
+        let sections = OutputPickerModel(state: await state([])).sections
+        XCTAssertEqual(sections.map(\.title), ["AUDIENCE", "STAGE"])
+        XCTAssertEqual(sections.map { $0.screens.map(\.name) }, [["Left", "Right"], ["Stage"]], "no input screen")
+    }
+
+    // MARK: Status bar
+
+    func testOutputsCountAndDropped() async throws {
+        let client = MockStageClient(library: lib)
+        var s = await client.currentState
+        let assigned = s.outputScreens.filter { s.connectorID(for: $0.screenID) != nil }.count
+        XCTAssertGreaterThan(assigned, 0, "the sample rig assigns its screens")
+        var model = OutputsStatusModel(state: s)
+        XCTAssertEqual(model.text, "Outputs \(assigned) / \(assigned)")
+        XCTAssertEqual(model.level, .ok)
+        XCTAssertEqual(model.dropped, 0)
+
+        let first = try XCTUnwrap(s.outputs.first), second = try XCTUnwrap(s.outputs.dropFirst().first)
+        await client.simulateOutput(first.outputID, health: .offline, droppedFrames: 3)
+        await client.simulateOutput(second.outputID, health: .degraded, droppedFrames: 4)
+        s = await client.currentState
+        model = OutputsStatusModel(state: s)
+        XCTAssertEqual(model.text, "Outputs \(assigned - 1) / \(assigned)", "an offline output is not connected")
+        XCTAssertEqual(model.level, .degraded)
+        XCTAssertEqual(model.dropped, 7, "sum over every output")
+
+        s.assignments = s.assignments.map { OutputAssignment(screenID: $0.screenID, connectorID: nil) }
+        model = OutputsStatusModel(state: s)
+        XCTAssertEqual(model.text, "Outputs 0 / 0")
+        XCTAssertNil(model.level, "neutral: nothing assigned on this Mac")
+    }
+
+    func testOutputsCountIgnoresUnavailableConnectors() async throws {
+        var s = await state([])
+        let connector = try XCTUnwrap(s.outputScreens.compactMap { s.connectorID(for: $0.screenID) }.first)
+        let expected = OutputsStatusModel(state: s).expected
+        s.connectors = s.connectors.map { var c = $0; if c.id == connector { c.available = false }; return c }
+        XCTAssertEqual(OutputsStatusModel(state: s).connected, expected - 1)
+        s.connectors.removeAll()
+        XCTAssertEqual(OutputsStatusModel(state: s).connected, 0)
+        XCTAssertEqual(OutputsStatusModel(state: s).level, .offline)
+    }
+
+    func testRightColumnTabsAndSizes() {
+        XCTAssertEqual(SideTab.allCases.map(\.rawValue), ["Audio", "Message", "Timer"], "Main.dc.html L993")
+        XCTAssertEqual(SideTab.resolve("Message"), .message)
+        XCTAssertEqual(SideTab.resolve("Timer"), .audio, "disabled in v0.1")
+        XCTAssertEqual(SideTab.resolve("nonsense"), .audio)
+        XCTAssertEqual(BottomTab.allCases.map(\.rawValue), ["Scripture", "Media", "Looks", "Audio", "Activities"], "Main.dc.html L999")
+        XCTAssertEqual(OperatorLayout.rightColumnWidth, 360)
+        XCTAssertEqual(OperatorLayout.bottomPanelHeight, 330)
+        XCTAssertEqual(OperatorLayout.statusBarHeight, 28)
+    }
 }

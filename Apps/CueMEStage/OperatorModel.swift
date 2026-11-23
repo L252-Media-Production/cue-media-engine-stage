@@ -30,6 +30,10 @@ enum StorageKeys {
     static let outputSetupScreen = "cueme.outputSetup.screen"
     /// Path of the last opened Studio package; reopened at launch.
     static let lastStudio = "cueme.studio.last"
+    /// `MonitorChoice.raw`: the output screen the right-column monitor shows, per Studio, on this machine.
+    static let monitorScreens = "cueme.operator.monitorScreens"
+    /// `SideTab.rawValue` of the right column's Audio / Message / Timer tabs.
+    static let sideTab = "cueme.operator.sideTab"
 }
 
 /// View > Theme. A fresh install is dark (the `@AppStorage` default); Auto follows the system appearance.
@@ -61,6 +65,204 @@ enum BottomTab: String, CaseIterable, Identifiable {
     static func resolve(_ raw: String) -> BottomTab {
         guard let tab = BottomTab(rawValue: raw), tab.isEnabled else { return .audio }
         return tab
+    }
+}
+
+/// The right column's tabs under the Clear row (Main.dc.html L993: Audio, Message, Timer).
+enum SideTab: String, CaseIterable, Identifiable {
+    case audio = "Audio"
+    case message = "Message"
+    case timer = "Timer"
+
+    var id: Self { self }
+    /// Timer is off in v0.1: StageState has no timer list to show (only the ids of running ones).
+    var isEnabled: Bool { self != .timer }
+
+    /// The tab for a saved value: an unknown or disabled value falls back to Audio.
+    static func resolve(_ raw: String) -> SideTab {
+        guard let tab = SideTab(rawValue: raw), tab.isEnabled else { return .audio }
+        return tab
+    }
+}
+
+/// Which output screen the right column's single monitor shows. Kept per Studio on this machine: one JSON map
+/// `[Studio id: screen id]` in UserDefaults (`StorageKeys.monitorScreens`), so every window shows the same choice and
+/// each Studio keeps its own. A choice whose screen is gone falls back to the Studio's first output screen.
+struct MonitorChoice: Equatable {
+    /// The stored JSON; "" when nothing was chosen yet.
+    var raw: String
+
+    init(raw: String = "") { self.raw = raw }
+
+    /// The map key for a Studio; one shared key while no Studio is open (the mock).
+    static func key(_ studio: StudioInfo?) -> String { studio?.id.uuidString ?? "none" }
+
+    private var map: [String: String] {
+        (try? JSONDecoder().decode([String: String].self, from: Data(raw.utf8))) ?? [:]
+    }
+
+    /// The screen the monitor shows for this state: the stored one when it is still an output screen, else the first.
+    func screenID(in state: StageState) -> Screen.ID? {
+        let screens = state.outputScreens
+        if let stored = map[Self.key(state.studio)].flatMap(UUID.init(uuidString:)),
+           screens.contains(where: { $0.screenID == stored }) {
+            return stored
+        }
+        return screens.first?.screenID
+    }
+
+    func screen(in state: StageState) -> ScreenState? {
+        let id = screenID(in: state)
+        return state.outputScreens.first { $0.screenID == id }
+    }
+
+    /// This choice with `screenID` picked for the state's Studio; the other Studios' choices are kept.
+    func choosing(_ screenID: Screen.ID, for studio: StudioInfo?) -> MonitorChoice {
+        var map = map
+        map[Self.key(studio)] = screenID.uuidString
+        let data = (try? JSONEncoder().encode(map)) ?? Data()
+        return MonitorChoice(raw: String(decoding: data, as: UTF8.self))
+    }
+}
+
+/// The status chip and border of a monitor (Main.dc.html L963 `stat`): LIVE red, BLACK amber, CLEAR and TEST grey/amber.
+enum MonitorStatus: String {
+    case live = "LIVE"
+    case black = "BLACK"
+    case clear = "CLEAR"
+    case test = "TEST"
+
+    /// Blackout is global in v0.1 (`Command.blackout`), so it blacks every screen and the monitor says so.
+    static func of(_ screen: ScreenState, in state: StageState) -> MonitorStatus {
+        if TestPatternMenuModel(state: state).pattern(on: screen.screenID) != nil { return .test }
+        if state.blackout { return .black }
+        return screen.live == nil ? .clear : .live
+    }
+}
+
+/// The output picker's menu (Main.dc.html L951 `menuRows`): the Studio's output screens under their type, then
+/// Output Setup….
+struct OutputPickerModel {
+    let state: StageState
+
+    /// Non-empty groups in the board's order. A screen without a setup is listed as Audience.
+    var sections: [(title: String, screens: [ScreenState])] {
+        let order: [(ScreenType, String)] = [(.audience, "AUDIENCE"), (.stage, "STAGE"), (.announcements, "ANNOUNCEMENTS"), (.speaker, "SPEAKER")]
+        return order.compactMap { type, title in
+            let screens = state.outputScreens.filter { (state.screenSetups[$0.screenID]?.type ?? .audience) == type }
+            return screens.isEmpty ? nil : (title, screens)
+        }
+    }
+}
+
+/// What the Clear row picks: every screen, or one. Only every screen can be picked in v0.1.
+enum ClearScope: Hashable {
+    case allScreens
+    case screen(Screen.ID)
+}
+
+/// The six Clear buttons (Main.dc.html L975).
+enum ClearButton: String, CaseIterable, Identifiable {
+    case all = "All"
+    case slide = "Slide"
+    case media = "Media"
+    case audio = "Audio"
+    case message = "Message"
+    case black = "Black"
+
+    var id: Self { self }
+}
+
+/// The Clear row under Previous / Next: a scope picker and six buttons. Pure, so it is tested without the UI.
+///
+/// Uses the existing Commands only. `Command.clear` and `Command.blackout` act on every screen, so the scope is always
+/// All screens; the per-screen entries are listed but cannot be picked. There is no media layer, so Media is off.
+struct ClearRowModel {
+    let state: StageState
+
+    static let perScreenHelp = "Per-screen clear is not available in v0.1"
+    static let mediaHelp = "Media clear is not available in v0.1"
+
+    /// "All screens" first, then each output screen (Main.dc.html L980 `scopeNames`).
+    var scopes: [(scope: ClearScope, title: String)] {
+        [(.allScreens, "All screens")] + state.outputScreens.map { (.screen($0.screenID), $0.name) }
+    }
+
+    var scope: ClearScope { .allScreens }
+    func canPick(_ scope: ClearScope) -> Bool { scope == .allScreens }
+
+    /// What a press sends, in order. All clears audio too (the board's All), and `.all` leaves audio alone, so it is
+    /// `.all` then `.audio`. Black toggles the global blackout, as Service > Black Out and Cmd-. do.
+    func commands(_ button: ClearButton) -> [Command] {
+        switch button {
+        case .all: [.clear(.all), .clear(.audio)]
+        case .slide: [.clear(.slide)]
+        case .media: []
+        case .audio: [.clear(.audio)]
+        case .message: [.clear(.messages)]
+        case .black: [.blackout(!state.blackout)]
+        }
+    }
+
+    func isEnabled(_ button: ClearButton) -> Bool { button != .media }
+
+    /// Black is the one button with a state: filled amber while blackout is on.
+    var isBlack: Bool { state.blackout }
+
+    func help(_ button: ClearButton) -> String {
+        switch button {
+        case .all: "Clear slide, messages and audio on all screens"
+        case .slide: "Clear the slide on all screens"
+        case .media: Self.mediaHelp
+        case .audio: "Stop audio"
+        case .message: "Hide all messages"
+        case .black: state.blackout ? "Blackout is on. Click to end it (Cmd-.)" : "Black out the outputs (Cmd-.)"
+        }
+    }
+}
+
+/// The status bar's "Outputs n / m" and "Dropped n" (Main.dc.html L682, L685). Machine data only: the output screens
+/// this Mac drives (this machine's assignments), the connectors the engine reports, and their output health.
+struct OutputsStatusModel {
+    let state: StageState
+
+    /// Output screens of this Studio assigned to a connector on this machine.
+    private var assigned: [(screen: ScreenState, connector: Connector.ID)] {
+        state.outputScreens.compactMap { screen in state.connectorID(for: screen.screenID).map { (screen, $0) } }
+    }
+
+    private func health(_ connector: Connector.ID) -> OutputStatus.Health {
+        guard let found = state.connector(connector), found.available else { return .offline }
+        return state.outputs.first { $0.connectorID == connector }?.health ?? .ok
+    }
+
+    var expected: Int { assigned.count }
+    /// Assigned screens whose connector is present, available and not offline.
+    var connected: Int { assigned.filter { health($0.connector) != .offline }.count }
+    var text: String { "Outputs \(connected) / \(expected)" }
+
+    /// nil (neutral) when nothing is assigned; offline when none is connected; degraded when some are missing or any
+    /// reports degraded; ok otherwise.
+    var level: OutputStatus.Health? {
+        guard expected > 0 else { return nil }
+        if connected == 0 { return .offline }
+        if connected < expected || assigned.contains(where: { health($0.connector) == .degraded }) { return .degraded }
+        return .ok
+    }
+
+    /// Sum of every output's dropped frames.
+    var dropped: Int { state.outputs.reduce(0) { $0 + $1.droppedFrames } }
+
+    var tooltip: String {
+        guard expected > 0 else {
+            return "No screen of this Studio is assigned to a connector on this Mac (Output > Output Setup…)"
+        }
+        return assigned.map { entry in
+            let name = state.connector(entry.connector)?.label ?? entry.connector
+            let status = state.outputs.first { $0.connectorID == entry.connector }
+            let dropped = status.map { $0.droppedFrames > 0 ? ", \($0.droppedFrames) dropped" : "" } ?? ""
+            return "\(entry.screen.name) → \(name): \(health(entry.connector).rawValue)\(dropped)"
+        }.joined(separator: "\n")
     }
 }
 

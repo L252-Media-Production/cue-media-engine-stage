@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Presentation Editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:10px">
+
+<!-- Title bar -->
+<div style="height:44px; flex:none; display:flex; align-items:center; gap:12px; padding:0 14px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="display:flex; gap:8px; width:64px"><span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span><span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span><span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span></div>
+<div style="font-weight:700">Presentation Editor</div>
+<span style="color:var(--dim)">[Presentation title]</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">Saved</span>
+<a href="Main.dc.html" style="height:28px; padding:0 14px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; text-decoration:none">Done</a>
+</div>
+
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Left: slide list + objects -->
+<div style="position:relative; width:224px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line)">
+<div style="flex:none; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--line)"><span style="font-weight:700">[Presentation title]</span><span onClick="{{ toggleMenu }}" style="color:var(--dim); font-size:16px; cursor:pointer">+</span></div>
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:42px; left:8px; width:208px; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{layoutRows}}" as="l" hint-placeholder-count="4"><div style="display:flex; align-items:center; gap:10px; padding:5px 8px; border-radius:5px; cursor:pointer"><div style="position:relative; width:40px; height:23px; flex:none; background:#0b0b0b; border:1px solid var(--line)"><sc-for list="{{ l.boxes }}" as="b" hint-placeholder-count="2"><span style="{{ b.style }}"></span></sc-for></div><span>{{ l.name }}</span></div></sc-for>
+<div style="height:1px; margin:4px 0; background:var(--line)"></div>
+<div style="padding:6px 8px; border-radius:5px">Section</div>
+<div style="height:1px; margin:4px 0; background:var(--line)"></div>
+<sc-for list="{{importRows}}" as="r" hint-placeholder-count="3"><div style="padding:6px 8px; border-radius:5px">{{ r }}</div></sc-for>
+</div>
+</sc-if>
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
+<sc-for list="{{listRows}}" as="r" hint-placeholder-count="9">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div onClick="{{ r.pick }}" style="{{ r.hStyle }}"><span style="width:12px; font-size:10px">{{ r.chev }}</span><span style="font-weight:700">{{ r.name }}</span></div></sc-if>
+<sc-if value="{{ r.isSlide }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.sStyle }}"><div style="{{ r.thumbStyle }}"><sc-for list="{{ r.items }}" as="i" hint-placeholder-count="2"><div style="{{ i.style }}">{{ i.text }}</div></sc-for></div><div style="font-size:11px; padding-top:3px; color:var(--fg); opacity:.85">{{ r.n }}.</div></div></sc-if>
+</sc-for>
+</div>
+<div style="flex:none; border-top:1px solid var(--line)">
+<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px"><span style="font-weight:700">Objects</span><span style="color:var(--accent); font-weight:600">+</span></div>
+<div style="padding:0 8px 10px; display:flex; flex-direction:column; gap:1px; min-height:56px">
+<sc-for list="{{objRows}}" as="o" hint-placeholder-count="2"><div onClick="{{ o.pick }}" style="{{ o.style }}"><span style="width:16px; font-family:Georgia,serif; font-weight:700">{{ o.icon }}</span><span style="flex:1">{{ o.name }}</span><span style="color:var(--dim); font-size:11px">{{ o.src }}</span></div></sc-for>
+</div>
+</div>
+</div>
+
+<!-- Center -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg)">
+<div style="flex:none; display:flex; border-bottom:1px solid var(--line); background:var(--chrome)">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="2"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for>
+</div>
+<div style="flex:none; display:flex; align-items:center; gap:12px; padding:8px 16px; border-bottom:1px solid var(--line)">
+<span style="font-weight:600">[Presentation title]</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">Layout</span>
+<div style="height:26px; padding:0 10px; display:flex; align-items:center; gap:8px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ curLayout }}</span><span style="color:var(--dim)">▾</span></div>
+</div>
+
+<!-- Slide tab -->
+<sc-if value="{{ isSlideTab }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; gap:14px; padding:14px 20px; background:{{ stageBg }}">
+<div style="flex:none; display:flex; align-items:center; border-radius:8px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.25)">
+<sc-for list="{{tools}}" as="t" hint-placeholder-count="4"><div style="display:flex; align-items:center; gap:6px; padding:7px 14px; color:var(--fg)"><span style="font-family:Georgia,serif; font-weight:700; font-size:15px">{{ t.glyph }}</span><span style="font-size:12px">{{ t.name }}</span></div></sc-for>
+</div>
+<div style="position:relative; width:780px; height:439px; flex:none; overflow:visible; border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.35); {{ canvasBg }}">
+<sc-for list="{{canvasObjs}}" as="o" hint-placeholder-count="2">
+<div onClick="{{ o.pick }}" style="{{ o.style }}">
+<sc-if value="{{ o.isText }}" hint-placeholder-val="{{ true }}"><div style="{{ o.textStyle }}">{{ o.text }}</div></sc-if>
+<sc-if value="{{ o.isImage }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background:repeating-linear-gradient(135deg, rgba(150,150,60,.4) 0 1px, transparent 1px 8px)"></div></sc-if>
+<sc-if value="{{ o.selected }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; left:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; left:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; left:0; top:-14px; font-size:9px; color:var(--accent); font-family:'JetBrains Mono',ui-monospace,monospace; white-space:nowrap">{{ o.tag }}</span></sc-if>
+</div>
+</sc-for>
+</div>
+<div style="width:780px; display:flex; align-items:center; gap:12px">
+<span style="color:var(--dim); font-size:12px">{{ slideInfo }}</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">1920 × 1080</span>
+<div onClick="{{ toggleMenu }}" style="height:28px; padding:0 14px; display:flex; align-items:center; gap:6px; border-radius:6px; border:1px solid var(--accent); color:var(--accent); font-weight:600; cursor:pointer">+ New slide ▾</div>
+</div>
+</div>
+</sc-if>
+
+<!-- Outline tab -->
+<sc-if value="{{ isOutlineTab }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; overflow:hidden; padding:12px 20px; display:flex; flex-direction:column; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px">
+<sc-for list="{{outlineRows}}" as="r" hint-placeholder-count="14">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="{{ r.hStyle }}"><span style="{{ r.dot }}"></span><span style="font-weight:700">{{ r.name }}</span></div></sc-if>
+<sc-if value="{{ r.isLine }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.lStyle }}">{{ r.text }}</div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<!-- Right -->
+<div style="width:320px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-left:1px solid var(--line)">
+<div style="flex:none; display:flex; border-bottom:1px solid var(--line)">
+<sc-for list="{{rtabs}}" as="t" hint-placeholder-count="2"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for>
+</div>
+<sc-if value="{{ isRPres }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:12px; padding:14px">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Title</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)">[Presentation title]</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Author</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)">[Author]</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Collection</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Presentations</span><span style="color:var(--dim)">▾</span></div></div>
+</div>
+</sc-if>
+<sc-if value="{{ isRSlide }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:12px; padding:14px">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Background</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{bgSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+<div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); margin-top:5px"><span style="{{ bgFieldStyle }}">{{ bgField }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="display:flex; gap:8px">
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Transition</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Fade</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="width:90px; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Duration</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">0.5 s</div></div>
+</div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Auto-advance</span>
+<div style="display:flex; align-items:center; gap:10px"><span onClick="{{ toggleAuto }}" style="{{ autoTrack }}"><span style="{{ autoKnob }}"></span></span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); flex:1; font-family:'JetBrains Mono',ui-monospace,monospace; opacity:{{ autoOpacity }}">{{ autoTime }}</div></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Speaker notes</span><div style="height:110px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">Notes for the speaker</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Operator notes</span><div style="height:80px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">Notes for the operator</div></div>
+</div>
+</sc-if>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"tab":{"editor":"enum","default":"slide","options":["slide","outline"]},"select":{"editor":"enum","default":"1","options":["0","1","2","3","4","5"]},"menu":{"editor":"enum","default":"closed","options":["closed","open"]},"rtab":{"editor":"enum","default":"slide","options":["slide","presentation"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const p = props || {};
+    const sel = parseInt(String(p.select === undefined ? 1 : p.select), 10);
+    this.state = { tab: p.tab === 'outline' ? 1 : 0, sel: isNaN(sel) ? 1 : sel, ob: 0, menu: p.menu === 'open', rtab: p.rtab === 'presentation' ? 1 : 0, coll: {}, bg: 0, auto: false };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#e6e6e3;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--warn:#a85a00;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--warn:#ffb020;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const st = this.state;
+    const SEC = [{ n: 'Intro', c: '#5b6670' }, { n: 'Main points', c: '#5b6670' }, { n: 'Closing', c: '#5b6670' }];
+    const T = (n, x, y, w, h, sz, t, al, c) => ({ n, k: 'text', x, y, w, h, sz, t, al, c: c || '#ffffff' });
+    const IMG = (n, x, y, w, h) => ({ n, k: 'image', x, y, w, h });
+    const S = [
+      { s: 0, layout: 'Title', objs: [T('Title', 90, 150, 600, 90, 44, '[Presentation title]', 1), T('Subtitle', 140, 250, 500, 50, 22, '[Speaker]', 1, '#9ab0c4')] },
+      { s: 1, layout: 'Title + content', objs: [T('Title', 40, 30, 700, 70, 36, 'Point one', 0), T('Content', 40, 120, 700, 270, 24, '• First idea\n• Second idea\n• Third idea', 0)] },
+      { s: 1, layout: 'Two column', objs: [T('Title', 40, 30, 700, 70, 36, 'Point two', 0), T('Left column', 40, 120, 340, 270, 22, '• Left one\n• Left two', 0), IMG('Right image', 400, 120, 340, 270)] },
+      { s: 1, layout: 'Title + content', objs: [T('Title', 40, 30, 700, 70, 36, 'Point three', 0), T('Content', 40, 120, 700, 270, 24, '• First idea\n• Second idea', 0)] },
+      { s: 1, layout: 'Blank', objs: [IMG('Photo', 0, 0, 780, 439)] },
+      { s: 2, layout: 'Title', objs: [T('Title', 90, 150, 600, 90, 44, 'Closing', 1), T('Subtitle', 140, 250, 500, 50, 22, 'Thank you', 1, '#9ab0c4')] }
+    ];
+    const sel = Math.min(st.sel, S.length - 1);
+    const cur = S[sel];
+    const ob = Math.min(st.ob, cur.objs.length - 1);
+    const stripe = 'repeating-linear-gradient(135deg, rgba(150,150,60,.4) 0 1px, transparent 1px 4px)';
+    const F = 200 / 780;
+    const listRows = [];
+    SEC.forEach((g, gi) => {
+      const closed = !!st.coll[gi];
+      listRows.push({ isHeader: true, isSlide: false, name: g.n, chev: closed ? '›' : '⌄',
+        pick: () => this.setState({ coll: { ...st.coll, [gi]: !closed } }),
+        hStyle: 'display:flex; align-items:center; gap:6px; padding:3px 10px; cursor:pointer; color:#fff; background:' + g.c });
+      if (closed) return;
+      S.forEach((s, si) => {
+        if (s.s !== gi) return;
+        listRows.push({ isHeader: false, isSlide: true, n: si + 1,
+          pick: () => this.setState({ sel: si, ob: 0 }),
+          sStyle: 'padding:8px 12px 6px; cursor:pointer; background:' + (si === sel ? 'var(--sel)' : 'transparent'),
+          thumbStyle: 'position:relative; aspect-ratio:16/9; overflow:hidden; background:#0b0b0b; border:2px solid ' + (si === sel ? 'var(--accent)' : 'transparent'),
+          items: s.objs.map((o) => ({ text: o.k === 'text' ? o.t : '', style: 'position:absolute; box-sizing:border-box; overflow:hidden; white-space:pre-line; line-height:1.15; font-weight:600; left:' + o.x * F + 'px; top:' + o.y * F + 'px; width:' + o.w * F + 'px; height:' + o.h * F + 'px; font-size:' + Math.max(4, o.sz ? o.sz * F : 0) + 'px; color:' + (o.c || '#fff') + '; text-align:' + ['left', 'center', 'right'][o.al || 0] + ';' + (o.k === 'image' ? ' background:' + stripe : '') }))
+        });
+      });
+    });
+    const tabs = ['Slide', 'Outline'].map((n, i) => ({
+      label: n, pick: () => this.setState({ tab: i }),
+      style: 'flex:1; text-align:center; padding:9px 0; cursor:pointer; border-bottom:2px solid ' + (i === st.tab ? 'var(--accent)' : 'transparent') + '; font-weight:' + (i === st.tab ? 700 : 400) + '; color:' + (i === st.tab ? 'var(--fg)' : 'var(--dim)')
+    }));
+    const rtabs = ['Slide', 'Presentation'].map((n, i) => ({
+      label: n, pick: () => this.setState({ rtab: i }),
+      style: 'flex:1; text-align:center; padding:9px 0; cursor:pointer; border-bottom:2px solid ' + (i === st.rtab ? 'var(--accent)' : 'transparent') + '; font-weight:' + (i === st.rtab ? 700 : 400) + '; color:' + (i === st.rtab ? 'var(--fg)' : 'var(--dim)')
+    }));
+    const tools = [{ glyph: 'T', name: 'Text' }, { glyph: '▢', name: 'Shape' }, { glyph: '▨', name: 'Image' }, { glyph: '▶', name: 'Video' }];
+    const objRows = cur.objs.map((o, i) => ({
+      name: o.n, icon: o.k === 'image' ? '▨' : 'T', src: o.k === 'image' ? 'Image' : '',
+      pick: () => this.setState({ ob: i }),
+      style: 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (i === ob ? 'var(--sel)' : 'transparent')
+    }));
+    const alignCss = ['flex-start', 'center', 'flex-end'];
+    const canvasObjs = cur.objs.map((o, i) => ({
+      isText: o.k === 'text', isImage: o.k === 'image', selected: i === ob, tag: (o.k === 'image' ? 'Image: ' : 'Text: ') + o.n,
+      text: o.t || '',
+      pick: () => this.setState({ ob: i }),
+      style: 'position:absolute; box-sizing:border-box; cursor:pointer; left:' + o.x + 'px; top:' + o.y + 'px; width:' + o.w + 'px; height:' + o.h + 'px; border:1px solid ' + (i === ob ? 'var(--accent)' : 'rgba(150,150,60,.5)'),
+      textStyle: 'position:absolute; inset:0; padding:4px 8px; display:flex; align-items:center; justify-content:' + alignCss[o.al || 0] + '; text-align:' + ['left', 'center', 'right'][o.al || 0] + '; white-space:pre-line; line-height:1.25; font-weight:600; font-size:' + o.sz + 'px; color:' + o.c
+    }));
+    const lay = [['Title', [[8, 28, 24, 8], [12, 40, 16, 4]]], ['Title + content', [[4, 4, 32, 4], [4, 11, 32, 9]]], ['Two column', [[4, 4, 32, 4], [4, 11, 15, 9], [21, 11, 15, 9]]], ['Blank', []]];
+    const layoutRows = lay.map((l) => ({ name: l[0], boxes: l[1].map((b) => ({ style: 'position:absolute; background:#6f7a85; left:' + b[0] + 'px; top:' + b[1] + 'px; width:' + b[2] + 'px; height:' + b[3] + 'px' })) }));
+    const outlineRows = [];
+    SEC.forEach((g, gi) => {
+      outlineRows.push({ isHeader: true, isLine: false, name: g.n, dot: 'width:9px; height:9px; border-radius:5px; flex:none; background:' + g.c, hStyle: 'display:flex; align-items:center; gap:8px; padding:8px 12px 4px; margin-top:' + (gi ? 6 : 0) + 'px' });
+      let first = true;
+      S.forEach((s, si) => {
+        if (s.s !== gi) return;
+        const txt = s.objs.filter((o) => o.k === 'text').map((o) => o.t).join('\n').split('\n');
+        txt.forEach((line, li) => {
+          outlineRows.push({ isHeader: false, isLine: true, text: line, pick: () => this.setState({ sel: si, ob: 0 }),
+            lStyle: 'padding:5px 12px; cursor:pointer; font-weight:' + (li === 0 ? 700 : 400) + '; background:' + (si === sel ? 'var(--sel)' : 'transparent') + (!first && li === 0 ? '; border-top:1px dashed var(--line)' : '') });
+        });
+        first = false;
+      });
+    });
+    const bgSeg = ['Color', 'Image', 'Video'].map((n, i) => ({ label: n, pick: () => this.setState({ bg: i }),
+      style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; background:' + (st.bg === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (st.bg === i ? onAccent : 'var(--fg)') + '; font-weight:' + (st.bg === i ? 700 : 400) }));
+    return {
+      vars, onAccent, listRows, tabs, rtabs, tools, objRows, canvasObjs, outlineRows, layoutRows,
+      importRows: ['Import PowerPoint…', 'Import Keynote…', 'Import PDF…'],
+      menuOpen: st.menu, toggleMenu: () => this.setState({ menu: !st.menu }),
+      isSlideTab: st.tab === 0, isOutlineTab: st.tab === 1, isRSlide: st.rtab === 0, isRPres: st.rtab === 1,
+      stageBg: light ? '#9a9a96' : '#4a4a4c', canvasBg: 'background:#0b0b0b',
+      curLayout: cur.layout,
+      slideInfo: 'Slide ' + (sel + 1) + ' of ' + S.length + ' · ' + SEC[cur.s].n,
+      bgSeg, bgField: st.bg === 0 ? 'Black' : 'Choose…', bgFieldStyle: st.bg === 0 ? '' : 'color:var(--dim)',
+      toggleAuto: () => this.setState({ auto: !st.auto }),
+      autoTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; cursor:pointer; background:' + (st.auto ? 'var(--accent)' : 'var(--line)'),
+      autoKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (st.auto ? onAccent : 'var(--dim)') + '; left:' + (st.auto ? 18 : 2) + 'px',
+      autoTime: '5 s', autoOpacity: st.auto ? 1 : 0.5
+    };
+  }
+}
+</script>
+</body>
+</html>

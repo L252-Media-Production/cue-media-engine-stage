@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bible Template Editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:10px">
+
+<!-- Title bar -->
+<div style="height:44px; flex:none; display:flex; align-items:center; gap:12px; padding:0 14px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="display:flex; gap:8px; width:64px"><span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span><span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span><span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span></div>
+<div style="font-weight:700">Templates</div>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><a href="SongTemplate.dc.html" style="padding:5px 14px; text-decoration:none; background:var(--panel); color:var(--fg); font-weight:400">Songs</a><a href="BibleTemplate.dc.html" style="padding:5px 14px; text-decoration:none; background:var(--accent); color:{{onAccent}}; font-weight:700">Scripture</a><a href="MessageTemplate.dc.html" style="padding:5px 14px; text-decoration:none; background:var(--panel); color:var(--fg); font-weight:400">Messages</a></div>
+<span style="color:var(--dim)">{{ tmplName }}</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">Preview with</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{pvSeg}}" as="a" hint-placeholder-count="2"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+<a href="MainLooks.dc.html" style="color:var(--accent); font-weight:600; text-decoration:none">Looks ↗</a>
+<a href="MainLooks.dc.html" style="display:flex; align-items:center; height:28px; padding:0 14px; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; text-decoration:none">Done</a>
+</div>
+
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Left: templates + objects -->
+<div style="width:240px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line)">
+<div style="padding:12px 14px 4px; display:flex; justify-content:space-between"><span style="{{label}}">TEMPLATES</span><span style="color:var(--accent); font-weight:600">+ New</span></div>
+<div style="padding:0 8px 8px; display:flex; flex-direction:column; gap:1px; border-bottom:1px solid var(--line)">
+<sc-for list="{{tmplRows}}" as="t" hint-placeholder-count="3"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for>
+</div>
+<div style="padding:12px 14px 4px; display:flex; justify-content:space-between"><span style="{{label}}">OBJECTS</span><span style="color:var(--accent); font-weight:600">+ Text &nbsp; + Image</span></div>
+<div style="padding:0 8px 8px; display:flex; flex-direction:column; gap:1px; border-bottom:1px solid var(--line)">
+<sc-for list="{{objRows}}" as="o" hint-placeholder-count="5">
+<div onClick="{{ o.pick }}" style="{{ o.style }}"><span style="width:16px; color:var(--dim)">{{ o.icon }}</span><span style="flex:1; font-weight:{{ o.weight }}">{{ o.name }}</span><span style="color:var(--dim); font-size:11px; max-width:84px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis">{{ o.src }}</span></div>
+</sc-for>
+</div>
+<div style="padding:12px 14px 6px"><span style="{{label}}">TEMPLATE SETTINGS</span></div>
+<div style="padding:0 14px; display:flex; flex-direction:column; gap:10px">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Background</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{bgSeg}}" as="a" hint-placeholder-count="2"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Long verses</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{lvSeg}}" as="a" hint-placeholder-count="2"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+</div>
+</div>
+
+<!-- Center: canvas -->
+<div style="flex:1; min-width:0; display:flex; align-items:center; justify-content:center; background:var(--bg)">
+<div style="{{ canvasStyle }}">
+<sc-for list="{{canvasObjs}}" as="o" hint-placeholder-count="5">
+<div onClick="{{ o.pick }}" style="{{ o.style }}">
+<span style="{{ o.tagStyle }}">{{ o.tag }}</span>
+<sc-if value="{{ o.isText }}" hint-placeholder-val="{{ true }}"><div style="{{ o.textStyle }}">{{ o.text }}</div></sc-if>
+<sc-if value="{{ o.isHatch }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background:repeating-linear-gradient(135deg, rgba(150,150,60,.55) 0 1px, transparent 1px 7px)"></div></sc-if>
+<sc-if value="{{ o.selected }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; left:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; left:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+
+<!-- Right: inspector -->
+<div style="position:relative; width:340px; flex:none; display:flex; flex-direction:column; gap:12px; padding:14px; background:var(--chrome); border-left:1px solid var(--line); overflow:hidden">
+<div style="{{label}}">{{ inspTitle }}</div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Name</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">{{ selName }}</div></div>
+
+<sc-if value="{{ selHasSlot }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Translation</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ selSlot }}</span><span style="color:var(--dim)">▾</span></div></div>
+</sc-if>
+
+<sc-if value="{{ selIsText }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Text</span>
+<div style="min-height:34px; padding:5px 6px; display:flex; flex-wrap:wrap; gap:5px; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">
+<sc-for list="{{parts}}" as="p" hint-placeholder-count="2">
+<span style="{{ p.style }}">{{ p.label }}<span onClick="{{ p.remove }}" style="margin-left:6px; opacity:.7; cursor:pointer">×</span></span>
+</sc-for>
+<span style="color:var(--dim); font-size:12px; padding-left:4px">{{ emptyHint }}</span>
+</div>
+<div style="display:flex; gap:8px; margin-top:4px">
+<button onClick="{{ toggleMenu }}" style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600">+ Variable ▾</button>
+<button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+ Text</button>
+</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Size</span>
+<div style="display:flex; gap:8px; align-items:center">
+<button onClick="{{ sizeDown }}" style="width:30px; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">−</button>
+<div style="width:56px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">{{ selSize }}</div>
+<button onClick="{{ sizeUp }}" style="width:30px; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+</button>
+<div style="flex:1"></div>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{alignSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Color</span>
+<div style="display:flex; gap:8px"><sc-for list="{{swatches}}" as="c" hint-placeholder-count="5"><span onClick="{{ c.pick }}" style="{{ c.style }}"></span></sc-for></div></div>
+<div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><div style="flex:1"><div style="font-weight:600">Shrink text to fit</div><div style="color:var(--dim); font-size:11px">Keeps long verses inside the box</div></div><span style="width:34px; height:18px; border-radius:9px; position:relative; background:var(--accent)"><span style="position:absolute; top:2px; left:18px; width:14px; height:14px; border-radius:7px; background:{{onAccent}}"></span></span></div>
+</sc-if>
+
+<sc-if value="{{ selIsAttr }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:5px; padding:10px; border-radius:8px; border:1px dashed var(--accent)"><span style="color:var(--dim); font-size:12px">Show credit</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{attrSeg}}" as="a" hint-placeholder-count="2"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+<span style="color:var(--dim); font-size:11px">Credit for CC BY and CC BY-SA translations can't be turned off.</span></div>
+</sc-if>
+
+<sc-if value="{{ selIsImage }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Fill</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ selFill }}</span><span style="color:var(--dim)">▾</span></div>
+<span style="color:var(--dim); font-size:11px">Also: Gradient, Media, Transparent</span></div>
+</sc-if>
+
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Position and size</span>
+<div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px">
+<sc-for list="{{geom}}" as="g" hint-placeholder-count="4"><div style="height:28px; padding:0 8px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="color:var(--dim); font-size:11px">{{ g.k }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ g.v }}</span></div></sc-for>
+</div></div>
+
+<!-- Variable menu -->
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:260px; left:14px; width:312px; z-index:10; padding:8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{menuRows}}" as="r" hint-placeholder-count="12">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 8px 3px; {{label}}">{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="flex:1">{{ r.label }}</span><span style="color:var(--dim); font-size:11px; max-width:120px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis">{{ r.sample }}</span></div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"view":{"editor":"enum","default":"full","options":["full","lower","dual"]},"select":{"editor":"enum","default":"0","options":["0","1","2","3","4","5"]},"preview":{"editor":"enum","default":"0","options":["0","1"]},"menu":{"editor":"enum","default":"closed","options":["closed","open"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const V = (v) => ({ t: 'var', v });
+    const T = (v) => ({ t: 'text', v });
+    const views = { full: 0, lower: 1, dual: 2 };
+    const p = props || {};
+    this.state = {
+      tmpl: views[p.view] || 0,
+      sel: parseInt(String(p.select || 0), 10) || 0,
+      pv: parseInt(String(p.preview || 0), 10) || 0,
+      menu: p.menu === 'open',
+      tbg: [0, 1, 0], lv: [0, 1, 0],
+      ts: [
+        [
+          { name: 'Background', kind: 'image', fill: 'Color', bg: '#10243d', x: 0, y: 0, w: 800, h: 450 },
+          { name: 'Verse text', kind: 'text', x: 40, y: 70, w: 720, h: 230, size: 36, align: 1, color: '#ffffff', parts: [V('Verse Text')] },
+          { name: 'Reference', kind: 'text', x: 40, y: 316, w: 720, h: 50, size: 26, align: 1, color: '#47c86e', parts: [V('Reference'), T(' · '), V('Translation Abbr')] },
+          { name: 'Credit', kind: 'text', x: 40, y: 392, w: 720, h: 36, size: 14, align: 1, color: '#8a99a8', parts: [V('Attribution')], attr: true, mode: 0 }
+        ],
+        [
+          { name: 'Reference', kind: 'text', x: 40, y: 310, w: 500, h: 34, size: 20, align: 0, color: '#47c86e', parts: [V('Reference'), T(' · '), V('Translation Abbr')] },
+          { name: 'Verse text', kind: 'text', x: 40, y: 346, w: 720, h: 66, size: 22, align: 0, color: '#ffffff', parts: [V('Verse Text')] },
+          { name: 'Credit', kind: 'text', x: 40, y: 416, w: 720, h: 26, size: 12, align: 0, color: '#8a99a8', parts: [V('Attribution')], attr: true, mode: 0 }
+        ],
+        [
+          { name: 'Background', kind: 'image', fill: 'Color', bg: '#10243d', x: 0, y: 0, w: 800, h: 450 },
+          { name: 'Reference', kind: 'text', x: 40, y: 20, w: 720, h: 44, size: 26, align: 1, color: '#ffffff', parts: [V('Reference')] },
+          { name: 'Verse text A', kind: 'text', x: 40, y: 80, w: 350, h: 270, size: 24, align: 0, color: '#ffffff', parts: [V('Verse Text')], slot: 'Primary · follows the operator' },
+          { name: 'Verse text B', kind: 'text', x: 410, y: 80, w: 350, h: 270, size: 24, align: 0, color: '#ffffff', parts: [V('Verse Text · Secondary')], slot: 'Secondary · RV1909' },
+          { name: 'Label A', kind: 'text', x: 40, y: 358, w: 350, h: 28, size: 16, align: 0, color: '#47c86e', parts: [V('Translation Abbr')] },
+          { name: 'Label B', kind: 'text', x: 410, y: 358, w: 350, h: 28, size: 16, align: 0, color: '#47c86e', parts: [V('Translation Abbr · Secondary')] },
+          { name: 'Credit', kind: 'text', x: 40, y: 402, w: 720, h: 34, size: 12, align: 1, color: '#8a99a8', parts: [V('Attribution')], attr: true, mode: 0 }
+        ]
+      ]
+    };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#e6e6e3;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const objs = st.ts[st.tmpl];
+    const si = Math.min(st.sel, objs.length - 1);
+    const o = objs[si];
+    const KJV = 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.';
+    const RV = 'Porque de tal manera amó Dios al mundo, que ha dado á su Hijo unigénito, para que todo aquel que en él creyere, no se pierda, mas tenga vida eterna.';
+    const credit = st.pv === 1 ? 'Versión Biblia Libre · CC BY-SA 4.0' : '';
+    const SAMPLE = st.pv === 0 ? {
+      'Verse Text': KJV, 'Verse Text · Secondary': RV, 'Reference': 'John 3:16', 'Book': 'John', 'Chapter': '3', 'Verse Number': '16',
+      'Translation Name': 'King James Version', 'Translation Abbr': 'KJV', 'Translation Abbr · Secondary': 'RV1909'
+    } : {
+      'Verse Text': '[Spanish verse text from the selected translation]', 'Verse Text · Secondary': KJV, 'Reference': 'Juan 3:16', 'Book': 'Juan', 'Chapter': '3', 'Verse Number': '16',
+      'Translation Name': 'Versión Biblia Libre', 'Translation Abbr': 'VBL', 'Translation Abbr · Secondary': 'KJV'
+    };
+    const attrText = (ob) => ob.mode === 1 ? (st.pv === 1 ? credit : 'King James Version · Public domain') : credit;
+    const resolve = (ob) => (ob.parts || []).map((p) => p.t === 'var' ? (p.v === 'Attribution' ? attrText(ob) : (SAMPLE[p.v] || '')) : p.v).join('');
+    const cats = [
+      ['VERSE', ['Verse Text', 'Verse Text · Secondary', 'Reference', 'Book', 'Chapter', 'Verse Number']],
+      ['TRANSLATION', ['Translation Name', 'Translation Abbr', 'Translation Abbr · Secondary', 'Attribution']]
+    ];
+    const setObj = (patch) => this.setState({ ts: st.ts.map((arr, ti) => ti === st.tmpl ? arr.map((x, i) => i === si ? { ...x, ...patch } : x) : arr) });
+    const addVar = (v) => setObj({ parts: [...(o.parts || []), { t: 'var', v }] });
+    const seg = (names, cur, fn, flex) => names.map((n, i) => ({
+      label: n, pick: () => fn(i),
+      style: (flex ? 'flex:1; ' : 'padding:5px 12px; ') + 'text-align:center; padding:5px 10px; cursor:pointer; background:' + (cur === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (cur === i ? onAccent : 'var(--fg)') + '; font-weight:' + (cur === i ? 700 : 400)
+    }));
+    const tmplNames = ['Full screen', 'Lower third', 'Dual translation'];
+    const tmplRows = tmplNames.map((n, i) => ({
+      label: n, pick: () => this.setState({ tmpl: i, sel: 0, menu: false }),
+      style: 'padding:6px 8px; border-radius:6px; cursor:pointer; font-weight:' + (i === st.tmpl ? 700 : 400) + '; background:' + (i === st.tmpl ? 'var(--sel)' : 'transparent')
+    }));
+    const objRows = objs.map((ob, i) => ({
+      name: ob.name, icon: ob.kind === 'image' ? '▨' : 'T', weight: i === si ? 700 : 500,
+      src: ob.kind === 'image' ? ob.fill : (ob.parts || []).filter((p) => p.t === 'var').map((p) => p.v.replace('Translation ', '')).join(' + '),
+      pick: () => this.setState({ sel: i, menu: false }),
+      style: 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (i === si ? 'var(--sel)' : 'transparent')
+    }));
+    const transparent = st.tbg[st.tmpl] === 1;
+    const checker = 'background-color:#1c1c1c; background-image:linear-gradient(45deg,#2a2a2a 25%,transparent 25%,transparent 75%,#2a2a2a 75%),linear-gradient(45deg,#2a2a2a 25%,transparent 25%,transparent 75%,#2a2a2a 75%); background-size:20px 20px; background-position:0 0,10px 10px';
+    const canvasStyle = 'position:relative; width:800px; height:450px; border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.35); ' + (transparent ? checker : 'background:#000');
+    const alignCss = ['flex-start', 'center', 'flex-end'];
+    const canvasObjs = objs.map((ob, i) => {
+      let txt = ob.kind === 'text' ? resolve(ob) : '';
+      let ghost = false;
+      if (ob.kind === 'text' && !txt && ob.attr) { txt = 'Credit line · hidden for public domain'; ghost = true; }
+      return {
+        isText: ob.kind === 'text', isHatch: ob.kind === 'image' && !ob.bg, selected: i === si,
+        tag: ob.kind === 'image' ? 'Fill: ' + ob.fill : 'Text: ' + (ob.parts || []).filter((p) => p.t === 'var').map((p) => p.v).join(' + '),
+        text: txt,
+        pick: () => this.setState({ sel: i, menu: false }),
+        style: 'position:absolute; box-sizing:border-box; cursor:pointer; left:' + ob.x + 'px; top:' + ob.y + 'px; width:' + ob.w + 'px; height:' + ob.h + 'px; border:1px solid ' + (i === si ? 'var(--accent)' : 'rgba(150,150,60,.6)') + (ob.bg ? '; background:' + ob.bg : ''),
+        tagStyle: 'position:absolute; left:0; top:-13px; font-size:9px; white-space:nowrap; z-index:2; color:' + (i === si ? 'var(--accent)' : 'rgba(170,170,80,.9)'),
+        textStyle: 'position:absolute; inset:0; padding:4px 8px; display:flex; align-items:center; justify-content:' + alignCss[ob.align || 0] + '; text-align:' + ['left', 'center', 'right'][ob.align || 0] + '; white-space:pre-line; line-height:1.2; font-weight:600; font-size:' + (ob.size || 20) + 'px; color:' + (ob.color || '#fff') + (ghost ? '; opacity:.45; font-style:italic; font-weight:400' : '')
+      };
+    });
+    const parts = (o.parts || []).map((p, i) => ({
+      label: p.v,
+      remove: () => setObj({ parts: o.parts.filter((_, j) => j !== i) }),
+      style: p.t === 'var' ? 'display:inline-flex; align-items:center; padding:2px 8px; border-radius:11px; background:var(--accent); color:' + onAccent + '; font-weight:600; font-size:12px' : 'display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; background:var(--chrome); border:1px solid var(--line); font-size:12px'
+    }));
+    const alignSeg = ['L', 'C', 'R'].map((n, i) => ({
+      label: n, pick: () => setObj({ align: i }),
+      style: 'width:30px; text-align:center; padding:5px 0; cursor:pointer; background:' + ((o.align || 0) === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + ((o.align || 0) === i ? onAccent : 'var(--fg)') + '; font-weight:' + ((o.align || 0) === i ? 700 : 400)
+    }));
+    const swatches = ['#ffffff', '#47c86e', '#ffb020', '#4da3ff', '#8a99a8'].map((c) => ({
+      pick: () => setObj({ color: c }),
+      style: 'width:24px; height:24px; border-radius:12px; cursor:pointer; background:' + c + '; border:2px solid ' + ((o.color || '#ffffff') === c ? 'var(--fg)' : 'var(--line)')
+    }));
+    const used = (o.parts || []).filter((p) => p.t === 'var').map((p) => p.v);
+    const menuRows = [];
+    cats.forEach((c) => {
+      menuRows.push({ isHeader: true, isItem: false, label: c[0] });
+      c[1].forEach((v) => menuRows.push({
+        isHeader: false, isItem: true, label: v,
+        sample: v === 'Attribution' ? (credit || '—') : (SAMPLE[v] || '').replace('\n', ' '),
+        pick: () => { addVar(v); this.setState({ menu: false }); },
+        style: 'display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:5px; cursor:pointer; background:' + (used.indexOf(v) >= 0 ? 'var(--sel)' : 'transparent')
+      }));
+    });
+    const pvSeg = seg(['KJV · public domain', 'VBL · CC BY-SA 4.0'], st.pv, (i) => this.setState({ pv: i }), false);
+    const bgSeg = seg(['Solid', 'Transparent'], st.tbg[st.tmpl], (i) => this.setState({ tbg: st.tbg.map((x, j) => j === st.tmpl ? i : x) }), true);
+    const lvSeg = seg(['Shrink', 'Split slides'], st.lv[st.tmpl], (i) => this.setState({ lv: st.lv.map((x, j) => j === st.tmpl ? i : x) }), true);
+    const attrSeg = seg(['When required', 'Always'], o.mode || 0, (i) => setObj({ mode: i }), true);
+    return {
+      vars, label, onAccent, tmplName: tmplNames[st.tmpl], tmplRows, objRows, canvasStyle, canvasObjs, parts, alignSeg, swatches,
+      pvSeg, bgSeg, lvSeg, attrSeg, menuRows,
+      menuOpen: st.menu, toggleMenu: () => this.setState({ menu: !st.menu }),
+      inspTitle: o.kind === 'image' ? 'FILL OBJECT' : (o.attr ? 'CREDIT OBJECT' : 'TEXT OBJECT'),
+      selName: o.name, selIsText: o.kind === 'text', selIsImage: o.kind === 'image', selIsAttr: !!o.attr, selFill: o.fill || '',
+      selHasSlot: !!o.slot, selSlot: o.slot || '',
+      selSize: o.size || 20,
+      sizeUp: () => setObj({ size: (o.size || 20) + 2 }), sizeDown: () => setObj({ size: Math.max(8, (o.size || 20) - 2) }),
+      emptyHint: (o.parts || []).length ? '' : 'Empty. Add a variable.',
+      geom: [{ k: 'X', v: o.x }, { k: 'Y', v: o.y }, { k: 'W', v: o.w }, { k: 'H', v: o.h }]
+    };
+  }
+}
+</script>
+</body>
+</html>

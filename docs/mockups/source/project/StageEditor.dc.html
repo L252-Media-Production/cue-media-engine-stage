@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stage Editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:10px">
+
+<!-- Title bar -->
+<div style="height:44px; flex:none; display:flex; align-items:center; gap:12px; padding:0 14px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="display:flex; gap:8px; width:64px"><span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span><span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span><span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span></div>
+<div style="font-weight:700">Stage Editor</div>
+<div style="display:flex; align-items:center; gap:8px; height:28px; padding:0 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Lyrics + timer</span><span style="color:var(--dim)">▾</span></div>
+<span style="color:var(--dim); font-size:12px">Used by Stage Screen 1</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">Sample values shown. Live values fill in when you go live.</span>
+<button style="height:28px; padding:0 14px; border-radius:6px; border:0; background:var(--accent); color:{{onAccent}}; font-weight:700">Done</button>
+</div>
+
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Left: layouts + objects -->
+<div style="width:240px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line)">
+<div style="padding:12px 14px 4px; display:flex; justify-content:space-between"><span style="{{label}}">LAYOUTS</span><span style="color:var(--accent); font-weight:600">+ New</span></div>
+<div style="padding:0 8px 8px; display:flex; flex-direction:column; gap:1px; border-bottom:1px solid var(--line)">
+<div style="padding:6px 8px; border-radius:6px; background:var(--sel); font-weight:700">Lyrics + timer</div>
+<div style="padding:6px 8px; border-radius:6px">Next + clock</div>
+<div style="padding:6px 8px; border-radius:6px">Sermon notes</div>
+</div>
+<div style="padding:12px 14px 4px; display:flex; justify-content:space-between"><span style="{{label}}">OBJECTS</span><span style="color:var(--accent); font-weight:600; font-size:12px; white-space:nowrap">+ Text &nbsp;+ Image &nbsp;+ Timer</span></div>
+<div style="padding:0 8px; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{objRows}}" as="o" hint-placeholder-count="6">
+<div onClick="{{ o.pick }}" style="{{ o.style }}"><span style="width:16px; color:var(--dim)">{{ o.icon }}</span><span style="flex:1; font-weight:{{ o.weight }}">{{ o.name }}</span><span style="color:var(--dim); font-size:11px">{{ o.src }}</span></div>
+</sc-for>
+</div>
+</div>
+
+<!-- Center: canvas -->
+<div style="flex:1; min-width:0; display:flex; align-items:center; justify-content:center; background:var(--bg)">
+<div style="position:relative; width:800px; height:450px; background:#000; border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.35)">
+<sc-for list="{{canvasObjs}}" as="o" hint-placeholder-count="6">
+<div onClick="{{ o.pick }}" style="{{ o.style }}">
+<span style="{{ o.tagStyle }}">{{ o.tag }}</span>
+<sc-if value="{{ o.isText }}" hint-placeholder-val="{{ true }}"><div style="{{ o.textStyle }}">{{ o.text }}</div></sc-if>
+<sc-if value="{{ o.isImage }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background:repeating-linear-gradient(135deg, rgba(150,150,60,.55) 0 1px, transparent 1px 7px)"></div></sc-if>
+<sc-if value="{{ o.selected }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; left:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; left:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+
+<!-- Right: inspector -->
+<div style="position:relative; width:340px; flex:none; display:flex; flex-direction:column; gap:12px; padding:14px; background:var(--chrome); border-left:1px solid var(--line); overflow-y:auto">
+<div style="{{label}}">{{ inspTitle }}</div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Name</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">{{ selName }}</div></div>
+
+<sc-if value="{{ selIsText }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Text</span>
+<div style="min-height:34px; padding:5px 6px; display:flex; flex-wrap:wrap; gap:5px; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">
+<sc-for list="{{parts}}" as="p" hint-placeholder-count="2">
+<span style="{{ p.style }}">{{ p.label }}<span onClick="{{ p.remove }}" style="margin-left:6px; opacity:.7; cursor:pointer">×</span></span>
+</sc-for>
+<span style="color:var(--dim); font-size:12px; padding-left:4px">{{ emptyHint }}</span>
+</div>
+<div style="display:flex; gap:8px; margin-top:4px">
+<button onClick="{{ toggleMenu }}" style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600">+ Variable ▾</button>
+<button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+ Text</button>
+</div></div>
+</sc-if>
+
+<sc-if value="{{ selIsTimer }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Timer</span>
+<div onClick="{{ toggleTmenu }}" style="height:30px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--accent); cursor:pointer"><span style="font-weight:600">{{ timerName }}</span><span style="color:var(--dim)">▾</span></div>
+</div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Format</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{fmtSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">At zero</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{zeroSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+</sc-if>
+
+<sc-if value="{{ selHasType }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:8px">
+<div style="position:relative"><div onClick="{{ toggleFont }}" style="display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); cursor:pointer; border:1px solid {{ ddFontLine }};"><span>{{ fontName }}</span><span style="color:var(--dim)">▾</span></div><sc-if value="{{ ddFont }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:32px; left:0; right:0; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px"><sc-for list="{{fontRows}}" as="r" hint-placeholder-count="7"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="{{ r.face }}">{{ r.name }}</span></div></sc-for></div></sc-if></div>
+<div style="display:flex; gap:8px">
+<div style="position:relative; flex:1"><div onClick="{{ toggleStyle }}" style="display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); cursor:pointer; border:1px solid {{ ddStyleLine }};"><span>{{ weightName }}</span><span style="color:var(--dim)">▾</span></div><sc-if value="{{ ddStyle }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:32px; left:0; right:0; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px"><sc-for list="{{weightRows}}" as="r" hint-placeholder-count="5"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="{{ r.face }}">{{ r.name }}</span></div></sc-for></div></sc-if></div>
+<div style="display:flex; align-items:center; gap:4px"><button onClick="{{ sizeDown }}" style="width:26px; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">−</button><div style="width:44px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">{{ selSize }}</div><button onClick="{{ sizeUp }}" style="width:26px; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+</button></div>
+</div>
+<div style="display:flex; gap:8px; align-items:center">
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{styleSeg}}" as="a" hint-placeholder-count="4"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+<div style="flex:1"></div>
+<div style="display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); border:1px solid var(--line); width:56px; color:var(--dim)"><span>⚙</span><span>▾</span></div>
+</div>
+<div style="display:flex; align-items:center; gap:10px"><span style="width:92px; text-align:right; color:var(--dim); font-size:12px">Capitalization</span><div style="position:relative; flex:1"><div onClick="{{ toggleCaps }}" style="display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); cursor:pointer; border:1px solid {{ ddCapsLine }};"><span>{{ capsName }}</span><span style="color:var(--dim)">▾</span></div><sc-if value="{{ ddCaps }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:32px; left:0; right:0; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px"><sc-for list="{{capsRows}}" as="r" hint-placeholder-count="5"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="{{ r.face }}">{{ r.name }}</span></div></sc-for></div></sc-if></div></div>
+<div style="display:flex; align-items:center; gap:10px"><span style="width:92px; text-align:right; color:var(--dim); font-size:12px">Text Color</span><div style="flex:1; display:flex; align-items:center; gap:8px"><span onClick="{{ cycleColor }}" title="Click to change color" style="{{ colorSwatch }}"></span></div></div>
+<div style="display:flex; align-items:center; gap:10px"><span style="width:92px; text-align:right; color:var(--dim); font-size:12px">Scaling</span><div onClick="{{ toggleScmenu }}" style="display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); border:1px solid var(--line); flex:1; cursor:pointer"><span>{{ scalingName }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="display:flex; align-items:center; gap:10px"><span style="width:92px; text-align:right; color:var(--dim); font-size:12px">Line Transform</span><div style="position:relative; flex:1"><div onClick="{{ toggleLine }}" style="display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); cursor:pointer; border:1px solid {{ ddLineLine }};"><span>{{ lineName }}</span><span style="color:var(--dim)">▾</span></div><sc-if value="{{ ddLine }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:32px; left:0; right:0; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px"><sc-for list="{{lineRows}}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="{{ r.face }}">{{ r.name }}</span></div></sc-for></div></sc-if></div></div>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{alignSeg}}" as="a" hint-placeholder-count="4"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{valignSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+<div style="display:flex; align-items:center; gap:10px"><span onClick="{{ toggleStroke }}" style="{{ strokeBox }}">{{ strokeTick }}</span><span style="font-weight:600">Stroke</span><div style="flex:1"></div><div style="display:flex; align-items:center; gap:4px"><button onClick="{{ strokeDown }}" style="width:26px; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">−</button><div style="width:36px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">{{ strokeW }}</div><button onClick="{{ strokeUp }}" style="width:26px; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+</button></div><span onClick="{{ cycleStroke }}" style="{{ strokeSwatch }}"></span></div>
+</div>
+<sc-if value="{{ showLoopToggle }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ toggleLoop }}" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><div style="flex:1; font-weight:600">Ignore looping audio/video</div><span style="{{ loopTrack }}"><span style="{{ loopKnob }}"></span></span></div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{ selIsImage }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Fill</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ selFill }}</span><span style="color:var(--dim)">▾</span></div></div>
+</sc-if>
+
+<sc-if value="{{ selHasTrig }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="display:flex; align-items:center"><span style="color:var(--dim); font-size:12px">Color triggers</span><div style="flex:1"></div><span onClick="{{ addTrig }}" style="color:var(--accent); font-weight:600; cursor:pointer">+ Add</span></div>
+<div style="display:flex; flex-direction:column; gap:1px; border-radius:6px; background:var(--panel); border:1px solid var(--line); overflow:hidden">
+<sc-for list="{{trigRows}}" as="t" hint-placeholder-count="2">
+<div style="display:flex; align-items:center; gap:10px; padding:5px 8px; border-bottom:1px solid var(--line)">
+<span style="flex:1; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px">{{ t.time }}</span>
+<span onClick="{{ t.cycle }}" title="Click to change color" style="{{ t.swatch }}"></span>
+<span onClick="{{ t.remove }}" style="width:16px; text-align:center; color:var(--dim); cursor:pointer">×</span>
+</div>
+</sc-for>
+<div style="display:flex; align-items:center; gap:8px; padding:5px 8px; color:var(--dim); font-size:12px"><span style="flex:1">Above the first trigger</span><span style="{{ baseSwatch }}"></span><span style="width:16px"></span></div>
+</div>
+<div style="display:flex; align-items:center; gap:8px"><span style="color:var(--dim); font-size:12px">Preview</span>
+<div style="flex:1; display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{pvSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+</div>
+</sc-if>
+
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Position and size</span>
+<div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px">
+<sc-for list="{{geom}}" as="g" hint-placeholder-count="4"><div style="height:28px; padding:0 8px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="color:var(--dim); font-size:11px">{{ g.k }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ g.v }}</span></div></sc-for>
+</div></div>
+
+<!-- Scaling menu -->
+<sc-if value="{{ scmenuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:300px; right:12px; width:210px; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{scalingRows}}" as="r" hint-placeholder-count="5"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span>{{ r.name }}</div></sc-for>
+</div>
+</sc-if>
+
+<!-- Timer menu -->
+<sc-if value="{{ tmenuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:112px; right:12px; width:310px; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px">
+<div style="padding:6px 8px 3px; {{label}}">TIMERS</div>
+<sc-for list="{{timerRows}}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.name }}</span><span style="color:var(--dim); font-size:11px">{{ r.mode }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; color:var(--dim)">{{ r.time }}</span></div></sc-for>
+<div style="height:1px; margin:4px 0; background:var(--line)"></div>
+<div style="padding:6px 8px; color:var(--dim); font-size:12px">A timer with no name match shows 00:00.</div>
+</div>
+</sc-if>
+
+<!-- Variable menu -->
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:150px; right:12px; width:440px; z-index:10; padding:10px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; gap:12px">
+<sc-for list="{{menuCols}}" as="col" hint-placeholder-count="2">
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{ col.rows }}" as="r" hint-placeholder-count="8">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 8px 3px; {{label}}">{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="flex:1">{{ r.label }}</span><span style="color:var(--dim); font-size:11px; max-width:90px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis">{{ r.sample }}</span></div></sc-if>
+
+</sc-for>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"menu":{"editor":"enum","default":"closed","options":["closed","open"]},"tmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"scmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"dd":{"editor":"enum","default":"closed","options":["closed","font","style","caps","line"]},"pick":{"editor":"enum","default":"default","options":["default","timer","overrun","triggers","videotrig"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const V = (v) => ({ t: 'var', v });
+    const T = (v) => ({ t: 'text', v });
+    this.state = {
+      sel: (props && props.pick === 'videotrig') ? 4 : (props && (props.pick === 'timer' || props.pick === 'overrun' || props.pick === 'triggers')) ? 1 : 4, menu: !!(props && props.menu === 'open'), tmenu: !!(props && props.tmenu === 'open'), scmenu: !!(props && props.scmenu === 'open'), dd: (props && props.dd && props.dd !== 'closed') ? props.dd : '',
+      objs: [
+        { name: 'Clock', kind: 'text', x: 20, y: 16, w: 200, h: 64, size: 40, align: 0, color: '#ffffff', parts: [V('System Clock')] },
+        { name: 'Timer', kind: 'timer', x: 580, y: 16, w: 200, h: 64, size: 40, align: 2, color: '#47c86e', timer: (props && props.pick === 'overrun') ? 'Pre-service' : (props && props.pick === 'triggers') ? 'Countdown' : 'Service clock', fmt: 0, zero: (props && props.pick === 'overrun') ? 2 : 0, triggers: [{ t: '0:30.00', c: '#e0731a' }, { t: '0:00.00', c: '#d71920' }], pv: (props && props.pick === 'triggers') ? 1 : 0 },
+        { name: 'Current slide', kind: 'text', x: 20, y: 96, w: 760, h: 190, size: 34, align: 1, color: '#ffffff', parts: [V('Current Slide Text')] },
+        { name: 'Next slide', kind: 'text', x: 20, y: 300, w: 360, h: 84, size: 20, align: 0, color: '#9ab0c4', parts: [T('Next: '), V('Next Slide Text')] },
+        { name: 'Video countdown', kind: 'text', x: 390, y: 300, w: 180, h: 84, size: 36, align: 1, color: '#4da3ff', parts: [V('Video Countdown')], ignoreLoop: true, triggers: [{ t: '0:10.00', c: '#e0731a' }, { t: '0:03.00', c: '#d71920' }], pv: (props && props.pick === 'videotrig') ? 1 : 0 },
+        { name: 'Next image', kind: 'image', x: 580, y: 300, w: 200, h: 84, fill: 'Next Slide Image' },
+        { name: 'Message', kind: 'text', x: 20, y: 396, w: 760, h: 42, size: 22, align: 1, color: '#ffb020', parts: [V('Stage Message')] },
+      ],
+    };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#e6e6e3;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const SAMPLE = {
+      'Current Slide Text': 'Lyric line one\nLyric line two', 'Next Slide Text': 'Lyric line three', 'Slide Label': 'Verse 1', 'Slide Count': '2 / 8',
+      'Group': 'Verse 1', 'Presentation Name': 'Song 2 – [Title]', 'Playlist': 'Nov 22 Service', 'Operator Notes': 'Key of G', 'Speaker Notes': 'Pause here, then tell the story',
+      'System Clock': '1:23 PM', 'Video Countdown': '0:12', 'Audio Countdown': '3:00',
+      'Auto Advance Time': '0:08', 'Timecode': '01:02:03:04', 'Stage Message': 'Wrap up in 2 min',
+      'Playback Marker': 'Chorus', 'RSS Feed': '[Latest headline]',
+    };
+    const cats = [
+      ['SLIDE', ['Current Slide Text', 'Next Slide Text', 'Slide Label', 'Slide Count', 'Group', 'Presentation Name', 'Playlist', 'Operator Notes', 'Speaker Notes']],
+      ['MESSAGES', ['Stage Message']],
+      ['TIME', ['System Clock', 'Video Countdown', 'Audio Countdown', 'Auto Advance Time', 'Timecode']],
+      ['OTHER', ['Playback Marker', 'RSS Feed']],
+    ];
+    const TIMERS = [['Countdown', 'Count down from 5:00', '04:32'], ['Service clock', 'Count up from 0:00', '38:10'], ['Pre-service', 'Count down to 10:30 AM', '12:45'], ['Prayer', 'Count down from 10:00', '10:00']];
+    const timeOf = (n) => (TIMERS.filter((t) => t[0] === n)[0] || [0, 0, '00:00'])[2];
+    const PAL = ['#e0731a', '#d71920', '#ffb020', '#47c86e', '#4da3ff', '#ffffff'];
+    const colorOf = (ob) => (ob.pv > 0 && (ob.triggers || [])[ob.pv - 1]) ? ob.triggers[ob.pv - 1].c : isNeg(ob) ? ((ob.triggers || []).length ? ob.triggers[ob.triggers.length - 1].c : '#e5483f') : (ob.color || '#ffffff');
+    const isNeg = (ob) => ob.kind === 'timer' && ob.zero === 2 && ob.timer === 'Pre-service';
+    const o = st.objs[st.sel];
+    const setObj = (patch) => this.setState({ objs: st.objs.map((x, i) => i === st.sel ? { ...x, ...patch } : x) });
+    const addVar = (v) => setObj({ parts: [...(o.parts || []), { t: 'var', v }] });
+    const xform = (ob, t) => { let r = t; const lt = ob.lt || 0; const ls = r.split('\n'); if (lt === 1) r = ls.join(' '); else if (lt === 2) r = ls[0]; else if (lt === 3) r = ls[ls.length - 1]; const c = ob.caps || 0; if (c === 1) r = r.toUpperCase(); else if (c === 2) r = r.toLowerCase(); else if (c === 3) r = r.toLowerCase().replace(/(^|[\s\n])(\S)/g, (m, a, b) => a + b.toUpperCase()); else if (c === 4) r = r.toLowerCase().replace(/(^|[.!?]\s+)(\S)/g, (m, a, b) => a + b.toUpperCase()).replace(/^\S/, (m) => m.toUpperCase()); return r; };
+    const resolve0 = (ob) => ob.kind === 'timer' ? (isNeg(ob) ? '-01:12' : timeOf(ob.timer)) : (ob.parts || []).map((p) => p.t === 'var' ? (SAMPLE[p.v] || '') : p.v).join('');
+    const resolve = (ob) => ob.kind === 'timer' ? resolve0(ob) : xform(ob, resolve0(ob));
+    const tagFor = (ob) => ob.kind === 'timer' ? 'Timer: ' + ob.timer : ob.kind === 'image' ? 'Fill: ' + ob.fill : 'Text: ' + (ob.parts || []).filter((p) => p.t === 'var').map((p) => p.v).join(' + ');
+    const alignCss = ['flex-start', 'center', 'flex-end'];
+    const objRows = st.objs.map((ob, i) => ({
+      name: ob.name, icon: ob.kind === 'image' ? '▨' : ob.kind === 'timer' ? '◷' : 'T', weight: i === st.sel ? 700 : 500,
+      src: ob.kind === 'timer' ? ob.timer : ob.kind === 'image' ? ob.fill : (ob.parts || []).filter((p) => p.t === 'var').map((p) => p.v.replace('Timer: ', '')).join(' + '),
+      pick: () => this.setState({ sel: i, menu: false, tmenu: false, dd: '' }),
+      style: 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (i === st.sel ? 'var(--sel)' : 'transparent')
+    }));
+    const canvasObjs = st.objs.map((ob, i) => ({
+      isText: ob.kind !== 'image', isImage: ob.kind === 'image', selected: i === st.sel,
+      tag: tagFor(ob), text: resolve(ob),
+      pick: () => this.setState({ sel: i, menu: false }),
+      style: 'position:absolute; box-sizing:border-box; cursor:pointer; left:' + ob.x + 'px; top:' + ob.y + 'px; width:' + ob.w + 'px; height:' + ob.h + 'px; border:1px ' + (i === st.sel ? 'solid var(--accent)' : 'solid rgba(150,150,60,.6)'),
+      tagStyle: 'position:absolute; left:0; top:-13px; font-size:9px; white-space:nowrap; color:' + (i === st.sel ? 'var(--accent)' : 'rgba(170,170,80,.9)'),
+      textStyle: 'position:absolute; inset:0; padding:4px 8px; display:flex; align-items:' + ['flex-start', 'center', 'flex-end'][ob.valign === undefined ? 1 : ob.valign] + '; justify-content:' + alignCss[Math.min(ob.align || 0, 2)] + '; text-align:' + ['left', 'center', 'right', 'justify'][ob.align || 0] + '; font-style:' + (ob.i ? 'italic' : 'normal') + '; text-decoration:' + ((ob.u ? 'underline ' : '') + (ob.s ? 'line-through' : '') || 'none') + '; -webkit-text-stroke:' + ((ob.stroke && ob.stroke.on) ? ob.stroke.w + 'px ' + ob.stroke.c : '0') + '; white-space:pre-line; line-height:1.15; font-family:' + ['-apple-system,sans-serif', 'Helvetica Neue,sans-serif', 'Avenir Next,sans-serif', 'Arial,sans-serif', 'Georgia,serif', 'Gill Sans,sans-serif', 'Menlo,monospace'][ob.font || 0] + '; font-weight:' + (ob.b ? 800 : [400, 500, 600, 700, 800][ob.weight === undefined ? 2 : ob.weight]) + '; font-size:' + (ob.size || 20) + 'px; color:' + colorOf(ob)
+    }));
+    const parts = (o.parts || []).map((p, i) => ({
+      label: p.v,
+      remove: () => setObj({ parts: o.parts.filter((_, j) => j !== i) }),
+      style: p.t === 'var' ? 'display:inline-flex; align-items:center; padding:2px 8px; border-radius:11px; background:var(--accent); color:' + onAccent + '; font-weight:600; font-size:12px' : 'display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; background:var(--chrome); border:1px solid var(--line); font-size:12px'
+    }));
+    const segStyle = (on) => 'flex:1; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; background:' + (on ? 'var(--accent)' : 'var(--panel)') + '; color:' + (on ? onAccent : 'var(--fg)') + '; font-weight:' + (on ? 700 : 400);
+    const alignSeg = ['Left', 'Center', 'Right', 'Justify'].map((n, i) => ({ label: n, pick: () => setObj({ align: i }), style: segStyle((o.align || 0) === i) }));
+    const valignSeg = ['Top', 'Middle', 'Bottom'].map((n, i) => ({ label: n, pick: () => setObj({ valign: i }), style: segStyle((o.valign === undefined ? 1 : o.valign) === i) }));
+    const styleSeg = [['B', 'b', 700], ['I', 'i', 400], ['U', 'u', 400], ['S', 's', 400]].map((x) => ({ label: x[0], pick: () => setObj({ [x[1]]: !o[x[1]] }), style: 'width:30px; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; font-weight:700; font-style:' + (x[0] === 'I' ? 'italic' : 'normal') + '; text-decoration:' + (x[0] === 'U' ? 'underline' : x[0] === 'S' ? 'line-through' : 'none') + '; background:' + (o[x[1]] ? 'var(--accent)' : 'var(--panel)') + '; color:' + (o[x[1]] ? onAccent : 'var(--fg)') }));
+    const SCALING = ['None', 'Container up or down', 'Text up', 'Text down', 'Text up or down'];
+    const scalingIdx = o.scaling === undefined ? 1 : o.scaling;
+    const scalingRows = SCALING.map((n, i) => ({ name: n, check: i === scalingIdx ? '✓' : '', pick: () => { setObj({ scaling: i }); this.setState({ scmenu: false }); }, style: 'display:flex; align-items:center; padding:5px 8px; border-radius:5px; cursor:pointer; background:' + (i === scalingIdx ? 'var(--accent)' : 'transparent') + '; color:' + (i === scalingIdx ? onAccent : 'var(--fg)') }));
+    const stroke = o.stroke || { on: false, w: 1, c: '#000000' };
+    const setStroke = (p) => setObj({ stroke: { ...stroke, ...p } });
+    const SPAL = ['#000000', '#ffffff', '#d71920', '#4da3ff'];
+    const TPAL = ['#ffffff', '#47c86e', '#ffb020', '#4da3ff', '#9ab0c4'];
+    const swatchCss = (c) => 'width:46px; height:22px; border-radius:5px; cursor:pointer; background:' + c + '; border:1px solid var(--line)';
+    const used = (o.parts || []).filter((p) => p.t === 'var').map((p) => p.v);
+    const mkRows = (c) => [{ isHeader: true, isItem: false, isNew: false, label: c[0] }].concat(c[1].map((v) => ({
+      isHeader: false, isItem: true, isNew: false, label: v.replace('Timer: ', 'Timer · '), sample: SAMPLE[v] ? SAMPLE[v].replace('\n', ' ') : '',
+      pick: () => { addVar(v); this.setState({ menu: false }); },
+      style: 'display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:5px; cursor:pointer; background:' + (used.indexOf(v) >= 0 ? 'var(--sel)' : 'transparent')
+    })));
+    const FONTS = ['SF Pro Display', 'Helvetica Neue', 'Avenir Next', 'Arial', 'Georgia', 'Gill Sans', 'Menlo'];
+    const WEIGHTS = [['Regular', 400], ['Medium', 500], ['Semibold', 600], ['Bold', 700], ['Heavy', 800]];
+    const CAPS = ['None', 'ALL CAPS', 'lowercase', 'Title Case', 'Sentence case'];
+    const LINES = ['None', 'Single line', 'First line only', 'Last line only'];
+    const fontIdx = o.font === undefined ? 0 : o.font;
+    const weightIdx = o.weight === undefined ? 2 : o.weight;
+    const capsIdx = o.caps || 0;
+    const lineIdx = o.lt || 0;
+    const ddRow = (names, cur, key, face) => names.map((n, i) => ({ name: n, check: i === cur ? '✓' : '', face: face ? face(n, i) : '', pick: () => { setObj({ [key]: i }); this.setState({ dd: '' }); }, style: 'display:flex; align-items:center; padding:5px 8px; border-radius:5px; cursor:pointer; background:' + (i === cur ? 'var(--accent)' : 'transparent') + '; color:' + (i === cur ? onAccent : 'var(--fg)') }));
+    const tog = (k) => () => this.setState({ dd: st.dd === k ? '' : k, menu: false, tmenu: false, scmenu: false });
+    const line = (k) => st.dd === k ? 'var(--accent)' : 'var(--line)';
+    const col1 = [].concat(mkRows(cats[0]), mkRows(cats[1]));
+    const col2 = [].concat(mkRows(cats[2]), mkRows(cats[3]));
+    return {
+      fontName: FONTS[fontIdx], fontRows: ddRow(FONTS, fontIdx, 'font', (n) => 'font-family:' + (n === 'SF Pro Display' ? '-apple-system,sans-serif' : "'" + n + "',sans-serif")),
+      weightName: WEIGHTS[weightIdx][0], weightRows: ddRow(WEIGHTS.map((w) => w[0]), weightIdx, 'weight', (n, i) => 'font-weight:' + WEIGHTS[i][1]),
+      capsName: CAPS[capsIdx], capsRows: ddRow(CAPS, capsIdx, 'caps'),
+      lineName: LINES[lineIdx], lineRows: ddRow(LINES, lineIdx, 'lt'),
+      ddFont: st.dd === 'font', ddStyle: st.dd === 'style', ddCaps: st.dd === 'caps', ddLine: st.dd === 'line',
+      ddFontLine: line('font'), ddStyleLine: line('style'), ddCapsLine: line('caps'), ddLineLine: line('line'),
+      toggleFont: tog('font'), toggleStyle: tog('style'), toggleCaps: tog('caps'), toggleLine: tog('line'),
+      vars, label, onAccent, objRows, canvasObjs, parts, alignSeg,
+      menuCols: [{ rows: col1 }, { rows: col2 }],
+      menuOpen: st.menu, toggleMenu: () => this.setState({ menu: !st.menu, tmenu: false, dd: '' }),
+      inspTitle: o.kind === 'image' ? 'IMAGE OBJECT' : o.kind === 'timer' ? 'TIMER OBJECT' : 'TEXT OBJECT',
+      selName: o.name, selIsText: o.kind === 'text', selIsTimer: o.kind === 'timer', selHasType: o.kind !== 'image', selHasTrig: o.kind === 'timer' || used.indexOf('Video Countdown') >= 0 || used.indexOf('Audio Countdown') >= 0,
+      timerName: o.timer || '',
+      valignSeg, styleSeg, scalingName: SCALING[scalingIdx], scalingRows, scmenuOpen: st.scmenu, toggleScmenu: () => this.setState({ scmenu: !st.scmenu, menu: false, tmenu: false, dd: '' }),
+      colorSwatch: swatchCss(o.color || '#ffffff'), cycleColor: () => setObj({ color: TPAL[(TPAL.indexOf(o.color || '#ffffff') + 1) % TPAL.length] }),
+      strokeBox: 'width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:4px; cursor:pointer; font-size:12px; font-weight:700; background:' + (stroke.on ? 'var(--accent)' : 'var(--panel)') + '; color:' + onAccent + '; border:1px solid ' + (stroke.on ? 'var(--accent)' : 'var(--line)'),
+      strokeTick: stroke.on ? '✓' : '', toggleStroke: () => setStroke({ on: !stroke.on }),
+      strokeW: stroke.w, strokeUp: () => setStroke({ w: stroke.w + 1 }), strokeDown: () => setStroke({ w: Math.max(1, stroke.w - 1) }),
+      strokeSwatch: swatchCss(stroke.c), cycleStroke: () => setStroke({ c: SPAL[(SPAL.indexOf(stroke.c) + 1) % SPAL.length] }),
+      trigRows: (o.triggers || []).map((t, i) => ({
+        time: t.t, cycle: () => setObj({ triggers: o.triggers.map((x, j) => j === i ? { ...x, c: PAL[(PAL.indexOf(x.c) + 1) % PAL.length] } : x) }),
+        remove: () => setObj({ triggers: o.triggers.filter((_, j) => j !== i), pv: 0 }),
+        swatch: 'width:46px; height:20px; border-radius:5px; cursor:pointer; background:' + t.c + '; border:1px solid var(--line)'
+      })),
+      baseSwatch: 'width:46px; height:20px; border-radius:5px; background:' + (o.color || '#ffffff') + '; border:1px solid var(--line)',
+      addTrig: () => setObj({ triggers: [...(o.triggers || []), { t: '1:00.00', c: '#ffb020' }] }),
+      pvSeg: [{ label: 'Normal' }].concat((o.triggers || []).map((t) => ({ label: t.t.replace('.00', '') }))).map((a, i) => ({ label: a.label, pick: () => setObj({ pv: i }), style: 'flex:1; text-align:center; padding:4px 0; cursor:pointer; font-size:12px; background:' + ((o.pv || 0) === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + ((o.pv || 0) === i ? onAccent : 'var(--fg)') + '; font-weight:' + ((o.pv || 0) === i ? 700 : 400) })),
+      tmenuOpen: st.tmenu, toggleTmenu: () => this.setState({ tmenu: !st.tmenu, menu: false, dd: '' }),
+      timerRows: TIMERS.map((t) => ({ name: t[0], mode: t[1].replace('Count down', 'Down').replace('Count up', 'Up'), time: t[2], check: o.timer === t[0] ? '✓' : '', pick: () => { setObj({ timer: t[0] }); this.setState({ tmenu: false }); }, style: 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (o.timer === t[0] ? 'var(--sel)' : 'transparent') })),
+      fmtSeg: ['MM:SS', 'H:MM:SS', 'Seconds'].map((n, i) => ({ label: n, pick: () => setObj({ fmt: i }), style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; background:' + ((o.fmt || 0) === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + ((o.fmt || 0) === i ? onAccent : 'var(--fg)') + '; font-weight:' + ((o.fmt || 0) === i ? 700 : 400) })),
+      zeroSeg: ['Hold at 00:00', 'Flash red', 'Count negative'].map((n, i) => ({ label: n, pick: () => setObj({ zero: i }), style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; background:' + ((o.zero || 0) === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + ((o.zero || 0) === i ? onAccent : 'var(--fg)') + '; font-weight:' + ((o.zero || 0) === i ? 700 : 400) })), selIsImage: o.kind === 'image', selFill: o.fill || '',
+      selSize: o.size || 20,
+      sizeUp: () => setObj({ size: (o.size || 20) + 2 }), sizeDown: () => setObj({ size: Math.max(8, (o.size || 20) - 2) }),
+      showLoopToggle: used.indexOf('Video Countdown') >= 0 || used.indexOf('Audio Countdown') >= 0,
+      toggleLoop: () => setObj({ ignoreLoop: !o.ignoreLoop }),
+      loopTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; background:' + (o.ignoreLoop ? 'var(--accent)' : 'var(--line)'),
+      loopKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (o.ignoreLoop ? onAccent : 'var(--dim)') + '; left:' + (o.ignoreLoop ? 18 : 2) + 'px',
+      emptyHint: (o.parts || []).length ? '' : 'Empty. Add a variable.',
+      geom: [{ k: 'X', v: o.x }, { k: 'Y', v: o.y }, { k: 'W', v: o.w }, { k: 'H', v: o.h }]
+    };
+  }
+}
+</script>
+</body>
+</html>

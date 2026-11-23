@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Menu bar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{text-decoration:none}
+</style>
+</helmet>
+<div style="position:relative; width:1440px; height:640px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:#f5f5f5; background:#0f0f0f">
+<div style="position:absolute; left:0; top:24px"><dc-import name="Main" bar="off" hint-size="1440px,900px"></dc-import></div>
+
+<div style="position:absolute; left:0; top:0; width:1440px; height:24px; display:flex; align-items:center; box-sizing:border-box; background:rgba(30,30,30,.92); border-bottom:1px solid #000">
+<span style="width:38px; text-align:center; font-size:15px">&#63743;</span>
+<sc-for list="{{ barItems }}" as="b" hint-placeholder-count="8"><span style="{{ b.style }}">{{ b.label }}</span></sc-for>
+<div style="flex:1"></div>
+<span style="color:#a8a8a8; padding-right:14px">Sat 12:41 AM</span>
+</div>
+
+<div style="{{ dropStyle }}">
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+<sc-if value="{{ r.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px; background:#4a4a4a; margin:4px 6px"></div></sc-if>
+<sc-if value="{{ r.isSearch }}" hint-placeholder-val="{{ false }}"><div style="margin:3px 5px 4px; height:24px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; border-radius:6px; background:#1e1e1e; border:1px solid #4a4a4a; color:#8a8a8a">Search</div></sc-if>
+<sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="{{ r.keyStyle }}">{{ r.key }}</span></a></sc-if>
+<sc-if value="{{ r.isPlain }}" hint-placeholder-val="{{ false }}"><div style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="{{ r.keyStyle }}">{{ r.key }}</span></div></sc-if>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"menu":{"editor":"enum","default":"file","options":["app","file","edit","view","service","output","window","help"]},"$preview":{"width":1440,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const MENUS = {"app": {"w": 250, "rows": [["About CueME Stage"], ["Check for Updates…"], "-", ["Preferences…", "⌘,", "Preferences.dc.html"], "-", ["Hide CueME Stage", "⌘H"], ["Hide Others", "⌥⌘H"], "-", ["Quit CueME Stage", "⌘Q"]]}, "file": {"w": 270, "rows": [["New Service…", "⌘N", "ServiceNewService.dc.html"], ["New Collection…", "⇧⌘N", "ServiceNewCollection.dc.html"], ["New Song…", "⌥⌘N"], ["New Presentation…", "⌃⌘N"], "-", ["Import…", "⇧⌘I", "", true], "-", ["Close Window", "⌘W"]]}, "edit": {"w": 250, "rows": [["Undo", "⌘Z"], ["Redo", "⇧⌘Z"], "-", ["Cut", "⌘X"], ["Copy", "⌘C"], ["Paste", "⌘V"], ["Delete", "⌫"], ["Select All", "⌘A"], "-", ["Find…", "⌘F"], "-", ["Edit Selected Item…", "⌘E"]]}, "view": {"w": 280, "rows": [["Theme", "▸"], ["Show Multiview", "⇧⌘M"], "-", ["✓|Scripture", "⌘1"], ["Media", "⌘2"], ["Looks", "⌘3"], ["Audio", "⌘4"], ["Activities", "⌘5"], "-", ["✓|Audio (right column)", "⌥⌘1"], ["Message", "⌥⌘2"], ["Timer", "⌥⌘3"], "-", ["Enter Full Screen", "⌃⌘F"]]}, "service": {"w": 290, "rows": [["Go Live", "↩"], ["Next Slide", "→"], ["Previous Slide", "←"], "-", ["Clear", "▸"], ["Black Out", "⌘."], "-", ["Audio", "▸"], ["Messages", "▸"], ["Send Item to", "▸"], "-", ["Add Section…"], ["Add Activity…", "", "", true]]}, "output": {"w": 270, "rows": [["Output Setup…", "⇧⌘O", "OutputSetup.dc.html"], ["Visuals…", "⇧⌘V", "", true], "-", ["Monitor", "▸"], ["Test Pattern", "▸"], "-", ["Restart Engine…"]]}, "window": {"w": 250, "rows": [["Minimize", "⌘M"], ["Zoom"], "-", ["✓|Operator View", "⌘0"], ["Output Setup"], ["Visuals", "", "", true], "-", ["Bring All to Front"]]}, "help": {"w": 270, "rows": [["@search"], "-", ["CueME Stage Help"], ["Keyboard Shortcuts…", "", "Preferences.dc.html"], ["Release Notes"], "-", ["Export Diagnostics…"], ["Report a Problem…"]]}};
+    const BAR = [["app", "CueME Stage", 104], ["file", "File", 44], ["edit", "Edit", 44], ["view", "View", 48], ["service", "Service", 66], ["output", "Output", 62], ["window", "Window", 68], ["help", "Help", 48]];
+    const cur = (this.props && this.props.menu) || 'file';
+    const m = MENUS[cur] || MENUS.file;
+    let left = 38;
+    const barItems = BAR.map((b) => {
+      const on = b[0] === cur;
+      const it = { label: b[1], style: 'width:' + b[2] + 'px; height:20px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-radius:4px; white-space:nowrap; font-weight:' + (b[0] === 'app' ? 700 : 400) + '; background:' + (on ? '#47c86e' : 'transparent') + '; color:' + (on ? '#0d0d0d' : '#f5f5f5') };
+      if (on) this.dropLeft = left;
+      left += b[2];
+      return it;
+    });
+    const rows = m.rows.map((r) => {
+      if (r === '-') return { isSep: true, isSearch: false, isLink: false, isPlain: false };
+      if (r[0] === '@search') return { isSep: false, isSearch: true, isLink: false, isPlain: false };
+      let label = r[0]; let check = '';
+      if (label.indexOf('|') > -1) { check = label.split('|')[0]; label = label.split('|')[1]; }
+      const hl = m.hl && m.hl === label; const off = !!r[3];
+      return {
+        isSep: false, isSearch: false, isLink: !!r[2], isPlain: !r[2],
+        label, check, key: r[1] || '', href: r[2] || '',
+        style: 'display:flex; align-items:center; padding:4px 10px 4px 6px; border-radius:5px; color:' + (off ? '#6f6f6f' : hl ? '#0d0d0d' : '#f5f5f5') + '; background:' + (hl ? '#47c86e' : 'transparent') + '; font-weight:' + (hl ? 600 : 400),
+        keyStyle: 'color:' + (off ? '#5a5a5a' : hl ? '#0d0d0d' : '#a8a8a8')
+      };
+    });
+    const dropStyle = 'position:absolute; top:26px; left:' + ((this.dropLeft || 38) - 6) + 'px; width:' + m.w + 'px; padding:5px; box-sizing:border-box; border-radius:8px; background:rgba(44,44,44,.97); border:1px solid #444; box-shadow:0 12px 36px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px';
+    return { barItems, rows, dropStyle };
+  }
+}
+</script>
+</body>
+</html>

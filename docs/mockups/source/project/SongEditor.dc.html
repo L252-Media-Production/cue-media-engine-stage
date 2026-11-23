@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Song Editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:10px">
+
+<!-- Title bar -->
+<div style="height:44px; flex:none; display:flex; align-items:center; gap:12px; padding:0 14px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="display:flex; gap:8px; width:64px"><span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span><span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span><span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span></div>
+<div style="font-weight:700">Song Editor</div>
+<span style="color:var(--dim)">[Song title]</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">Saved</span>
+<a href="Main.dc.html" style="height:28px; padding:0 14px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; text-decoration:none">Done</a>
+</div>
+
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Left: slide list + objects -->
+<div style="width:224px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line)">
+<div style="flex:none; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--line)"><span style="font-weight:700">[Song title]</span><span style="color:var(--dim); font-size:16px">+</span></div>
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
+<sc-for list="{{listRows}}" as="r" hint-placeholder-count="10">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div onClick="{{ r.pick }}" style="{{ r.hStyle }}"><span style="width:12px; font-size:10px">{{ r.chev }}</span><span style="font-weight:700">{{ r.name }}</span></div></sc-if>
+<sc-if value="{{ r.isSlide }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.sStyle }}"><div style="{{ r.thumbStyle }}"><span style="white-space:pre-line">{{ r.text }}</span></div><div style="display:flex; align-items:center; gap:6px; font-size:11px; padding-top:3px; color:var(--fg); opacity:.85"><span>{{ r.n }}.</span><sc-if value="{{ r.hasAudio }}" hint-placeholder-val="{{ false }}"><span title="Timeline cue" style="display:flex; align-items:center; gap:3px; font-family:'JetBrains Mono',ui-monospace,monospace">◆ {{ r.cueTime }}</span></sc-if></div></div></sc-if>
+</sc-for>
+</div>
+<div style="flex:none; border-top:1px solid var(--line)">
+<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px"><span style="font-weight:700">Objects</span><span style="color:var(--accent); font-weight:600">+</span></div>
+<div style="padding:0 8px 10px; display:flex; flex-direction:column; gap:1px; min-height:56px">
+<sc-for list="{{objRows}}" as="o" hint-placeholder-count="1"><div style="{{ o.style }}"><span style="width:16px; font-family:Georgia,serif; font-weight:700">T</span><span style="flex:1">{{ o.name }}</span><span style="color:var(--dim); font-size:11px">{{ o.src }}</span></div></sc-for>
+<sc-if value="{{ noObjects }}" hint-placeholder-val="{{ false }}"><span style="padding:6px 8px; color:var(--dim); font-size:12px">No objects on this slide.</span></sc-if>
+</div>
+</div>
+</div>
+
+<!-- Center -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg)">
+<div style="flex:none; display:flex; border-bottom:1px solid var(--line); background:var(--chrome)">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for>
+</div>
+<div style="position:relative; flex:none; display:flex; align-items:center; gap:12px; padding:8px 16px; border-bottom:1px solid var(--line)">
+<span style="font-weight:600">[Song title]</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">Sequence</span>
+<button onClick="{{ seqToggle }}" aria-label="Choose sequence" style="height:26px; padding:0 10px; display:flex; align-items:center; gap:8px; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--fg); cursor:pointer"><span>{{ seqName }}</span><span style="color:var(--dim)">▾</span></button>
+<sc-if value="{{ seqMenuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:38px; right:16px; width:220px; z-index:12; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{seqRows}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.name }}</span><span style="color:var(--dim); font-size:11px">{{ r.count }}</span></div></sc-for>
+<div style="height:1px; background:var(--line); margin:4px 0"></div>
+<div onClick="{{ seqEdit }}" style="padding:6px 8px; border-radius:5px; cursor:pointer; color:var(--accent); font-weight:600">Edit sequences…</div>
+</div>
+</sc-if>
+</div>
+
+<!-- Timeline tab -->
+<sc-if value="{{ isTimelineTab }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:14px 20px; gap:12px">
+<div style="position:relative; border-radius:10px; background:var(--chrome); border:1px solid var(--line); overflow:visible">
+<div style="display:flex; height:26px; border-bottom:1px solid var(--line)"><div style="width:44px; flex:none"></div><div style="position:relative; flex:1"><sc-for list="{{tlTicks}}" as="k" hint-placeholder-count="10"><span style="{{ k.style }}">{{ k.label }}</span></sc-for></div></div>
+<sc-for list="{{tlTracks}}" as="tr" hint-placeholder-count="4">
+<div style="{{ tr.rowStyle }}">
+<div style="width:44px; flex:none; display:flex; align-items:center; justify-content:center; color:var(--dim)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="{{ tr.name }}"><path d="{{ tr.icon }}"/></svg></div>
+<div style="position:relative; flex:1; overflow:hidden">
+<sc-for list="{{ tr.blocks }}" as="b" hint-placeholder-count="5"><div onMouseDown="{{ b.down }}" onClick="{{ b.pick }}" style="{{ b.style }}">{{ b.text }}</div></sc-for>
+<sc-if value="{{ tr.isAudio }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; display:flex; align-items:center; gap:1px; padding:0 1px"><sc-for list="{{tlBars}}" as="b" hint-placeholder-count="120"><span style="{{ b.style }}"></span></sc-for></div></sc-if>
+</div>
+</div>
+</sc-for>
+<sc-if value="{{ recOn }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; right:10px; top:4px; z-index:6; display:flex; align-items:center; gap:6px; padding:2px 10px; border-radius:11px; background:#e5484d; color:#fff; font-size:11px; font-weight:700"><span style="width:7px; height:7px; border-radius:4px; background:#fff"></span>REC</div></sc-if>
+<div style="position:absolute; left:44px; right:0; top:0; bottom:0; pointer-events:none"><div style="{{ tlHead }}"><span style="position:absolute; left:-5px; top:0; width:11px; height:11px; background:var(--accent); border-radius:2px"></span></div></div>
+<sc-if value="{{ cueOpen }}" hint-placeholder-val="{{ false }}">
+<div role="dialog" aria-label="Edit cue" style="{{ cueCardStyle }}">
+<div style="font-weight:700">{{ cueTitle }}</div>
+<div style="display:flex; gap:8px"><div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Time</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--accent); font-family:'JetBrains Mono',ui-monospace,monospace">{{ cueTime }}</div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Slide</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ cueSlide }}</span><span style="color:var(--dim)">▾</span></div></div></div>
+<div style="display:flex; align-items:center; gap:8px"><button onClick="{{ cueDelete }}" style="{{ cueDelStyle }}">{{ cueDelLabel }}</button><div style="flex:1"></div><button onClick="{{ cueDone }}" style="height:28px; padding:0 14px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">Done</button></div>
+</div>
+</sc-if>
+</div>
+<div style="display:flex; align-items:center; gap:18px; padding:2px 4px">
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line); background:var(--panel)">
+<button aria-label="Back to start" style="width:36px; height:30px; border:0; background:transparent; color:var(--fg); cursor:pointer; display:flex; align-items:center; justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+<button onClick="{{ tlPlay }}" aria-label="{{ tlPlayLabel }}" style="width:36px; height:30px; border:0; border-left:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer; display:flex; align-items:center; justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><sc-if value="{{ tlOn }}" hint-placeholder-val="{{ false }}"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></sc-if><sc-if value="{{ tlOff }}" hint-placeholder-val="{{ true }}"><path d="M7 4l13 8-13 8z"/></sc-if></svg></button>
+<button onClick="{{ recToggle }}" aria-label="Record cues" style="{{ recStyle }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="7"/></svg></button>
+<button aria-label="Loop" style="width:36px; height:30px; border:0; border-left:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer; display:flex; align-items:center; justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4"/></svg></button>
+</div>
+<div style="display:flex; align-items:center; gap:8px"><span style="width:14px; height:14px; border-radius:3px; border:1px solid var(--line); background:var(--panel)"></span><span>Timecode</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">{{ tlTimecode }}</div></div>
+<div style="display:flex; align-items:center; gap:8px"><span>Duration</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">270s</div></div>
+<div style="flex:1"></div>
+<div style="display:flex; align-items:center; gap:8px; color:var(--dim)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-label="Zoom"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg><div style="position:relative; width:130px; height:4px; border-radius:2px; background:var(--line)"><div style="position:absolute; left:0; width:35%; height:4px; border-radius:2px; background:var(--accent)"></div><div style="position:absolute; left:35%; top:-5px; width:6px; height:14px; border-radius:3px; background:var(--accent)"></div></div></div>
+</div>
+</div>
+</sc-if>
+
+<!-- Slide tab -->
+<sc-if value="{{ isSlideTab }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; gap:14px; padding:14px 20px; background:{{ stageBg }}">
+<div style="flex:none; display:flex; align-items:center; border-radius:8px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.25)">
+<sc-for list="{{tools}}" as="t" hint-placeholder-count="4"><div style="display:flex; align-items:center; gap:6px; padding:7px 14px; color:var(--fg)"><span style="font-family:Georgia,serif; font-weight:700; font-size:15px">{{ t.glyph }}</span><span style="font-size:12px">{{ t.name }}</span></div></sc-for>
+</div>
+<div style="position:relative; width:780px; height:439px; flex:none; background:#0b0b0b; border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.35)">
+<sc-if value="{{ hasText }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute; left:50px; right:50px; top:80px; bottom:80px; border:1px solid var(--accent); display:flex; align-items:center; justify-content:center; text-align:center; color:#fff; font-size:34px; font-weight:600; line-height:1.25; white-space:pre-line">{{ slideText }}
+<span style="position:absolute; left:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; top:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; left:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span><span style="position:absolute; right:-4px; bottom:-4px; width:7px; height:7px; background:#fff"></span>
+<span style="position:absolute; left:0; top:-14px; font-size:9px; color:var(--accent); font-family:'JetBrains Mono',ui-monospace,monospace">Text: Slide Text</span>
+</div>
+</sc-if>
+<sc-if value="{{ noText }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#666; font-size:14px">Empty slide</div></sc-if>
+</div>
+<div style="width:780px; display:flex; align-items:center; gap:12px">
+<span style="color:var(--dim); font-size:12px">{{ slideInfo }}</span>
+<div style="flex:1"></div>
+<span style="color:var(--dim); font-size:12px">1920 × 1080</span>
+<div style="height:28px; padding:0 14px; display:flex; align-items:center; gap:6px; border-radius:6px; border:1px solid var(--accent); color:var(--accent); font-weight:600">+ New slide</div>
+</div>
+</div>
+</sc-if>
+
+<!-- Text edit tab -->
+<sc-if value="{{ isTextTab }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; overflow:hidden; padding:12px 20px; display:flex; flex-direction:column; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px">
+<sc-for list="{{textRows}}" as="r" hint-placeholder-count="14">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="{{ r.hStyle }}"><span style="{{ r.dot }}"></span><span style="font-weight:700">{{ r.name }}</span></div></sc-if>
+<sc-if value="{{ r.isLine }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.lStyle }}">{{ r.text }}</div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+
+<!-- Chords tab -->
+<sc-if value="{{ isChordsTab }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; overflow:hidden; padding:12px 20px; display:flex; flex-direction:column; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px">
+<sc-for list="{{chordRows}}" as="r" hint-placeholder-count="14">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="{{ r.hStyle }}"><span style="{{ r.dot }}"></span><span style="font-weight:700">{{ r.name }}</span></div></sc-if>
+<sc-if value="{{ r.isLine }}" hint-placeholder-val="{{ true }}"><div style="padding:2px 12px 4px"><div style="color:var(--accent); font-weight:700; white-space:pre; height:16px">{{ r.chords }}</div><div>{{ r.text }}</div></div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<!-- Right: inspector -->
+<div style="width:320px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-left:1px solid var(--line)">
+<div style="flex:none; display:flex; border-bottom:1px solid var(--line)">
+<sc-for list="{{rtabs}}" as="t" hint-placeholder-count="3"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for>
+</div>
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:14px; padding:14px">
+<sc-for list="{{rsections}}" as="sec" hint-placeholder-count="4">
+<div style="display:flex; flex-direction:column; gap:8px">
+<div style="{{label}}">{{ sec.title }}</div>
+<sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3">
+<div style="display:flex; flex-direction:column; gap:3px">
+<sc-if value="{{ r.hasLabel }}" hint-placeholder-val="{{ true }}"><span style="color:var(--dim); font-size:12px">{{ r.label }}</span></sc-if>
+<sc-if value="{{ r.isField }}" hint-placeholder-val="{{ true }}"><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">{{ r.value }}</div></sc-if>
+<sc-if value="{{ r.isSelect }}" hint-placeholder-val="{{ false }}"><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="display:flex; align-items:center; gap:8px; min-width:0"><sc-if value="{{ r.swatch }}" hint-placeholder-val="{{ false }}"><span style="{{ r.swatchStyle }}"></span></sc-if><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.value }}</span></span><span style="color:var(--dim)">▾</span></div></sc-if>
+<sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}"><div onClick="{{ r.pick }}" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer"><span>{{ r.name }}</span><span style="{{ r.track }}"><span style="{{ r.knob }}"></span></span></div></sc-if>
+<sc-if value="{{ r.isSeg }}" hint-placeholder-val="{{ false }}"><div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{ r.opts }}" as="o" hint-placeholder-count="3"><div onClick="{{ o.pick }}" style="{{ o.style }}">{{ o.label }}</div></sc-for></div></sc-if>
+<sc-if value="{{ r.isNotes }}" hint-placeholder-val="{{ false }}"><div style="height:64px; padding:6px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">{{ r.value }}</div></sc-if>
+<sc-if value="{{ r.isLevel }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; gap:10px"><div style="flex:1; height:4px; border-radius:2px; background:var(--panel)"><div style="width:72%; height:4px; border-radius:2px; background:var(--accent)"></div></div><span style="color:var(--dim); font-size:12px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ r.value }}</span></div></sc-if>
+<sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><span onClick="{{ r.pick }}" style="color:var(--accent); font-weight:600; cursor:pointer">{{ r.value }}</span></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+
+</div>
+<!-- Sequences dialog -->
+<sc-if value="{{ seqDlgOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; inset:0; z-index:30; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.5)">
+<div role="dialog" aria-label="Sequences" style="width:760px; display:flex; flex-direction:column; border-radius:12px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 20px 60px rgba(0,0,0,.5); overflow:hidden">
+<div style="padding:14px 18px; font-weight:700; font-size:15px; border-bottom:1px solid var(--line)">Sequences · [Song title]</div>
+<div style="display:flex; min-height:300px">
+<div style="width:230px; flex:none; display:flex; flex-direction:column; gap:1px; padding:10px; border-right:1px solid var(--line)">
+<sc-for list="{{seqList}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="flex:1; font-weight:{{ r.weight }}">{{ r.name }}</span><sc-if value="{{ r.active }}" hint-placeholder-val="{{ false }}"><span style="padding:1px 7px; border-radius:9px; background:var(--accent); color:{{ onAccent }}; font-size:10px; font-weight:700">ACTIVE</span></sc-if></div></sc-for>
+<div style="padding:7px 8px; color:var(--accent); font-weight:600; cursor:pointer">+ New sequence</div>
+</div>
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; padding:14px 18px">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Name</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">{{ seqEditName }}</div></div>
+<div style="display:flex; flex-direction:column; gap:6px"><span style="{{label}}">ORDER</span>
+<div style="display:flex; flex-wrap:wrap; gap:6px"><sc-for list="{{seqChips}}" as="c" hint-placeholder-count="8"><div style="{{ c.style }}"><span style="opacity:.7">⋮⋮</span><span style="font-weight:600">{{ c.name }}</span><span aria-label="Remove" style="opacity:.8; cursor:pointer">×</span></div></sc-for></div></div>
+<div style="display:flex; flex-direction:column; gap:6px"><span style="{{label}}">ADD GROUP</span>
+<div style="display:flex; flex-wrap:wrap; gap:6px"><sc-for list="{{seqAdd}}" as="c" hint-placeholder-count="5"><div style="{{ c.style }}">+ {{ c.name }}</div></sc-for></div></div>
+<div style="color:var(--dim); font-size:12px">{{ seqSummary }}</div>
+</div>
+</div>
+<div style="display:flex; align-items:center; gap:8px; padding:12px 18px; border-top:1px solid var(--line)">
+<button onClick="{{ seqDelete }}" style="{{ seqDelStyle }}">{{ seqDelLabel }}</button>
+<div style="flex:1"></div>
+<button onClick="{{ seqSetActive }}" style="height:30px; padding:0 14px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer">Make active</button>
+<button onClick="{{ seqClose }}" style="height:30px; padding:0 16px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">Done</button>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"tab":{"editor":"enum","default":"slide","options":["slide","text","chords","timeline"]},"seq":{"editor":"enum","default":"closed","options":["closed","menu","edit"]},"cue":{"editor":"enum","default":"none","options":["none","open"]},"rtab":{"editor":"enum","default":"song","options":["song","slide","text"]},"select":{"editor":"enum","default":"1","options":["0","1","2","3","4","5","6","7"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const p = props || {};
+    const tabs = { slide: 0, text: 1, chords: 2, timeline: 3 };
+    const sel = parseInt(String(p.select === undefined ? 1 : p.select), 10);
+    this.state = { tab: tabs[p.tab] || 0, sel: isNaN(sel) ? 1 : sel, coll: {}, rt: ({ song: 0, slide: 1, text: 2 })[p.rtab] || 0, follow: true, seq: ({ menu: 'menu', edit: 'edit' })[p.seq] || '', sq: 0, sa: 0, sdel: false, cuet: {}, cue: p.cue === 'open' ? 4 : -1, cdel: false, rec: false, playing: p.tab === 'timeline', head: 92, amode: 'play', auto: false, caps: 0, second: false, autosplit: true };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#e6e6e3;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--warn:#a85a00;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--warn:#ffb020;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const st = this.state;
+    const G = [
+      { n: 'Intro', c: '#9a8a1f' }, { n: 'Verse 1', c: '#1f5f9e' }, { n: 'Chorus', c: '#2f8f4a' }, { n: 'Verse 2', c: '#1f5f9e' }, { n: 'Bridge', c: '#a05a1f' }
+    ];
+    const S = [
+      { g: 0, t: '' },
+      { g: 1, t: 'Verse 1 · line one\nVerse 1 · line two' }, { g: 1, t: 'Verse 1 · line three\nVerse 1 · line four' },
+      { g: 2, t: 'Chorus · line one\nChorus · line two' }, { g: 2, t: 'Chorus · line three\nChorus · line four' },
+      { g: 3, t: 'Verse 2 · line one\nVerse 2 · line two' }, { g: 3, t: 'Verse 2 · line three\nVerse 2 · line four' },
+      { g: 4, t: 'Bridge · line one\nBridge · line two' }
+    ];
+    const CUES = { 0: 0, 1: 8, 2: 25, 3: 42, 4: 70, 5: 98, 6: 125, 7: 176, ...(st.cuet || {}) };
+    const mmss = (t) => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+    const sel = Math.min(st.sel, S.length - 1);
+    const cur = S[sel];
+    const dot = (c) => 'width:9px; height:9px; border-radius:5px; flex:none; background:' + c;
+    const SEQS = [
+      { n: 'Default', o: ['Intro', 'Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Bridge', 'Chorus'] },
+      { n: 'Short', o: ['Intro', 'Verse 1', 'Chorus', 'Chorus'] },
+      { n: 'Extended', o: ['Intro', 'Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Bridge', 'Bridge', 'Chorus', 'Chorus'] }
+    ];
+    const listRows = [];
+    let dispN = 0;
+    SEQS[st.sa].o.forEach((gname, qi) => {
+      const gi = G.map((x) => x.n).indexOf(gname);
+      const g = G[gi];
+      const closed = !!st.coll[qi];
+      listRows.push({ isHeader: true, isSlide: false, name: g.n, chev: closed ? '›' : '⌄',
+        pick: () => this.setState({ coll: { ...st.coll, [qi]: !closed } }),
+        hStyle: 'display:flex; align-items:center; gap:6px; padding:4px 10px; cursor:pointer; color:#fff; background:' + g.c });
+      if (closed) return;
+      S.forEach((s, si) => {
+        if (s.g !== gi) return;
+        dispN += 1;
+        listRows.push({ isHeader: false, isSlide: true, n: dispN, text: s.t, hasAudio: CUES[si] !== undefined, cueTime: CUES[si] !== undefined ? mmss(CUES[si]) : '',
+          pick: () => this.setState({ sel: si }),
+          sStyle: 'padding:8px 12px 6px; cursor:pointer; background:' + g.c + '59',
+          thumbStyle: 'aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; text-align:center; padding:4px; box-sizing:border-box; background:#0b0b0b; color:#fff; font-size:8px; line-height:1.3; border:2px solid ' + (si === sel ? 'var(--accent)' : 'transparent') });
+      });
+    });
+    const tabNames = ['Slide', 'Text edit', 'Chords', 'Timeline'];
+    const tabs = tabNames.map((n, i) => ({
+      label: n, pick: () => this.setState({ tab: i }),
+      style: 'flex:1; text-align:center; padding:9px 0; cursor:pointer; border-bottom:2px solid ' + (i === st.tab ? 'var(--accent)' : 'transparent') + '; font-weight:' + (i === st.tab ? 700 : 400) + '; color:' + (i === st.tab ? 'var(--fg)' : 'var(--dim)')
+    }));
+    const tools = [{ glyph: 'T', name: 'Text' }, { glyph: '▢', name: 'Shape' }, { glyph: '▨', name: 'Image' }, { glyph: '▶', name: 'Video' }];
+    const hasText = cur.t !== '';
+    const objRows = hasText ? [{ name: 'Lyrics', src: 'Slide Text', style: 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; background:var(--sel)' }] : [];
+    // text and chord rows
+    const chordSet = ['G          C', 'D          Em', 'C          G', 'D'];
+    const textRows = [];
+    const chordRows = [];
+    let lineNo = 0;
+    G.forEach((g, gi) => {
+      const hdr = { isHeader: true, isLine: false, name: g.n, dot: dot(g.c), hStyle: 'display:flex; align-items:center; gap:8px; padding:8px 12px 4px; margin-top:' + (gi ? 6 : 0) + 'px' };
+      textRows.push(hdr); chordRows.push(hdr);
+      if (gi === 0) {
+        textRows.push({ isHeader: false, isLine: true, text: '(instrumental)', pick: () => this.setState({ sel: 0 }), lStyle: 'padding:5px 12px; color:var(--dim); cursor:pointer; background:' + (sel === 0 ? 'var(--sel)' : 'transparent') });
+        chordRows.push({ isHeader: false, isLine: true, chords: 'G          C', text: '(instrumental)' });
+        return;
+      }
+      let first = true;
+      S.forEach((s, si) => {
+        if (s.g !== gi) return;
+        s.t.split('\n').forEach((line, li) => {
+          textRows.push({ isHeader: false, isLine: true, text: line, pick: () => this.setState({ sel: si }),
+            lStyle: 'padding:5px 12px; cursor:pointer; background:' + (si === sel ? 'var(--sel)' : 'transparent') + (!first && li === 0 ? '; border-top:1px dashed var(--line)' : '') });
+          chordRows.push({ isHeader: false, isLine: true, chords: chordSet[lineNo % chordSet.length], text: line });
+          lineNo += 1;
+        });
+        first = false;
+      });
+    });
+
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em; color:var(--dim)";
+    const tg = (on) => ({ track: 'width:34px; height:20px; border-radius:10px; position:relative; flex:none; background:' + (on ? 'var(--accent)' : 'var(--line)'), knob: 'position:absolute; top:2px; width:16px; height:16px; border-radius:8px; background:#fff; left:' + (on ? 16 : 2) + 'px' });
+    const R = (kind, label, value, x) => ({ hasLabel: kind !== 't' && kind !== 'l', label, value: value || '', name: label, isField: kind === 'f', isSelect: kind === 's', isToggle: kind === 't', isSeg: kind === 'g', isNotes: kind === 'n', isLevel: kind === 'v', isLink: kind === 'l', swatch: false, swatchStyle: '', opts: [], track: '', knob: '', pick: () => {}, ...(x || {}) });
+    const seg = (opts, cur, set) => opts.map((o) => ({ label: o, pick: () => set(o), style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; background:' + (o === cur ? 'var(--accent)' : 'var(--panel)') + '; color:' + (o === cur ? onAccent : 'var(--fg)') + '; font-weight:' + (o === cur ? 700 : 400) }));
+    const tgRow = (name, on, key) => R('t', name, '', { ...tg(on), pick: () => this.setState({ [key]: !on }) });
+    const CAPS = ['None', 'ALL CAPS', 'Sentence case'];
+    const hasCue = CUES[sel] !== undefined;
+    const GC = { 'Intro': '#9a8a1f', 'Verse 1': '#1f5f9e', 'Chorus': '#2f8f4a', 'Verse 2': '#1f5f9e', 'Bridge': '#a05a1f' };
+    const chipSt = (n) => 'display:flex; align-items:center; gap:8px; padding:5px 10px; border-radius:7px; color:#fff; background:' + GC[n];
+    const seqRowSt = (on) => 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (on ? 'var(--sel)' : 'transparent');
+    const seqRows = SEQS.map((q, i) => ({ name: q.n, count: q.o.length, check: i === st.sa ? '✓' : '', style: seqRowSt(i === st.sa), pick: () => this.setState({ sa: i, seq: '' }) }));
+    const seqList = SEQS.map((q, i) => ({ name: q.n, weight: i === st.sq ? 700 : 500, active: i === st.sa, style: seqRowSt(i === st.sq), pick: () => this.setState({ sq: i, sdel: false }) }));
+    const seqChips = SEQS[st.sq].o.map((n) => ({ name: n, style: chipSt(n) }));
+    const seqAdd = Object.keys(GC).map((n) => ({ name: n, style: 'padding:4px 10px; border-radius:7px; cursor:pointer; border:1px solid ' + GC[n] + '; color:' + GC[n] }));
+    const tcode = (t) => '00:' + String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(Math.floor(t % 60)).padStart(2, '0') + ';00';
+    const rsections = [
+      [
+        { title: 'SONG', rows: [R('f', 'Title', '[Song title]'), R('f', 'Author', '[Author]'), R('f', 'Copyright', '© [Publisher]'), R('f', 'CCLI number', '[CCLI #]'), R('s', 'Key', 'G'), R('f', 'Tempo', '72 BPM'), R('s', 'Collection', 'Worship Songs')] },
+        { title: 'AUDIO', rows: [R('s', 'Track', 'track_02.wav · 4:30'), R('v', 'Volume', '-6 dB'), tgRow('Slides follow audio', st.follow, 'follow'), R('l', '', 'Open timeline ›', { pick: () => this.setState({ tab: 3 }) })] },
+        { title: 'BACKGROUND', rows: [R('s', 'Song background', 'loop_blue_01.mov')] },
+        { title: 'SEQUENCE', rows: [R('s', 'Active sequence', SEQS[st.sa].n), R('l', '', 'Edit sequences ›', { pick: () => this.setState({ seq: 'edit' }) })] }
+      ],
+      [
+        { title: 'SLIDE', rows: [R('s', 'Group', G[cur.g].n, { swatch: true, swatchStyle: 'width:10px; height:10px; border-radius:5px; flex:none; background:' + G[cur.g].c }), R('s', 'Label', 'None')] },
+        { title: 'LOOK', rows: [R('s', 'Background', 'Use song background'), R('s', 'Transition', 'Fade · 0.5 s'), tgRow('Auto-advance', st.auto, 'auto')] },
+        { title: 'AUDIO ON THIS SLIDE', rows: [R('s', 'Cue', sel === 3 ? 'chime_soft.wav' : 'None'), R('g', 'Mode', '', { opts: seg(['Play', 'Loop', 'Stop'], st.amode === 'play' ? 'Play' : st.amode === 'loop' ? 'Loop' : 'Stop', (o) => this.setState({ amode: o.toLowerCase() })) }), R('v', 'Volume', '-6 dB')] },
+        { title: 'NOTES', rows: [R('n', 'Operator notes', 'Hold for a breath before the chorus.')] }
+      ],
+      [
+        { title: 'LYRICS', rows: [R('f', 'Lines per slide', '2'), tgRow('Split long verses automatically', st.autosplit, 'autosplit'), R('g', 'Capitalization', '', { opts: seg(CAPS, CAPS[st.caps], (o) => this.setState({ caps: CAPS.indexOf(o) })) })] },
+        { title: 'TRANSLATION', rows: [tgRow('Second language', st.second, 'second'), R('s', 'Language', st.second ? 'Spanish' : 'Off')] }
+      ]
+    ][st.rt];
+    const rtabs = ['Song', 'Slide', 'Text'].map((n, i) => ({ label: n, pick: () => this.setState({ rt: i }), style: 'flex:1; text-align:center; padding:9px 0; cursor:pointer; border-bottom:2px solid ' + (i === st.rt ? 'var(--accent)' : 'transparent') + '; font-weight:' + (i === st.rt ? 700 : 400) + '; color:' + (i === st.rt ? 'var(--fg)' : 'var(--dim)') }));
+    // timeline
+    const TOTAL = 270;
+    const pct = (t) => (t / TOTAL * 100).toFixed(2) + '%';
+    const tlBars = Array.from({ length: 150 }, (_, k) => { const h = 6 + Math.round(Math.abs(Math.sin(k * 0.45) * Math.cos(k * 0.11 + 1)) * 36); const played = k / 150 * TOTAL < st.head; return { style: 'flex:1; min-width:1px; border-radius:1px; height:' + h + 'px; background:' + (played ? 'var(--accent)' : 'var(--dim)') + (played ? '' : '; opacity:.5') }; });
+    const tlTicks = Array.from({ length: 10 }, (_, k) => ({ label: mmss(k * 30), style: "position:absolute; top:6px; left:" + pct(k * 30) + "; padding-left:4px; border-left:1px solid var(--line); font-size:10px; line-height:14px; color:var(--dim); font-family:'JetBrains Mono',ui-monospace,monospace" }));
+    const cueSi = Object.keys(CUES).map(Number).sort((a, b) => CUES[a] - CUES[b]);
+    const cueT = cueSi.map((si) => CUES[si]);
+    const rowSt = (h, bg) => 'display:flex; height:' + h + 'px; border-bottom:1px solid var(--line); background:' + bg;
+    // slide track: group segments (merge consecutive cues of the same group) + cue ticks
+    const segs = [];
+    cueSi.forEach((si, k) => { const gi = S[si].g; if (segs.length && segs[segs.length - 1].gi === gi) return; segs.push({ gi, from: CUES[si] }); });
+    segs.forEach((g, k) => { g.to = k + 1 < segs.length ? segs[k + 1].from : TOTAL; });
+    const slideBlocks = segs.map((g) => ({ text: G[g.gi].n, pick: () => {}, down: () => {}, style: 'position:absolute; top:0; height:28px; box-sizing:border-box; left:' + pct(g.from) + '; width:' + ((g.to - g.from) / TOTAL * 100).toFixed(2) + '%; padding:4px 7px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; background:' + G[g.gi].c }))
+      .concat(cueSi.map((si, k) => { const sel = st.cue === k; const gi = S[si].g; return { text: 'Cue ' + (k + 1), down: (e) => {
+        if (si === 0 || !e || !e.currentTarget || !e.currentTarget.parentElement) return;
+        const r = e.currentTarget.parentElement.getBoundingClientRect();
+        const lo = CUES[si - 1] + 1; const hi = (CUES[si + 1] !== undefined ? CUES[si + 1] : TOTAL) - 1;
+        const mv = (ev) => { const t = Math.max(lo, Math.min(hi, Math.round((ev.clientX - r.left) / r.width * TOTAL))); this.setState({ cuet: { ...this.state.cuet, [si]: t }, cue: k }); };
+        const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+        window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+      }, pick: () => this.setState({ cue: sel ? -1 : k, cdel: false }), style: 'position:absolute; top:28px; height:28px; user-select:none; box-sizing:border-box; left:' + pct(CUES[si]) + '; width:' + (((k + 1 < cueSi.length ? cueT[k + 1] : TOTAL) - CUES[si]) / TOTAL * 100).toFixed(2) + '%; padding:5px 6px; font-size:11px; color:#fff; cursor:pointer; white-space:nowrap; overflow:hidden; border-left:1px solid rgba(255,255,255,.7); background:' + (sel ? 'rgba(255,255,255,.28)' : G[gi].c + 'cc') + (sel ? '; outline:2px solid var(--fg); outline-offset:-2px' : '') }; }));
+    const mediaBlocks = [['loop_blue_01.mov', 0, 98], ['loop_warm_02.mov', 98, 270]].map((m) => ({ text: m[0], pick: () => {}, down: () => {}, style: "position:absolute; top:4px; bottom:4px; left:" + pct(m[1]) + "; width:" + ((m[2] - m[1]) / TOTAL * 100).toFixed(2) + "%; box-sizing:border-box; padding:4px 8px; border-radius:5px; font-size:11px; white-space:nowrap; overflow:hidden; background:rgba(125,92,240,.45); border:1px solid rgba(160,130,255,.6); color:#fff" }));
+    const actionBlocks = [['Show message: Welcome', 12], ['Clear message', 34]].map((a) => ({ text: '◆ ' + a[0], pick: () => {}, down: () => {}, style: "position:absolute; top:5px; left:" + pct(a[1]) + "; padding:3px 8px; border-radius:5px; font-size:11px; white-space:nowrap; background:rgba(255,176,32,.25); border:1px solid rgba(255,176,32,.6); color:var(--fg)" }));
+    const audioBlocks = [{ text: 'track_02.wav', pick: () => {}, down: () => {}, style: "position:absolute; top:3px; left:6px; z-index:2; font-size:11px; color:var(--fg); text-shadow:0 0 4px var(--chrome)" }];
+    const tlTracks = [
+      { name: 'Slides', icon: 'M4 6h16M4 12h16M4 18h10', isAudio: false, blocks: slideBlocks, rowStyle: rowSt(56, 'var(--bg)') },
+      { name: 'Media', icon: 'M3 5h18v14H3zM3 15l5-5 5 5 3-3 5 5', isAudio: false, blocks: mediaBlocks, rowStyle: rowSt(38, 'rgba(125,92,240,.10)') },
+      { name: 'Audio', icon: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z', isAudio: true, blocks: audioBlocks, rowStyle: rowSt(58, 'rgba(71,200,110,.10)') },
+      { name: 'Actions', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', isAudio: false, blocks: actionBlocks, rowStyle: rowSt(34, 'var(--bg)').replace('border-bottom:1px solid var(--line)', 'border-bottom:0') }
+    ];
+    const cueIdx = st.cue;
+    const hasCueSel = cueIdx >= 0 && cueIdx < cueSi.length;
+    const cueFrac = hasCueSel ? Math.min(cueT[cueIdx] / TOTAL, 0.68) : 0;
+    const cueSlideIdx = hasCueSel ? cueSi[cueIdx] : 0;
+    const warnRed = '#e5484d';
+    return {
+      vars, onAccent, listRows, tabs, tools, objRows, noObjects: !hasText, textRows, chordRows,
+      rtabs, rsections, label, tlBars, tlTicks, tlTracks, onAccent2: onAccent,
+      cueOpen: hasCueSel, cueTitle: 'Cue ' + (cueIdx + 1), cueTime: hasCueSel ? mmss(cueT[cueIdx]) : '', cueSlide: hasCueSel ? (cueSlideIdx + 1) + ' · ' + G[S[cueSlideIdx].g].n : '',
+      cueCardStyle: 'position:absolute; z-index:10; top:98px; width:250px; box-sizing:border-box; display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:10px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 12px 36px rgba(0,0,0,.5); left:calc(44px + (100% - 44px) * ' + cueFrac.toFixed(3) + ')',
+      cueDelLabel: st.cdel ? '✓ Confirm' : 'Delete cue',
+      cueDelStyle: 'height:28px; padding:0 12px; border-radius:6px; cursor:pointer; font-weight:600; border:1px solid ' + warnRed + '; color:' + (st.cdel ? '#fff' : warnRed) + '; background:' + (st.cdel ? warnRed : 'transparent'),
+      cueDelete: () => (st.cdel ? this.setState({ cue: -1, cdel: false }) : this.setState({ cdel: true })),
+      cueDone: () => this.setState({ cue: -1, cdel: false }),
+      tlTimecode: tcode(st.head), recOn: st.rec, recToggle: () => this.setState({ rec: !st.rec }),
+      recStyle: 'width:36px; height:30px; border:0; border-left:1px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:' + (st.rec ? warnRed : 'transparent') + '; color:' + (st.rec ? '#fff' : warnRed),
+      seqName: SEQS[st.sa].n, seqToggle: () => this.setState({ seq: st.seq === 'menu' ? '' : 'menu' }), seqMenuOpen: st.seq === 'menu', seqRows, seqEdit: () => this.setState({ seq: 'edit' }),
+      seqDlgOpen: st.seq === 'edit', seqList, seqChips, seqAdd, seqEditName: SEQS[st.sq].n, seqSummary: SEQS[st.sq].o.length + ' groups in this sequence',
+      seqClose: () => this.setState({ seq: '', sdel: false }), seqSetActive: () => this.setState({ sa: st.sq }),
+      seqDelLabel: st.sdel ? '✓ Confirm delete' : 'Delete sequence',
+      seqDelStyle: 'height:30px; padding:0 12px; border-radius:6px; cursor:pointer; font-weight:600; border:1px solid ' + warnRed + '; color:' + (st.sdel ? '#fff' : warnRed) + '; background:' + (st.sdel ? warnRed : 'transparent'),
+      seqDelete: () => (st.sdel ? this.setState({ sdel: false }) : this.setState({ sdel: true })), isTimelineTab: st.tab === 3, tlTime: mmss(st.head), tlHead: 'position:absolute; top:0; bottom:0; width:2px; background:' + (st.rec ? '#e5484d' : 'var(--accent)') + '; left:' + pct(st.head), tlOn: st.playing, tlOff: !st.playing, tlPlayLabel: st.playing ? 'Pause' : 'Play', tlPlay: () => this.setState({ playing: !st.playing }), tlFollow: () => this.setState({ follow: !st.follow }), followTrack: tg(st.follow).track, followKnob: tg(st.follow).knob,
+      isSlideTab: st.tab === 0, isTextTab: st.tab === 1, isChordsTab: st.tab === 2,
+      stageBg: light ? '#9a9a96' : '#4a4a4c',
+      hasText, noText: !hasText, slideText: cur.t,
+      slideInfo: 'Slide ' + (sel + 1) + ' of ' + S.length + ' · ' + G[cur.g].n
+    };
+  }
+}
+</script>
+</body>
+</html>

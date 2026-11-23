@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Import</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{text-decoration:none}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:var(--fg)">
+
+<div style="position:absolute; inset:0"><dc-import name="Main" bar="off" theme="{{theme}}" hint-size="1440px,900px"></dc-import></div>
+<div style="position:absolute; inset:0; background:rgba(0,0,0,.5)"></div>
+
+<!-- Sheet -->
+<div style="position:absolute; top:38px; left:270px; width:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); border:1px solid var(--line); border-top:0; border-radius:0 0 12px 12px; box-shadow:0 20px 60px rgba(0,0,0,.6); overflow:hidden">
+
+<div style="height:48px; flex:none; display:flex; align-items:center; gap:14px; padding:0 16px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="font-weight:700; font-size:15px">Import</div>
+<div style="display:flex; align-items:center; gap:6px">
+<sc-for list="{{stepChips}}" as="c" hint-placeholder-count="3"><span style="{{ c.style }}">{{ c.label }}</span></sc-for>
+</div>
+</div>
+
+<!-- Step 1: source -->
+<sc-if value="{{ isSource }}" hint-placeholder-val="{{ true }}">
+<div style="padding:18px; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px">
+<sc-for list="{{srcCards}}" as="c" hint-placeholder-count="4">
+<div onClick="{{ c.pick }}" style="{{ c.style }}">
+<span style="{{ c.badge }}">{{ c.letter }}</span>
+<div style="flex:1; min-width:0"><div style="font-weight:700; font-size:14px">{{ c.name }}</div><div style="color:var(--dim); font-size:12px; margin-top:2px">{{ c.formats }}</div></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<!-- Step 2: review -->
+<sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 18px; display:flex; flex-direction:column; gap:14px">
+<div style="display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line)"><span style="{{ badge }}">{{ letter }}</span><div style="flex:1; min-width:0"><div style="font-weight:600">{{ fileName }}</div><div style="color:var(--dim); font-size:12px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ fileMeta }}</div></div><span style="height:26px; padding:0 12px; display:flex; align-items:center; border-radius:6px; border:1px solid var(--line); background:var(--chrome)">Change…</span></div>
+
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">WHAT TO IMPORT</span>
+<div style="display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:var(--panel)">
+<sc-for list="{{catRows}}" as="r" hint-placeholder-count="6">
+<div onClick="{{ r.pick }}" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer">
+<span style="{{ r.box }}">{{ r.tick }}</span><span style="flex:1; font-weight:600">{{ r.name }}</span><span style="color:var(--dim); font-size:12px">{{ r.note }}</span><span style="width:48px; text-align:right; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ r.count }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex; gap:14px">
+<div style="flex:1; display:flex; flex-direction:column; gap:4px"><span style="{{label}}">{{ optLabel }}</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{optSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+<div style="width:260px; display:flex; flex-direction:column; gap:4px"><span style="{{label}}">ADD TO</span>
+<div style="height:30px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ destName }}</span><span style="color:var(--dim)">▾</span></div></div>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">NEEDS ATTENTION · {{ warnCount }}</span>
+<div style="display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:var(--panel)">
+<sc-for list="{{warnRows}}" as="w" hint-placeholder-count="3">
+<div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line)">
+<span style="{{ w.dot }}"></span><span style="flex:1">{{ w.text }}</span><span style="color:var(--dim); font-size:12px">{{ w.fix }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<!-- Step 3: done -->
+<sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+<div style="padding:18px; display:flex; flex-direction:column; gap:14px">
+<div style="display:flex; align-items:center; gap:12px"><span style="width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:17px; background:var(--accent); color:{{onAccent}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><div><div style="font-weight:700; font-size:15px">Import finished</div><div style="color:var(--dim); font-size:12px">{{ doneSummary }}</div></div></div>
+<div style="display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:var(--panel)">
+<sc-for list="{{doneRows}}" as="r" hint-placeholder-count="5">
+<div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line)"><span style="color:var(--accent); font-weight:700">✓</span><span style="flex:1; font-weight:600">{{ r.name }}</span><span style="color:var(--dim); font-size:12px">{{ r.where }}</span><span style="width:48px; text-align:right; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ r.count }}</span></div>
+</sc-for>
+</div>
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">NEEDS ATTENTION · {{ warnCount }}</span>
+<div style="display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:var(--panel)">
+<sc-for list="{{warnRows}}" as="w" hint-placeholder-count="3">
+<div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line)"><span style="{{ w.dot }}"></span><span style="flex:1">{{ w.text }}</span><span style="color:var(--accent); font-size:12px; font-weight:600">Open</span></div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="padding:12px 16px; border-top:1px solid var(--line); background:var(--chrome); display:flex; align-items:center; gap:8px">
+<span style="color:var(--dim); font-size:12px">{{ footNote }}</span>
+<div style="flex:1"></div>
+<sc-if value="{{ showCancel }}" hint-placeholder-val="{{ true }}"><a href="Main.dc.html" style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Cancel</a></sc-if>
+<sc-if value="{{ showBack }}" hint-placeholder-val="{{ false }}"><div onClick="{{ goBack }}" style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer">Back</div></sc-if>
+<sc-if value="{{ showNext }}" hint-placeholder-val="{{ true }}"><div onClick="{{ goNext }}" style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; cursor:pointer">{{ nextLabel }}</div></sc-if>
+<sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}"><a href="Main.dc.html" style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700">Done</a></sc-if>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"step":{"editor":"enum","default":"source","options":["source","review","done"]},"src":{"editor":"enum","default":"pro","options":["pro","free","ppt","key"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: ({ source: 0, review: 1, done: 2 })[props && props.step] || 0, src: ({ pro: 0, free: 1, ppt: 2, key: 3 })[props && props.src] || 0, off: {}, opt: { 0: 0, 1: 0, 2: 0, 3: 0 } };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const light = theme === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede;--warn:#b45f06;--live:#c4221a'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29;--warn:#ffb020;--live:#e5483f';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const SRC = [
+      { name: 'ProPresenter', letter: 'P', color: '#3b6fd1', formats: 'Library folder, .pro, .proBundle', file: 'Sunday Library', meta: '~/Documents/ProPresenter/Libraries · 1.4 GB',
+        cats: [['Songs', 142, 'Lyrics, groups, arrangements'], ['Playlists', 6, ''], ['Media', 38, 'Linked in place'], ['Looks', 5, 'Backgrounds and text styles'], ['Stage layouts', 3, ''], ['Timers', 4, ''], ['Messages', 6, '']],
+        optLabel: 'IF IT ALREADY EXISTS', opts: ['Skip', 'Replace', 'Keep both'], dest: 'Song library',
+        warns: [['6 songs use Montserrat, which is not installed', 'Uses SF Pro', 'w'], ['2 linked media files were not found', 'Relink later', 'w'], ['3 macros are not supported', 'Skipped', 'e']],
+        done: [['Songs', 'Song library', 142], ['Playlists', 'Playlists', 6], ['Media', 'Media bin, linked', 38], ['Looks', 'Looks', 5], ['Stage layouts', 'Stage editor', 3], ['Timers', 'Timers', 4], ['Messages', 'Messages', 6]] },
+      { name: 'FreeShow', letter: 'F', color: '#8a4be0', formats: 'Export file or project folder', file: 'FreeShow export.zip', meta: '~/Downloads · 312 MB',
+        cats: [['Shows', 96, 'Songs and presentations'], ['Projects', 8, 'Become playlists'], ['Overlays', 12, 'Become message templates'], ['Templates', 6, 'Become Looks'], ['Media', 24, 'Linked in place'], ['Timers', 3, '']],
+        optLabel: 'IF IT ALREADY EXISTS', opts: ['Skip', 'Replace', 'Keep both'], dest: 'Song library',
+        warns: [['Show "Easter 2025" has audio-triggered actions', 'Skipped', 'e'], ['4 overlays use animated text', 'Static', 'w']],
+        done: [['Shows', 'Song library, Presentations', 96], ['Projects', 'Playlists', 8], ['Overlays', 'Messages', 12], ['Templates', 'Looks', 6], ['Media', 'Media bin, linked', 24], ['Timers', 'Timers', 3]] },
+      { name: 'PowerPoint', letter: 'W', color: '#d4531f', formats: '.pptx, .ppsx', file: 'Easter Sunday.pptx', meta: '~/Desktop · 48 MB · 24 slides',
+        cats: [['Slides', 24, ''], ['Speaker notes', 18, 'Become speaker notes'], ['Videos', 3, 'Copied into the media bin'], ['Images', 6, '']],
+        optLabel: 'IMPORT SLIDES AS', opts: ['Editable slides', 'Slide images'], dest: 'Presentations',
+        warns: [['Slide 7 uses a SmartArt graphic', 'Imported as image', 'w'], ['2 fonts are missing: Calibri Light, Cambria', 'Uses SF Pro', 'w'], ['5 transitions were simplified', 'Fade', 'w']],
+        done: [['Slides', 'Presentations', 24], ['Speaker notes', 'Presentations', 18], ['Videos', 'Media bin', 3], ['Images', 'Media bin', 6]] },
+      { name: 'Keynote', letter: 'K', color: '#1f9bd4', formats: '.key', file: 'Easter Sunday.key', meta: '~/Desktop · 61 MB · 24 slides',
+        cats: [['Slides', 24, ''], ['Presenter notes', 18, 'Become speaker notes'], ['Videos', 3, 'Copied into the media bin'], ['Images', 6, '']],
+        optLabel: 'IMPORT SLIDES AS', opts: ['Editable slides', 'Slide images'], dest: 'Presentations',
+        warns: [['Slide 4 uses Magic Move', 'Becomes Fade', 'w'], ['Slide 12 has an animated chart', 'Imported as image', 'w']],
+        done: [['Slides', 'Presentations', 24], ['Presenter notes', 'Presentations', 18], ['Videos', 'Media bin', 3], ['Images', 'Media bin', 6]] }
+    ];
+    const S = SRC[st.src];
+    const badge = (c) => 'width:36px; height:36px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:8px; background:' + c + '; color:#ffffff; font-weight:800; font-size:16px';
+    const steps = ['Source', 'Review', 'Done'];
+    const stepChips = steps.map((n, i) => ({ label: (i + 1) + '  ' + n, style: 'padding:3px 10px; border-radius:11px; font-size:12px; font-weight:' + (i === st.step ? 700 : 500) + '; background:' + (i === st.step ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.step ? onAccent : 'var(--dim)') + '; border:1px solid ' + (i === st.step ? 'var(--accent)' : 'var(--line)') }));
+    const srcCards = SRC.map((c, i) => ({
+      name: c.name, formats: c.formats, letter: c.letter, badge: badge(c.color),
+      pick: () => this.setState({ src: i }),
+      style: 'display:flex; align-items:center; gap:14px; padding:16px; border-radius:10px; cursor:pointer; background:' + (i === st.src ? 'var(--sel)' : 'var(--panel)') + '; border:2px solid ' + (i === st.src ? 'var(--accent)' : 'var(--line)')
+    }));
+    const catRows = S.cats.map((c, i) => {
+      const on = !st.off[st.src + '-' + i];
+      return { name: c[0], count: c[1], note: c[2], tick: on ? '✓' : '', pick: () => this.setState({ off: { ...st.off, [st.src + '-' + i]: on } }),
+        box: 'width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:11px; font-weight:700; background:' + (on ? 'var(--accent)' : 'transparent') + '; color:' + onAccent + '; border:1px solid ' + (on ? 'var(--accent)' : 'var(--line)') };
+    });
+    const nSel = S.cats.filter((c, i) => !st.off[st.src + '-' + i]).reduce((a, c) => a + c[1], 0);
+    const seg = (on) => 'flex:1; text-align:center; padding:6px 0; cursor:pointer; font-size:12px; background:' + (on ? 'var(--accent)' : 'var(--panel)') + '; color:' + (on ? onAccent : 'var(--fg)') + '; font-weight:' + (on ? 700 : 400);
+    const optSeg = S.opts.map((n, i) => ({ label: n, pick: () => this.setState({ opt: { ...st.opt, [st.src]: i } }), style: seg((st.opt[st.src] || 0) === i) }));
+    const warnRows = S.warns.map((w) => ({ text: w[0], fix: w[1], dot: 'width:8px; height:8px; flex:none; border-radius:4px; background:' + (w[2] === 'e' ? 'var(--live)' : 'var(--warn)') }));
+    const doneRows = S.done.map((d) => ({ name: d[0], where: d[1], count: d[2] }));
+    const total = S.done.reduce((a, d) => a + d[2], 0);
+    const step = st.step;
+    return {
+      vars, theme, onAccent, label, stepChips, srcCards, isSource: step === 0, isReview: step === 1, isDone: step === 2,
+      badge: badge(S.color), letter: S.letter, fileName: S.file, fileMeta: S.meta, catRows, optLabel: S.optLabel, optSeg, destName: S.dest,
+      warnRows, warnCount: S.warns.length, doneRows, doneSummary: total + ' items from ' + S.name + ', ' + S.warns.length + ' need a look',
+      footNote: step === 0 ? '' : step === 1 ? nSel + ' items selected' : '',
+      showCancel: step < 2, showBack: step === 1, showNext: step < 2,
+      nextLabel: step === 0 ? 'Choose file…' : 'Import',
+      goBack: () => this.setState({ step: 0 }), goNext: () => this.setState({ step: step + 1 })
+    };
+  }
+}
+</script>
+</body>
+</html>

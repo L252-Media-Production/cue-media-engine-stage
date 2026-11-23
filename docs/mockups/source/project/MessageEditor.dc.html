@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Message editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{text-decoration:none}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:var(--fg)">
+
+<div style="position:absolute; inset:0"><dc-import name="Main" bar="off" theme="{{theme}}" tab="message" hint-size="1440px,900px"></dc-import></div>
+<div style="position:absolute; inset:0; background:rgba(0,0,0,.5)"></div>
+
+<!-- Sheet -->
+<div style="position:absolute; top:38px; left:380px; width:680px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); border:1px solid var(--line); border-top:0; border-radius:0 0 12px 12px; box-shadow:0 20px 60px rgba(0,0,0,.6)">
+<div style="height:48px; flex:none; display:flex; align-items:center; gap:12px; padding:0 16px; background:var(--chrome); border-bottom:1px solid var(--line); border-radius:0">
+<div style="font-weight:700; font-size:15px">{{ title }}</div>
+<div style="flex:1"></div>
+<a href="MainMessages.dc.html" style="height:28px; padding:0 14px; box-sizing:border-box; display:flex; align-items:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Cancel</a>
+<a href="MainMessages.dc.html" style="height:28px; padding:0 14px; box-sizing:border-box; display:flex; align-items:center; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700">Save</a>
+</div>
+
+<div style="display:flex; gap:20px; padding:16px">
+<!-- Left: fields -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:14px">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">MESSAGE</span>
+<div style="min-height:64px; box-sizing:border-box; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--accent); font-size:15px; line-height:1.35">{{ text }}<span style="display:inline-block; width:1px; height:16px; margin-left:1px; vertical-align:-3px; background:var(--accent)"></span></div>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:4px; position:relative"><span style="{{label}}">STYLE</span>
+<div onClick="{{ toggleMenu }}" style="{{ ddStyle }}"><span style="font-weight:600">{{ styleName }}</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:52px; left:0; right:0; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{styleRows}}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.name }}</span></div></sc-for>
+<div style="height:1px; margin:4px 0; background:var(--line)"></div>
+<a href="MessageTemplate.dc.html" style="padding:6px 8px; color:var(--accent); font-weight:600">Edit templates ↗</a>
+</div>
+</sc-if>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">SHOW FOR</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{durSeg}}" as="a" hint-placeholder-count="4"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+</div>
+
+<div onClick="{{ toggleFlash }}" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><div style="flex:1; font-weight:600">Flash when shown</div><span style="{{ flashTrack }}"><span style="{{ flashKnob }}"></span></span></div>
+</div>
+
+<!-- Right: screens + preview -->
+<div style="width:280px; flex:none; display:flex; flex-direction:column; gap:14px">
+<div style="display:flex; flex-direction:column; gap:4px">
+<div style="display:flex; align-items:center"><span style="{{label}}">SEND TO</span><div style="flex:1"></div><span onClick="{{ pickAll }}" style="color:var(--accent); font-weight:600; font-size:12px; cursor:pointer">All</span><span style="width:10px"></span><span onClick="{{ pickNone }}" style="color:var(--dim); font-size:12px; cursor:pointer">None</span></div>
+<div style="display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:var(--panel)">
+<sc-for list="{{screenRows}}" as="s" hint-placeholder-count="6">
+<div onClick="{{ s.pick }}" style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line); cursor:pointer">
+<span style="{{ s.box }}">{{ s.tick }}</span><span style="flex:1; font-weight:{{ s.weight }}">{{ s.name }}</span><span style="color:var(--dim); font-size:11px">{{ s.type }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">PREVIEW</span>
+<div style="position:relative; width:100%; aspect-ratio:16/9; border-radius:6px; border:1px solid var(--line); overflow:hidden; box-sizing:border-box; background:linear-gradient(135deg,#1c3a5e,#0d1b2e)">
+<div style="{{ pvStyle }}">{{ text }}</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1px solid var(--line); background:var(--chrome); border-radius:0 0 12px 12px">
+<span style="color:var(--dim); font-size:12px">{{ summary }}</span>
+<div style="flex:1"></div>
+<a href="MainMessages.dc.html" style="height:30px; padding:0 14px; box-sizing:border-box; display:flex; align-items:center; border-radius:6px; border:1px solid var(--accent); color:var(--accent); font-weight:700">Save and show</a>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"menu":{"editor":"enum","default":"closed","options":["closed","open"]},"item":{"editor":"enum","default":"new","options":["new","0","1","2","3"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const D = [
+      { text: 'Wrap up in 2 min', style: 0, dur: 0, scr: { 2: true, 3: true, 5: true } },
+      { text: 'Please be seated', style: 1, dur: 1, scr: { 0: true, 1: true } },
+      { text: 'Prayer next', style: 0, dur: 0, scr: { 2: true, 3: true, 4: true } },
+      { text: 'Nursery pick-up: Room 3', style: 2, dur: 2, scr: { 1: true } }
+    ];
+    const it = props && props.item !== undefined && props.item !== 'new' ? D[parseInt(String(props.item), 10)] : null;
+    this.isEdit = !!it;
+    this.state = it ? { ...it, menu: !!(props && props.menu === 'open'), flash: false } : { text: 'Please silence your phones', style: 0, menu: !!(props && props.menu === 'open'), dur: 0, flash: false, scr: { 0: true, 2: true, 4: true } };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const light = theme === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const STYLES = ['Top banner', 'Bottom banner', 'Full-screen takeover', 'Scrolling ticker'];
+    const SCREENS = [['Screen 1', 'Audience'], ['Lobby TV', 'Audience'], ['Stage Screen 1', 'Stage'], ['Stage Screen 2', 'Stage'], ['Green room', 'Announcements'], ['DSM', 'Speaker display']];
+    const DURS = ['Until hidden', '10 s', '30 s', '1 min'];
+    const seg = (on) => 'flex:1; text-align:center; padding:6px 0; cursor:pointer; font-size:12px; background:' + (on ? 'var(--accent)' : 'var(--panel)') + '; color:' + (on ? onAccent : 'var(--fg)') + '; font-weight:' + (on ? 700 : 400);
+    const T = 'position:absolute; display:flex; align-items:center; font-weight:700; color:#1a1a1a; ';
+    const pvs = [
+      T + 'left:0; right:0; top:0; height:24%; justify-content:center; font-size:10px; background:rgba(255,176,32,.92)',
+      T + 'left:0; right:0; bottom:0; height:24%; justify-content:center; font-size:10px; background:rgba(255,176,32,.92)',
+      T + 'inset:0; justify-content:center; font-size:15px; text-align:center; padding:0 16px; background:rgba(255,176,32,.92)',
+      T + 'left:0; right:0; bottom:0; height:20%; justify-content:flex-start; padding-left:36%; font-size:10px; white-space:nowrap; background:rgba(255,176,32,.92)'
+    ];
+    const n = Object.values(st.scr).filter(Boolean).length;
+    return {
+      vars, theme, onAccent, label, text: st.text, title: this.isEdit ? 'Edit message' : 'New message',
+      styleName: STYLES[st.style], menuOpen: st.menu, toggleMenu: () => this.setState({ menu: !st.menu }),
+      ddStyle: 'display:flex; align-items:center; justify-content:space-between; height:30px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:var(--panel); cursor:pointer; border:1px solid ' + (st.menu ? 'var(--accent)' : 'var(--line)'),
+      styleRows: STYLES.map((s, i) => ({ name: s, check: i === st.style ? '✓' : '', pick: () => this.setState({ style: i, menu: false }), style: 'display:flex; align-items:center; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === st.style ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.style ? onAccent : 'var(--fg)') })),
+      durSeg: DURS.map((d, i) => ({ label: d, pick: () => this.setState({ dur: i }), style: seg(st.dur === i) })),
+      flashTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; background:' + (st.flash ? 'var(--accent)' : 'var(--line)'),
+      flashKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (st.flash ? onAccent : 'var(--dim)') + '; left:' + (st.flash ? 18 : 2) + 'px',
+      toggleFlash: () => this.setState({ flash: !st.flash }),
+      screenRows: SCREENS.map((s, i) => ({
+        name: s[0], type: s[1], weight: st.scr[i] ? 600 : 400,
+        box: 'width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:11px; font-weight:700; background:' + (st.scr[i] ? 'var(--accent)' : 'transparent') + '; color:' + onAccent + '; border:1px solid ' + (st.scr[i] ? 'var(--accent)' : 'var(--line)'),
+        tick: st.scr[i] ? '✓' : '', pick: () => this.setState({ scr: { ...st.scr, [i]: !st.scr[i] } })
+      })),
+      pickAll: () => this.setState({ scr: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true } }), pickNone: () => this.setState({ scr: {} }),
+      pvStyle: pvs[st.style], summary: n + (n === 1 ? ' screen' : ' screens') + ' · ' + STYLES[st.style] + ' · ' + DURS[st.dur]
+    };
+  }
+}
+</script>
+</body>
+</html>

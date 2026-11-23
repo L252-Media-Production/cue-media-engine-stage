@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Visuals</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:10px">
+
+<!-- Title bar -->
+<div style="height:44px; flex:none; display:flex; align-items:center; gap:12px; padding:0 14px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="display:flex; gap:8px; width:64px"><span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span><span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span><span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span></div>
+<div style="font-weight:700">Visuals</div>
+<span style="color:var(--dim)">Sunday service</span>
+<div style="flex:1"></div>
+<div style="display:flex; align-items:center; gap:10px; padding:0 10px; height:30px; border-radius:7px; background:var(--panel); border:1px solid var(--line)">
+<span style="{{label}}">TEMPO</span>
+<button onClick="{{ bpmDown }}" aria-label="Slower" style="width:22px; height:22px; border-radius:5px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer">−</button>
+<span style="min-width:62px; text-align:center; font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:600">{{ bpmText }}</span>
+<button onClick="{{ bpmUp }}" aria-label="Faster" style="width:22px; height:22px; border-radius:5px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer">+</button>
+<button style="height:22px; padding:0 8px; border-radius:5px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer">Tap</button>
+<div style="display:flex; gap:4px"><sc-for list="{{beatDots}}" as="d" hint-placeholder-count="4"><span style="{{ d.style }}"></span></sc-for></div>
+<div style="display:flex; border-radius:5px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{bpmSrc}}" as="r" hint-placeholder-count="2"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for></div>
+<button onClick="{{ quantCycle }}" aria-label="Launch quantize" style="height:22px; padding:0 8px; display:flex; align-items:center; gap:6px; border-radius:5px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer"><span style="color:var(--dim)">Launch on</span><span>{{ quantName }}</span></button>
+</div>
+<span style="color:var(--dim); font-size:12px">Saved</span>
+<a href="OutputSetupSlices.dc.html" style="height:28px; padding:0 14px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--fg); text-decoration:none">Slices</a>
+<a href="Main.dc.html" style="height:28px; padding:0 14px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; text-decoration:none">Done</a>
+</div>
+
+<!-- Top: comps + grid + monitors -->
+<div style="height:408px; flex:none; display:flex; border-bottom:1px solid var(--line)">
+
+<!-- Compositions -->
+<div style="width:196px; flex:none; box-sizing:border-box; display:flex; flex-direction:column; gap:4px; padding:10px; background:var(--chrome); border-right:1px solid var(--line); overflow:hidden">
+<span style="{{label}}">MASTER</span>
+<sc-for list="{{compRows}}" as="r" hint-placeholder-count="7">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><span style="{{label}}; margin-top:6px">SCREENS</span></sc-if>
+<sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ r.pick }}" style="{{ r.style }}">
+<div style="width:30px; flex:none; display:flex; justify-content:center"><div style="{{ r.icon }}"></div></div>
+<div style="flex:1; min-width:0; display:flex; flex-direction:column"><span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.name }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--dim)">{{ r.res }}</span></div>
+<span onClick="{{ r.toggleMaster }}" style="{{ r.eyeStyle }}">{{ r.eye }}</span>
+</div>
+</sc-if>
+</sc-for>
+<div style="flex:1"></div>
+<span style="{{label}}">CANVAS</span>
+<div style="{{ ovStyle }}"><sc-for list="{{ovRects}}" as="o" hint-placeholder-count="4"><div style="{{ o.style }}"></div></sc-for></div>
+</div>
+
+<!-- Clip grid -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:10px 12px; gap:6px; overflow:hidden">
+<div style="display:flex; gap:6px; align-items:center">
+<div style="width:190px; flex:none; display:flex; align-items:center; justify-content:space-between"><span style="{{label}}">{{ compTitle }}</span><span style="color:var(--accent); font-weight:600">+ Layer</span></div>
+<sc-for list="{{colHeads}}" as="c" hint-placeholder-count="8"><div onClick="{{ c.pick }}" style="{{ c.style }}"><span style="font-size:9px">▶</span><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ c.name }}</span></div></sc-for>
+</div>
+<sc-for list="{{layerRows}}" as="r" hint-placeholder-count="4">
+<div style="display:flex; gap:6px; align-items:stretch">
+<div onClick="{{ r.pickLayer }}" style="{{ r.ctrlStyle }}">
+<div style="display:flex; align-items:center; gap:6px"><span style="font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.name }}</span><span onClick="{{ r.toggleB }}" style="{{ r.bStyle }}">B</span><span style="{{ r.sStyle }}">S</span></div>
+<div style="display:flex; align-items:center; gap:8px"><span style="width:50px; color:var(--dim); font-size:11px">{{ r.blend }}</span><div style="flex:1; height:5px; border-radius:3px; background:var(--panel); position:relative; border:1px solid var(--line)"><div style="{{ r.opFill }}"></div></div><span style="width:26px; text-align:right; font-size:11px; color:var(--dim); font-family:'JetBrains Mono',ui-monospace,monospace">{{ r.opText }}</span></div>
+</div>
+<sc-if value="{{ r.isSlides }}" hint-placeholder-val="{{ false }}">
+<div style="{{ r.slidesStyle }}"><span style="font-weight:600">Slides</span><span style="padding:2px 8px; border-radius:10px; border:1px solid var(--line); color:var(--dim); font-size:11px">{{ r.look }}</span><div style="flex:1"></div><span style="{{ r.badgeStyle }}">{{ r.badge }}</span></div>
+</sc-if>
+<sc-if value="{{ r.hasClips }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1; min-width:0; display:flex; gap:6px">
+<sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="8">
+<div onClick="{{ c.pick }}" style="{{ c.style }}"><div style="{{ c.thumb }}"><sc-if value="{{ c.active }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; left:0; bottom:0; height:3px; width:46%; background:var(--accent)"></div></sc-if></div><div style="{{ c.nameStyle }}">{{ c.name }}</div></div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+
+<!-- Monitors -->
+<div style="width:420px; flex:none; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; padding:10px 12px; background:var(--chrome); border-left:1px solid var(--line)">
+<div style="display:flex; justify-content:space-between"><span style="{{label}}">PROGRAM · {{ compTitle }}</span><span style="color:var(--dim); font-size:11px">{{ progMeta }}</span></div>
+<div style="height:164px; flex:none; display:flex; align-items:center; justify-content:center">
+<div style="{{ progBox }}">
+<sc-for list="{{progOutlines}}" as="o" hint-placeholder-count="4"><div style="{{ o.style }}"></div></sc-for>
+<sc-if value="{{ hasWash }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; left:0; top:0; right:0; bottom:0; background:linear-gradient(135deg, rgba(255,255,255,.14), rgba(255,255,255,0))"></div></sc-if>
+<sc-if value="{{ hasBug }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; right:6%; top:8%; width:14%; height:12%; border-radius:3px; background:#fff; opacity:.9"></div></sc-if>
+<sc-if value="{{ hasLyric }}" hint-placeholder-val="{{ true }}"><div style="{{ lyricBox }}"><span style="{{ lyricText }}">Lyric line one
+Lyric line two</span></div></sc-if>
+</div>
+</div>
+<div style="display:flex; justify-content:space-between"><span style="{{label}}">CLIP</span><span style="color:var(--dim); font-size:11px">{{ clipMeta }}</span></div>
+<div style="{{ clipPrevStyle }}"></div>
+</div>
+</div>
+
+<!-- Bottom panel -->
+<div style="position:relative; flex:1; min-height:0; display:flex; flex-direction:column; background:var(--chrome)">
+<div style="flex:none; height:34px; display:flex; align-items:flex-end; gap:4px; padding:0 12px; border-bottom:1px solid var(--line)">
+<sc-for list="{{scopeTabs}}" as="t" hint-placeholder-count="3"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for>
+<div style="flex:1"></div>
+<span style="padding-bottom:9px; color:var(--dim); font-size:12px">{{ scopeTitle }}</span>
+</div>
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Transport / settings -->
+<div style="width:460px; flex:none; display:flex; flex-direction:column; gap:12px; padding:14px; border-right:1px solid var(--line)">
+<sc-if value="{{ isClip }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:6px"><div style="height:30px; position:relative; border-radius:6px; background:var(--panel); border:1px solid var(--line); overflow:hidden"><div style="position:absolute; left:8%; right:12%; top:0; bottom:0; background:rgba(71,200,110,.18); border-left:2px solid var(--accent); border-right:2px solid var(--accent)"></div><div style="position:absolute; left:46%; top:0; bottom:0; width:2px; background:var(--fg)"></div></div>
+<div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; color:var(--dim)"><span>0:14</span><span>0:30</span></div></div>
+<div style="display:flex; gap:6px"><sc-for list="{{transport}}" as="b" hint-placeholder-count="5"><div style="{{ b.style }}">{{ b.glyph }}</div></sc-for></div>
+<div style="display:flex; gap:10px"><div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Direction</span><div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{dirSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">When it ends</span><div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{loopSeg}}" as="a" hint-placeholder-count="4"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div></div>
+</sc-if>
+<sc-if value="{{ isPlainLayer }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; gap:10px"><div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Blend mode</span><div style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ blendName }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Transition</span><div style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Dissolve · 0.5 s</span><span style="color:var(--dim)">▾</span></div></div></div>
+</sc-if>
+<sc-if value="{{ isSlidesLayer }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; gap:10px"><div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Look</span><div style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ lookName }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Rotation</span><div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{rotSeg}}" as="a" hint-placeholder-count="4"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Content</span><div style="display:flex; gap:6px; flex-wrap:wrap"><sc-for list="{{contChips}}" as="c" hint-placeholder-count="4"><span onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</span></sc-for></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Frame</span><div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px"><sc-for list="{{frameFields}}" as="g" hint-placeholder-count="4"><div style="height:28px; padding:0 8px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="color:var(--dim); font-size:11px">{{ g.k }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ g.v }}</span></div></sc-for></div></div>
+</sc-if>
+<sc-if value="{{ isComp }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; gap:10px"><div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Resolution</span><div style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ compRes }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Frame rate</span><div style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>60 fps</span><span style="color:var(--dim)">▾</span></div></div></div>
+<sc-if value="{{ isScreenComp }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; gap:10px; align-items:flex-end"><div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Canvas position</span><div style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ posText }}</div></div>
+<div style="flex:1; height:28px; display:flex; align-items:center; gap:10px; opacity:{{ msOpacity }}"><span onClick="{{ toggleMasterNow }}" style="{{ msTrack }}"><span style="{{ msKnob }}"></span></span><span>Show master</span></div></div>
+</sc-if>
+</sc-if>
+<sc-for list="{{sliders}}" as="s" hint-placeholder-count="3">
+<div style="display:flex; align-items:center; gap:10px"><span style="width:84px; color:var(--dim); font-size:12px">{{ s.label }}</span><div style="flex:1; height:6px; border-radius:3px; background:var(--panel); position:relative; border:1px solid var(--line)"><div style="{{ s.fill }}"></div><div style="{{ s.knob }}"></div></div><span style="width:60px; text-align:right; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ s.text }}</span></div>
+</sc-for>
+</div>
+
+<!-- Effect chain -->
+<div style="width:300px; flex:none; display:flex; flex-direction:column; gap:8px; padding:14px; border-right:1px solid var(--line)">
+<div style="display:flex; align-items:center"><span style="{{label}}">EFFECTS</span><div style="flex:1"></div><span onClick="{{ toggleMenu }}" style="color:var(--accent); font-weight:600; cursor:pointer">+ Add ▾</span></div>
+<div style="display:flex; flex-direction:column; gap:4px">
+<sc-for list="{{fxRows}}" as="f" hint-placeholder-count="3"><div onClick="{{ f.pick }}" style="{{ f.style }}"><span style="{{ f.dot }}"></span><span style="flex:1; font-weight:600">{{ f.name }}</span><span style="color:var(--dim)">×</span></div></sc-for>
+</div>
+</div>
+
+<!-- Effect parameters -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; padding:14px">
+<span style="{{label}}">{{ fxTitle }}</span>
+<sc-for list="{{fxParams}}" as="s" hint-placeholder-count="4">
+<div style="display:flex; align-items:center; gap:10px"><span style="width:84px; color:var(--dim); font-size:12px">{{ s.label }}</span><div style="flex:1; height:6px; border-radius:3px; background:var(--panel); position:relative; border:1px solid var(--line)"><div style="{{ s.fill }}"></div><div style="{{ s.knob }}"></div></div><span style="width:60px; text-align:right; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ s.text }}</span></div>
+</sc-for>
+</div>
+</div>
+
+<!-- Effects browser -->
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:70px; left:470px; width:420px; z-index:10; padding:10px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; gap:12px">
+<sc-for list="{{menuCols}}" as="col" hint-placeholder-count="2">
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{ col.rows }}" as="r" hint-placeholder-count="8">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 8px 3px; {{label}}">{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}"><div style="padding:5px 8px; border-radius:5px; cursor:pointer">{{ r.label }}</div></sc-if>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"scope":{"editor":"enum","default":"clip","options":["clip","layer","composition"]},"menu":{"editor":"enum","default":"closed","options":["closed","open"]},"comp":{"editor":"enum","default":"master","options":["master","pl","tv1","tv2","pr"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const p = props || {};
+    const cm = ({ master: 0, pl: 1, tv1: 2, tv2: 3, pr: 4 })[p.comp] || 0;
+    const scope = ({ clip: 0, layer: 1, composition: 2 })[p.scope] || 0;
+    this.state = { bpm: 72, bsrc: 0, quant: 2, comp: cm, scope, sl: cm === 0 ? 2 : (scope === 1 ? 1 : 3), sc: 1, act: { 0: { 0: 1, 1: 0, 2: 1 }, 2: { 3: 0 }, 4: { 0: 4 } }, fx: 0, menu: p.menu === 'open', dir: 2, loop: 0,
+      mshow: { 1: true, 2: true, 3: true, 4: true }, byp: { 3: true },
+      cont: { 1: [1, 1, 1, 1], 2: [0, 1, 0, 1], 3: [0, 1, 0, 1], 4: [1, 1, 1, 1] }, rot: {} };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#e6e6e3;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--warn:#a85a00;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--warn:#ffb020;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const G = ['#1c3a5e,#0d1b2e', '#5e3a1c,#2e1b0d', '#3a1c5e,#1b0d2e', '#1c5e4a,#0d2e25', '#5e1c3a,#2e0d1b', '#4a5e1c,#252e0d'];
+    const COLS = ['Pre-service', 'Welcome', 'Worship 1', 'Worship 2', 'Message', 'Prayer', 'Offering', 'Close'];
+    const PAL = ['#47c86e', '#4da3ff', '#ffb020', '#d46bff'];
+    const CW = 6000, CH = 1920;
+    const COMPS = [
+      { name: 'Master', w: CW, h: CH, x: 0, y: 0, res: 'Canvas · 6000 × 1920' },
+      { name: 'Projector Left', w: 1920, h: 1080, x: 0, y: 0, look: 'Full screen', pal: 0, frame: [0, 0, 1920, 1080] },
+      { name: 'Portrait TV 1', w: 1080, h: 1920, x: 1920, y: 0, look: 'Portrait', pal: 1, frame: [80, 1200, 920, 640] },
+      { name: 'Portrait TV 2', w: 1080, h: 1920, x: 3000, y: 0, look: 'Portrait', pal: 2, frame: [0, 0, 1080, 1920] },
+      { name: 'Projector Right', w: 1920, h: 1080, x: 4080, y: 0, look: 'Full screen', pal: 3, frame: [0, 0, 1920, 1080] },
+    ];
+    const LM = [{ name: 'Overlay', blend: 'Add', op: 0.6 }, { name: 'Motion', blend: 'Screen', op: 0.8 }, { name: 'Background', blend: 'Normal', op: 1 }];
+    const LS = [{ name: 'Overlay', blend: 'Add', op: 0.6 }, { name: 'Slides', blend: 'Normal', op: 1, slides: true }, { name: 'Motion', blend: 'Screen', op: 0.8 }, { name: 'Background', blend: 'Normal', op: 1 }];
+    const E = ['', '', '', '', '', '', '', ''];
+    const CL = {
+      0: { Overlay: ['Particles', 'Light leaks', '', '', 'Bokeh', '', '', ''], Motion: ['Waves', 'Loop warm', 'Loop blue', '', 'Smoke', '', '', ''], Background: ['Welcome loop', 'Sunday loop', 'Advent', 'Countdown', 'Stage glow', 'Blue field', '', 'Credits'] },
+      2: { Background: ['Portrait loop', 'Portrait loop', '', '', '', '', '', ''] },
+      4: { Overlay: ['', '', '', '', 'Bokeh', '', '', ''] }
+    };
+    const GB = { Overlay: 0, Slides: 3, Motion: 6, Background: 9 };
+    const layersOf = (ci) => ci === 0 ? LM : LS;
+    const ci = st.comp; const comp = COMPS[ci];
+    const layers = layersOf(ci);
+    const slIdx = Math.min(st.sl, layers.length - 1);
+    const curLayer = layers[slIdx];
+    const actOf = (c) => st.act[c] || {};
+    const clipAt = (c, lname, idx) => { const a = CL[c] && CL[c][lname]; return (a && idx !== undefined) ? (a[idx] || '') : ''; };
+    const contNames = ['Songs', 'Scripture', 'Presentations', 'Messages'];
+    const contOf = (c) => st.cont[c] || [0, 0, 0, 0];
+    const bypOf = (c) => !!st.byp[c];
+
+    // master composite
+    const mBg = clipAt(0, 'Background', actOf(0)[2]); const mBgIdx = actOf(0)[2];
+    const mMotion = !!clipAt(0, 'Motion', actOf(0)[1]);
+    const mc = (s2, ox, oy) => {
+      const ls = [];
+      if (mMotion) ls.push('radial-gradient(ellipse 8% 25% at 50% 50%,#ffc857 0 94%,rgba(255,200,87,0) 100%)');
+      ls.push('repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 1px,transparent 1px ' + (960 * s2) + 'px)');
+      ls.push(mBg ? 'linear-gradient(135deg,' + G[(GB.Background + mBgIdx) % 6] + ')' : 'linear-gradient(#111,#111)');
+      return 'background-image:' + ls.join(',') + '; background-size:' + (CW * s2) + 'px ' + (CH * s2) + 'px; background-position:' + (-ox * s2) + 'px ' + (-oy * s2) + 'px; background-repeat:no-repeat; background-origin:border-box;';
+    };
+    const checker = 'background:repeating-conic-gradient(#3a3a3a 0 25%,#262626 0 50%) 0 0/12px 12px;';
+
+    // left list
+    const pickComp = (i) => {
+      const nm = layers[slIdx].name; const nl = layersOf(i); let ni = nl.findIndex((l) => l.name === nm); if (ni < 0) ni = 0;
+      this.setState({ comp: i, sl: ni, fx: 0 });
+    };
+    const compRows = [];
+    COMPS.forEach((c, i) => {
+      if (i === 1) compRows.push({ isHeader: true, isRow: false });
+      const on = i === ci;
+      const col = i === 0 ? 'var(--dim)' : (c.pal >= 0 ? PAL[c.pal] : 'var(--dim)');
+      const iw = i === 0 ? 30 : (c.w > c.h ? 22 : 13); const ih = i === 0 ? 10 : (c.w > c.h ? 13 : 22);
+      const eyeOn = i > 0 && !c.off && st.mshow[i];
+      compRows.push({ isHeader: false, isRow: true, name: c.name, res: i === 0 ? '6000 × 1920' : c.w + ' × ' + c.h,
+        pick: () => pickComp(i),
+        style: 'display:flex; align-items:center; gap:8px; height:36px; padding:0 8px; border-radius:6px; cursor:pointer; box-sizing:border-box; flex:none; background:' + (on ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
+        icon: 'width:' + iw + 'px; height:' + ih + 'px; box-sizing:border-box; border:2px solid ' + col + '; border-radius:2px',
+        eye: i === 0 ? '' : (c.off ? '—' : (eyeOn ? '◉' : '○')),
+        eyeStyle: 'width:18px; flex:none; text-align:center; color:' + (eyeOn ? 'var(--accent)' : 'var(--dim)'),
+        toggleMaster: () => { if (i > 0 && !c.off) this.setState({ mshow: { ...st.mshow, [i]: !st.mshow[i] } }); } });
+    });
+    const ovS = 176 / CW;
+    const ovStyle = 'position:relative; width:176px; height:' + Math.round(CH * ovS) + 'px; flex:none; box-sizing:border-box; border:1px solid ' + (ci === 0 ? '#fff' : 'var(--line)') + '; overflow:hidden; ' + mc(ovS, 0, 0);
+    const ovRects = COMPS.map((c, i) => ({ c, i })).filter((o) => o.i > 0 && !o.c.off).map((o) => ({ style: 'position:absolute; box-sizing:border-box; left:' + o.c.x * ovS + 'px; top:' + o.c.y * ovS + 'px; width:' + o.c.w * ovS + 'px; height:' + o.c.h * ovS + 'px; border:1px solid ' + (o.i === ci ? '#fff' : PAL[o.c.pal]) + ';' + (o.i === ci ? ' background:rgba(255,255,255,.2)' : '') }));
+
+    // grid
+    const thumb = (g, on) => 'position:relative; height:42px; border-radius:4px; overflow:hidden; background:linear-gradient(135deg,' + G[g % G.length] + '); border:2px solid ' + (on ? 'var(--accent)' : 'transparent');
+    const colHeads = COLS.map((n, c) => ({ name: n,
+      pick: () => { const a = {}; COMPS.forEach((cc, k) => { const cur = { ...(st.act[k] || {}) }; layersOf(k).forEach((l, li) => { if (clipAt(k, l.name, c)) cur[li] = c; }); a[k] = cur; }); this.setState({ act: a, sc: c }); },
+      style: 'flex:1; min-width:0; height:24px; display:flex; align-items:center; justify-content:center; gap:5px; padding:0 4px; border-radius:5px; cursor:pointer; font-size:11px; border:1px solid ' + (st.sc === c ? 'var(--accent)' : 'var(--line)') + '; background:' + (st.sc === c ? 'var(--sel)' : 'var(--panel)') + '; color:' + (st.sc === c ? 'var(--accent)' : 'var(--dim)') }));
+    const bMini = 'width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:10px; font-weight:700; border:1px solid var(--line); ';
+    const layerRows = layers.map((l, li) => {
+      const arr = l.slides ? [] : ((CL[ci] && CL[ci][l.name]) || E);
+      const byp = !!(l.slides && bypOf(ci)); const ct = contOf(ci);
+      const songs = ct[0] && !byp;
+      const summary = ct.map((v, k) => v ? contNames[k] : null).filter((x) => x).join(' · ') || 'Nothing';
+      return { name: l.name, blend: l.blend, isSlides: !!l.slides, hasClips: !l.slides, look: comp.look || '',
+        pickLayer: () => this.setState({ sl: li }),
+        toggleB: () => { if (l.slides) this.setState({ byp: { ...st.byp, [ci]: !bypOf(ci) } }); },
+        ctrlStyle: 'width:190px; flex:none; box-sizing:border-box; display:flex; flex-direction:column; gap:6px; padding:7px 10px; border-radius:6px; cursor:pointer; background:' + (li === slIdx ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid ' + (li === slIdx ? 'var(--accent)' : 'var(--line)'),
+        bStyle: bMini + (byp ? 'background:var(--warn); color:#111; border-color:var(--warn)' : 'color:var(--dim)'),
+        sStyle: bMini + 'color:var(--dim)',
+        opFill: 'position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:var(--accent); width:' + Math.round(l.op * 100) + '%',
+        opText: Math.round(l.op * 100) + '',
+        slidesStyle: 'flex:1; min-width:0; display:flex; align-items:center; gap:10px; padding:0 14px; border-radius:6px; border:1px dashed ' + (byp ? 'var(--line)' : 'var(--accent)') + '; background:' + (byp ? 'transparent' : 'var(--sel)') + '; opacity:' + (byp ? 0.6 : 1),
+        badge: byp ? 'Off' : (songs ? 'LIVE · [Song title]' : summary),
+        badgeStyle: 'padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; white-space:nowrap; ' + (songs ? 'background:var(--accent); color:' + onAccent : 'color:var(--dim); border:1px solid var(--line)'),
+        cells: arr.map((n, c) => {
+          const on = actOf(ci)[li] === c; const selc = slIdx === li && st.sc === c;
+          return { name: n || '', active: on,
+            pick: () => { if (n) this.setState({ sl: li, sc: c, act: { ...st.act, [ci]: { ...actOf(ci), [li]: c } } }); else this.setState({ sl: li, sc: c }); },
+            style: 'flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; cursor:pointer',
+            thumb: n ? thumb(GB[l.name] + c, on || selc) : 'height:42px; border-radius:4px; border:1px dashed var(--line); box-sizing:border-box',
+            nameStyle: 'font-size:10px; color:' + (on ? 'var(--accent)' : 'var(--dim)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; height:12px' };
+        }) };
+    });
+    const curArr = curLayer.slides ? null : ((CL[ci] && CL[ci][curLayer.name]) || null);
+    const curClip = curArr ? (curArr[st.sc] || '') : '';
+
+    // program monitor
+    const fit = (w, h, bw, bh) => { const f = Math.min(bw / w, bh / h); return { s: f, W: Math.round(w * f), H: Math.round(h * f) }; };
+    const pf = fit(comp.w, comp.h, 396, 164);
+    const ownBgIdx = actOf(ci)[layers.length - 1]; const ownBg = ci === 0 ? '' : clipAt(ci, 'Background', ownBgIdx);
+    let progBg;
+    if (ci === 0) progBg = mc(pf.s, 0, 0);
+    else if (ownBg) progBg = 'background:linear-gradient(135deg,' + G[(GB.Background + ownBgIdx) % 6] + ');';
+    else if (!comp.off && st.mshow[ci]) progBg = mc(pf.s, comp.x, comp.y);
+    else progBg = checker;
+    const progBox = 'position:relative; overflow:hidden; box-sizing:border-box; border:1px solid var(--line); width:' + pf.W + 'px; height:' + pf.H + 'px; ' + progBg;
+    const progOutlines = ci === 0 ? COMPS.map((c, i) => ({ c, i })).filter((o) => o.i > 0 && !o.c.off).map((o) => ({ style: 'position:absolute; box-sizing:border-box; left:' + o.c.x * pf.s + 'px; top:' + o.c.y * pf.s + 'px; width:' + o.c.w * pf.s + 'px; height:' + o.c.h * pf.s + 'px; border:1px solid ' + PAL[o.c.pal] })) : [];
+    const ovClip = ci === 0 ? '' : clipAt(ci, 'Overlay', actOf(ci)[0]);
+    const hasLyric = ci > 0 && !bypOf(ci) && !!contOf(ci)[0];
+    const lt = comp.look === 'Lower third';
+    const rotV = (st.rot[ci] || 0) * 90;
+    const fs = Math.max(7, Math.round(64 * pf.s));
+    const clipPrevG = curClip ? G[(GB[curLayer.name] + st.sc) % 6] : '#111,#111';
+
+    const scopeTabs = ['Clip', 'Layer', 'Composition'].map((n, i) => ({ label: n, pick: () => this.setState({ scope: i, fx: 0 }),
+      style: 'padding:8px 16px; cursor:pointer; font-weight:600; border-bottom:2px solid ' + (i === st.scope ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.scope ? 'var(--fg)' : 'var(--dim)') }));
+    const slider = (label2, v, text) => ({ label: label2, text, fill: 'position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:var(--accent); width:' + Math.round(v * 100) + '%', knob: 'position:absolute; top:-5px; width:12px; height:12px; border-radius:6px; background:var(--fg); left:calc(' + Math.round(v * 100) + '% - 6px)' });
+    const sliders = st.scope === 0 ? [slider('Speed', 0.5, '1.00×'), slider('Opacity', 1, '100%'), slider('Volume', 0.7, '-6 dB')]
+      : st.scope === 1 ? [slider('Opacity', curLayer.op, Math.round(curLayer.op * 100) + '%'), slider('Fader', 1, '1.00')]
+      : [slider('Master', 1, '100%'), slider('Speed', 0.5, '1.00×')];
+    const FX = [['Color Correct', 'Gaussian Blur', 'Glow'], ['Transform', 'Color Correct'], ['Master Color']][st.scope];
+    const fxOn = [[true, true, false], [true, false], [true]][st.scope];
+    const fxRows = FX.map((n, i) => ({ name: n, pick: () => this.setState({ fx: i }),
+      dot: 'width:10px; height:10px; border-radius:5px; flex:none; background:' + (fxOn[i] ? 'var(--accent)' : 'var(--line)'),
+      style: 'display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; cursor:pointer; background:' + (i === st.fx ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid ' + (i === st.fx ? 'var(--accent)' : 'var(--line)') }));
+    const P = {
+      'Color Correct': [['Hue', 0.5, '0°'], ['Saturation', 0.6, '100%'], ['Brightness', 0.5, '0%'], ['Contrast', 0.55, '100%']],
+      'Gaussian Blur': [['Amount', 0.2, '12 px'], ['Samples', 0.5, '8']],
+      'Glow': [['Threshold', 0.6, '60%'], ['Amount', 0.35, '35%'], ['Radius', 0.4, '24 px']],
+      'Transform': [['Scale', 0.5, '100%'], ['Rotate', 0.5, '0°'], ['Position X', 0.5, '0'], ['Position Y', 0.5, '0']],
+      'Master Color': [['Brightness', 0.5, '0%'], ['Contrast', 0.5, '100%'], ['Saturation', 0.5, '100%']]
+    };
+    const fxName = FX[Math.min(st.fx, FX.length - 1)];
+    const cats = [['COLOR', ['Color Correct', 'Hue Rotate', 'Invert']], ['BLUR', ['Gaussian Blur', 'Radial Blur']], ['DISTORT', ['Mirror', 'Kaleidoscope', 'Wave Warp']], ['STYLIZE', ['Glow', 'Edge', 'Pixelate']], ['TRANSFORM', ['Transform', 'Crop']]];
+    const mk = (c) => [{ isHeader: true, isItem: false, label: c[0] }].concat(c[1].map((v) => ({ isHeader: false, isItem: true, label: v })));
+    const seg = (names, cur, set) => names.map((n, i) => ({ label: n, pick: () => this.setState({ [set]: i }), style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; background:' + (cur === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (cur === i ? onAccent : 'var(--fg)') + '; font-weight:' + (cur === i ? 700 : 400) }));
+    const tb = (g) => ({ glyph: g, style: 'flex:1; height:32px; display:flex; align-items:center; justify-content:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)' });
+    const rotCur = st.rot[ci] || 0;
+    const rotSeg = ['0°', '90°', '180°', '270°'].map((n, i) => ({ label: n, pick: () => this.setState({ rot: { ...st.rot, [ci]: i } }), style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; font-size:12px; background:' + (rotCur === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (rotCur === i ? onAccent : 'var(--fg)') + '; font-weight:' + (rotCur === i ? 700 : 400) }));
+    const contChips = contNames.map((n, i) => { const on = !!contOf(ci)[i];
+      return { label: n, pick: () => { const a = contOf(ci).slice(); a[i] = a[i] ? 0 : 1; this.setState({ cont: { ...st.cont, [ci]: a } }); },
+        style: 'padding:3px 12px; border-radius:12px; font-size:12px; cursor:pointer; border:1px solid ' + (on ? 'var(--accent)' : 'var(--line)') + '; background:' + (on ? 'var(--sel)' : 'transparent') + '; color:' + (on ? 'var(--accent)' : 'var(--dim)') }; });
+    const fr = comp.frame || [0, 0, 0, 0];
+    const frameFields = ['X', 'Y', 'W', 'H'].map((k, i) => ({ k, v: fr[i] }));
+    const msOn = ci > 0 && !comp.off && !!st.mshow[ci];
+    const isScreen = ci > 0;
+    const bpmShown = st.bsrc === 1 ? 72 : st.bpm;
+    const bpmText = bpmShown.toFixed(1) + ' BPM';
+    const beatDots = [0, 1, 2, 3].map((i) => ({ style: 'width:8px; height:8px; border-radius:4px; background:' + (i === 0 ? 'var(--accent)' : 'var(--line)') }));
+    const bpmSrc = ['Manual', 'Song'].map((n, i) => ({ label: n, pick: () => this.setState({ bsrc: i }), style: 'padding:3px 9px; cursor:pointer; font-size:12px; background:' + (i === st.bsrc ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.bsrc ? onAccent : 'var(--fg)') + '; font-weight:' + (i === st.bsrc ? 700 : 400) }));
+    const QN = ['Off', 'Beat', 'Bar'];
+    return {
+      bpmText, beatDots, bpmSrc, quantName: QN[st.quant], quantCycle: () => this.setState({ quant: (st.quant + 1) % 3 }), bpmUp: () => this.setState({ bpm: st.bpm + 1, bsrc: 0 }), bpmDown: () => this.setState({ bpm: st.bpm - 1, bsrc: 0 }),
+      vars, onAccent, label, colHeads, layerRows, scopeTabs, sliders, fxRows, compRows, ovStyle, ovRects,
+      compTitle: comp.name.toUpperCase(), progMeta: comp.w + ' × ' + comp.h + ' · 60 fps',
+      progBox, progOutlines, hasWash: !!ovClip && !comp.off, hasBug: !!ovClip && !!comp.off, hasLyric,
+      lyricBox: 'position:absolute; left:0; top:0; right:0; bottom:0; display:flex; justify-content:center; align-items:' + (lt ? 'flex-end' : 'center') + '; padding-bottom:' + (lt ? '8%' : '0'),
+      lyricText: 'display:block; text-align:center; color:#fff; font-weight:600; line-height:1.25; white-space:pre-line; font-size:' + (lt ? Math.round(fs * 0.8) : fs) + 'px; text-shadow:0 1px 4px rgba(0,0,0,.7); transform:rotate(' + rotV + 'deg)',
+      clipPrevStyle: 'position:relative; width:210px; height:118px; flex:none; border-radius:6px; overflow:hidden; border:1px solid var(--line); background:linear-gradient(135deg,' + clipPrevG + ')',
+      clipMeta: curClip ? curLayer.name + ' · ' + curClip : curLayer.name,
+      isClip: st.scope === 0, isLayer: st.scope === 1, isComp: st.scope === 2,
+      isPlainLayer: st.scope === 1 && !curLayer.slides, isSlidesLayer: st.scope === 1 && !!curLayer.slides,
+      isScreenComp: isScreen,
+      scopeTitle: st.scope === 0 ? comp.name + ' · ' + (curClip || 'No clip') : st.scope === 1 ? comp.name + ' · ' + curLayer.name : comp.name,
+      blendName: curLayer.blend, lookName: comp.look || '', rotSeg, contChips, frameFields,
+      compRes: ci === 0 ? '6000 × 1920' : comp.w + ' × ' + comp.h,
+      posText: comp.off ? 'Not on canvas' : 'x ' + comp.x + ' · y ' + comp.y,
+      msOpacity: comp.off ? 0.45 : 1,
+      toggleMasterNow: () => { if (ci > 0 && !comp.off) this.setState({ mshow: { ...st.mshow, [ci]: !st.mshow[ci] } }); },
+      msTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; cursor:pointer; background:' + (msOn ? 'var(--accent)' : 'var(--line)'),
+      msKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (msOn ? onAccent : 'var(--dim)') + '; left:' + (msOn ? 18 : 2) + 'px',
+      transport: ['⏮', '◀', '❚❚', '▶', '⏭'].map(tb),
+      dirSeg: seg(['Reverse', 'Pause', 'Forward'], st.dir, 'dir'),
+      loopSeg: seg(['Loop', 'Bounce', 'Hold', 'Clear'], st.loop, 'loop'),
+      fxTitle: fxName.toUpperCase(),
+      fxParams: (P[fxName] || [['Amount', 0.5, '50%']]).map((p2) => slider(p2[0], p2[1], p2[2])),
+      menuOpen: st.menu, toggleMenu: () => this.setState({ menu: !st.menu }),
+      menuCols: [{ rows: [].concat(mk(cats[0]), mk(cats[1]), mk(cats[4])) }, { rows: [].concat(mk(cats[2]), mk(cats[3])) }]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Preferences</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1080px; height:760px; box-sizing:border-box; display:flex; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:12px; border:1px solid var(--line)">
+
+<!-- Sidebar -->
+<div style="width:230px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line); padding:14px 12px; box-sizing:border-box; gap:10px">
+<div style="display:flex; gap:8px; padding-left:2px; height:14px">
+<span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span>
+<span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span>
+<span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span>
+</div>
+<div style="display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:7px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>Search
+</div>
+<div style="display:flex; align-items:center; gap:10px; padding:6px 4px">
+<svg width="40" height="40" viewBox="0 0 100 100" role="img" aria-label="CueME Stage"><rect width="100" height="100" rx="22" fill="#2b2b2b"></rect><rect x="30" y="20" width="16" height="16" fill="none" stroke="#f5f5f5" stroke-width="4"></rect><rect x="54" y="18" width="20" height="20" fill="#47c86e"></rect><path d="M32.06 74.3Q29.75 74.3 28.02 73.49Q26.3 72.68 25.36 71.19Q24.41 69.71 24.41 67.7H28.79Q28.79 68.93 29.67 69.67Q30.56 70.4 32.06 70.4Q33.53 70.4 34.36 69.69Q35.18 68.99 35.18 67.82Q35.18 66.89 34.64 66.16Q34.1 65.42 33.05 65.18L30.38 64.55Q27.8 63.95 26.29 62.23Q24.77 60.5 24.77 58.1Q24.77 55.16 26.67 53.48Q28.58 51.8 31.88 51.8Q35.18 51.8 37.13 53.49Q39.08 55.19 39.08 58.07H34.7Q34.7 56.93 33.95 56.28Q33.2 55.64 31.88 55.64Q30.59 55.64 29.87 56.27Q29.15 56.9 29.15 57.95Q29.15 59.66 31.22 60.14L33.98 60.77Q36.56 61.34 38.08 63.25Q39.59 65.15 39.59 67.82Q39.59 69.77 38.67 71.24Q37.76 72.71 36.06 73.5Q34.37 74.3 32.06 74.3ZM47.75 74V56.15H42.2V52.1H57.8V56.15H52.25V74ZM68.12 74.3Q65.93 74.3 64.28 73.47Q62.63 72.65 61.72 71.17Q60.8 69.68 60.8 67.7V58.4Q60.8 56.39 61.72 54.92Q62.63 53.45 64.28 52.62Q65.93 51.8 68.12 51.8Q70.34 51.8 71.97 52.62Q73.61 53.45 74.53 54.92Q75.44 56.39 75.44 58.4H70.94Q70.94 57.08 70.2 56.39Q69.47 55.7 68.12 55.7Q66.77 55.7 66.03 56.39Q65.3 57.08 65.3 58.4V67.7Q65.3 68.99 66.03 69.69Q66.77 70.4 68.12 70.4Q69.47 70.4 70.2 69.69Q70.94 68.99 70.94 67.7V65.66H67.7V61.85H75.44V67.7Q75.44 69.68 74.53 71.17Q73.61 72.65 71.97 73.47Q70.34 74.3 68.12 74.3Z" fill="#f5f5f5"></path></svg>
+<div><div style="font-weight:700">L252 Media Production</div><div style="color:var(--dim); font-size:12px">CueME Stage</div></div>
+</div>
+<sc-for list="{{menu}}" as="m" hint-placeholder-count="14">
+<sc-if value="{{ m.isGap }}" hint-placeholder-val="{{ false }}"><div style="height:6px"></div></sc-if>
+<sc-if value="{{ m.isItem }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ m.pick }}" style="{{ m.style }}">
+<span style="{{ m.chip }}">{{ m.glyph }}</span>
+<span style="font-weight:{{ m.weight }}">{{ m.label }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ m.isLink }}" hint-placeholder-val="{{ false }}">
+<a href="OutputSetup.dc.html" style="{{ m.style }}; text-decoration:none; color:inherit">
+<span style="{{ m.chip }}">{{ m.glyph }}</span>
+<span style="flex:1; font-weight:500">{{ m.label }}</span>
+<span style="color:var(--dim); font-size:12px">↗</span>
+</a>
+</sc-if>
+<sc-if value="{{ m.isVar }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px dashed var(--dim); border-radius:10px; padding:4px 3px 3px; display:flex; flex-direction:column; gap:1px">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9px; letter-spacing:.1em; color:var(--dim); padding:0 6px 2px">VARIATIONS</div>
+<sc-for list="{{ m.varRows }}" as="v" hint-placeholder-count="2">
+<sc-if value="{{ v.isItem }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ v.pick }}" style="{{ v.style }}">
+<span style="{{ v.chip }}">{{ v.glyph }}</span>
+<span style="font-weight:{{ v.weight }}">{{ v.label }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ v.isLink }}" hint-placeholder-val="{{ false }}">
+<a href="OutputSetup.dc.html" style="{{ v.style }}; text-decoration:none; color:inherit">
+<span style="{{ v.chip }}">{{ v.glyph }}</span>
+<span style="flex:1; font-weight:500">{{ v.label }}</span>
+<span style="color:var(--dim); font-size:12px">↗</span>
+</a>
+</sc-if>
+</sc-for>
+</div>
+</sc-if>
+</sc-for>
+</div>
+
+<!-- Content -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column">
+<div style="height:48px; flex:none; display:flex; align-items:center; justify-content:center; border-bottom:1px solid var(--line); font-weight:700; font-size:15px">{{ paneTitle }}</div>
+<div style="flex:1; min-height:0; overflow:hidden; padding:16px; display:flex; flex-direction:column; gap:14px">
+
+<!-- GENERAL -->
+<sc-if value="{{ isGeneral }}" hint-placeholder-val="{{ false }}">
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); display:flex; flex-direction:column">
+<sc-for list="{{generalRows}}" as="r" hint-placeholder-count="3">
+<div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line)">
+<div style="flex:1"><div style="font-weight:600">{{ r.label }}</div><div style="color:var(--dim); font-size:12px">{{ r.desc }}</div></div>
+<sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}"><span style="{{ r.track }}"><span style="{{ r.knob }}"></span></span></sc-if>
+<sc-if value="{{ r.isSelect }}" hint-placeholder-val="{{ true }}"><div style="min-width:150px; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ r.value }}</span><span style="color:var(--dim)">▾</span></div></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<!-- AUDIO -->
+<sc-if value="{{ isAudio }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; justify-content:space-between; align-items:center">
+<div style="color:var(--dim); font-size:12px; max-width:560px; line-height:1.4">Route sources into groups, and groups to destinations. Every audio interface macOS sees is listed, including Dante Virtual Soundcard. Hide the ones you don’t use.</div>
+<div style="display:flex; gap:8px"><button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Stereo pairs ▾</button><button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Reset routing</button></div>
+</div>
+<div style="position:relative; flex:1; min-height:0; border-radius:10px; background:var(--chrome); border:1px solid var(--line); overflow:hidden">
+<div style="position:absolute; left:16px; top:16px; width:786px; height:570px">
+<svg width="786" height="570" viewBox="0 0 786 570" aria-hidden="true" style="position:absolute; left:0; top:0">
+<sc-for list="{{curves}}" as="c" hint-placeholder-count="9"><path d="{{ c.d }}" style="{{ c.style }}"></path></sc-for>
+</svg>
+<div style="{{ colHead }}; left:0; width:200px">Sources</div>
+<div style="{{ colHead }}; left:270px; width:180px">Groups</div>
+<div style="{{ colHead }}; left:520px; width:266px">Destinations</div>
+<sc-for list="{{inputs}}" as="n" hint-placeholder-count="5">
+<div style="{{ n.style }}">
+<div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-weight:600">{{ n.name }}</span><span style="font-size:11px; color:var(--dim)">{{ n.sub }}</span></div>
+<div style="height:3px; border-radius:2px; background:{{ n.meter }}"></div>
+<span style="{{ n.port }}; right:-5px"></span>
+</div>
+</sc-for>
+<sc-for list="{{channels}}" as="n" hint-placeholder-count="2">
+<div style="{{ n.style }}">
+<div style="display:flex; justify-content:space-between; align-items:center"><div><div style="font-weight:600">{{ n.name }}</div><div style="font-size:11px; color:var(--dim)">{{ n.sub }}</div></div><span style="width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--bg); display:flex; align-items:center; justify-content:center; color:var(--dim)">≡</span></div>
+<div style="height:3px; border-radius:2px; background:{{ n.meter }}"></div>
+<span style="{{ n.port }}; left:-5px"></span>
+<span style="{{ n.port }}; right:-5px"></span>
+</div>
+</sc-for>
+<div style="position:absolute; left:270px; top:290px; width:180px; height:34px; box-sizing:border-box; border-radius:8px; border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--dim)">+ Add group</div>
+<sc-for list="{{dests}}" as="d" hint-placeholder-count="12">
+<sc-if value="{{ d.isHeader }}" hint-placeholder-val="{{ false }}">
+<div style="{{ d.style }}"><div style="flex:1"><div style="font-weight:600">{{ d.name }}</div><div style="font-size:11px; color:var(--dim)">{{ d.sub }}</div></div><button aria-label="Hide this interface" style="width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--dim); display:flex; align-items:center; justify-content:center; padding:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div>
+</sc-if>
+<sc-if value="{{ d.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="{{ d.style }}">
+<div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-weight:600">{{ d.name }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--accent)">{{ d.tag }}</span></div>
+<div style="height:3px; border-radius:2px; background:{{ d.meter }}"></div>
+<span style="{{ d.port }}; left:-5px"></span>
+</div>
+</sc-if>
+<sc-if value="{{ d.isText }}" hint-placeholder-val="{{ false }}"><div style="{{ d.style }}">{{ d.name }}</div></sc-if>
+</sc-for>
+</div>
+<div style="position:absolute; left:16px; right:16px; bottom:12px; display:flex; justify-content:space-between; color:var(--dim); font-size:12px"><span>Showing 3 of 5 interfaces</span><span>Drag from a dot to connect. Click a line to remove it.</span></div>
+</div>
+</sc-if>
+
+<!-- VIDEO (variation B: routing graph) -->
+<sc-if value="{{ isVideo }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; align-items:center; gap:10px">
+<span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em; color:var(--dim)">VIEW</span>
+<div style="display:flex; gap:3px; padding:3px; border-radius:8px; background:var(--chrome); border:1px solid var(--line)">
+<sc-for list="{{vSegs}}" as="g" hint-placeholder-count="4"><span onClick="{{ g.pick }}" style="{{ g.style }}">{{ g.label }}</span></sc-for>
+</div>
+<span style="color:var(--dim); font-size:12px">{{ vSegNote }}</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center">
+<div style="color:var(--dim); font-size:12px; max-width:470px; line-height:1.4">{{ vDesc }}</div>
+<div style="display:flex; gap:8px; align-items:center; flex:none; white-space:nowrap"><sc-if value="{{ vxOn }}" hint-placeholder-val="{{ false }}"><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; font-weight:700; letter-spacing:.06em; padding:3px 8px; border-radius:5px; border:1px solid var(--accent); color:var(--accent)">AFTER v0.1</span></sc-if><button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Test pattern ▾</button><button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:{{ onAccent }}; font-weight:600">+ Add screen</button></div>
+</div>
+<div style="position:relative; flex:1; min-height:0; border-radius:10px; background:var(--chrome); border:1px solid var(--line); overflow:hidden">
+<div style="position:absolute; left:16px; top:16px; width:786px; height:570px">
+<svg width="786" height="570" viewBox="0 0 786 570" aria-hidden="true" style="position:absolute; left:0; top:0">
+<sc-for list="{{vCurves}}" as="c" hint-placeholder-count="9"><path d="{{ c.d }}" style="{{ c.style }}"></path></sc-for>
+</svg>
+<div style="{{ colHead }}; left:0; width:200px">Sources</div>
+<div style="{{ colHead }}; left:270px; width:180px">Screens</div>
+<div style="{{ colHead }}; left:520px; width:266px">Outputs</div>
+<sc-for list="{{vInputs}}" as="n" hint-placeholder-count="5">
+<div style="{{ n.style }}">
+<div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-weight:600">{{ n.name }}</span><span style="font-size:11px; color:var(--dim)">{{ n.sub }}</span></div>
+<div style="height:3px; border-radius:2px; background:{{ n.meter }}"></div>
+<span style="{{ n.port }}; right:-5px"></span>
+</div>
+</sc-for>
+<sc-for list="{{vScreens}}" as="n" hint-placeholder-count="4">
+<div style="{{ n.style }}">
+<div style="display:flex; justify-content:space-between; align-items:center"><div><div style="font-weight:600">{{ n.name }}</div><div style="font-size:11px; color:var(--dim)">{{ n.sub }}</div></div><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--dim)">{{ n.tag }}</span></div>
+<div style="height:3px; border-radius:2px; background:{{ n.meter }}"></div>
+<span style="{{ n.port }}; left:-5px"></span>
+<span style="{{ n.port }}; right:-5px"></span>
+</div>
+</sc-for>
+<sc-if value="{{ vxOff }}" hint-placeholder-val="{{ true }}"><div style="position:absolute; left:270px; top:344px; width:180px; height:34px; box-sizing:border-box; border-radius:8px; border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--dim)">+ Add screen</div></sc-if>
+<sc-for list="{{vDests}}" as="d" hint-placeholder-count="12">
+<sc-if value="{{ d.isHeader }}" hint-placeholder-val="{{ false }}">
+<div style="{{ d.style }}"><div style="flex:1"><div style="font-weight:600">{{ d.name }}</div><div style="font-size:11px; color:var(--dim)">{{ d.sub }}</div></div></div>
+</sc-if>
+<sc-if value="{{ d.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="{{ d.style }}">
+<div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-weight:600">{{ d.name }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--accent)">{{ d.tag }}</span></div>
+<div style="height:3px; border-radius:2px; background:{{ d.meter }}"></div>
+<span style="{{ d.port }}; left:-5px"></span>
+</div>
+</sc-if>
+<sc-if value="{{ d.isText }}" hint-placeholder-val="{{ false }}"><div style="{{ d.style }}">{{ d.name }}</div></sc-if>
+</sc-for>
+<sc-for list="{{vBadges}}" as="b" hint-placeholder-count="8"><div onClick="{{ b.pick }}" style="{{ b.style }}">{{ b.text }}</div></sc-for>
+
+<sc-if value="{{ vxLegend }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; left:0; top:404px; width:452px; box-sizing:border-box; padding:11px 14px; border-radius:10px; border:1px dashed var(--dim); display:flex; flex-direction:column; gap:5px; font-size:12px">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em; color:var(--dim)">WIRE BADGES</div>
+<div><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--dim)">1:1</span>  No conversion. Same size and rate in and out.</div>
+<div><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--accent)">→ 720p</span>  Scaled for that output (here with Fit). Click the badge to change it.</div>
+<div><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:{{ warnC }}">50 → 59.94 ⚠</span>  Amber means a mismatch that needs a decision.</div>
+<div style="color:var(--dim)">Dashed screen = pass-through: no layers, lowest latency.</div>
+</div></sc-if>
+
+<sc-if value="{{ vxWarn }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; left:0; top:400px; width:452px; box-sizing:border-box; padding:12px 14px; border-radius:10px; background:var(--panel); border:1px solid {{ warnC }}; display:flex; flex-direction:column; gap:8px; z-index:5; box-shadow:0 10px 30px rgba(0,0,0,.4)">
+<div style="font-weight:700; color:{{ warnC }}">⚠ Floor Cam is 1080p50 and Screen 1 runs at 59.94</div>
+<div style="font-size:12px; color:var(--dim)">Frames must be repeated or dropped. Choose how:</div>
+<div style="display:flex; gap:8px">
+<div style="flex:1; padding:7px 10px; border-radius:7px; background:var(--sel); border:1px solid var(--accent)"><div style="font-weight:600">✓ Repeat / drop</div><div style="font-size:11px; color:var(--dim)">Cheapest. Judders on pans.</div></div>
+<div style="flex:1; padding:7px 10px; border-radius:7px; background:transparent; border:1px solid var(--line)"><div style="font-weight:600">Blend</div><div style="font-size:11px; color:var(--dim)">Smoother. Slightly soft.</div></div>
+</div>
+<div style="font-size:12px; color:var(--dim)">Adds about 1 frame of latency. Setting the camera to 59.94 avoids it.</div>
+<div style="display:flex; justify-content:flex-end; gap:8px"><span onClick="{{ toBadges }}" style="height:28px; padding:0 12px; display:flex; align-items:center; border-radius:6px; border:1px solid var(--line); cursor:pointer">Don’t route</span><span onClick="{{ toBadges }}" style="height:28px; padding:0 12px; display:flex; align-items:center; border-radius:6px; background:var(--accent); color:{{ onAccent }}; font-weight:600; cursor:pointer">Use Repeat / drop</span></div>
+</div></sc-if>
+
+<sc-if value="{{ vxPop }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; left:296px; top:306px; width:304px; box-sizing:border-box; padding:12px 14px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); box-shadow:0 12px 36px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:9px; z-index:5; font-size:12px">
+<div style="position:absolute; left:176px; top:-6px; width:10px; height:10px; background:var(--panel); border-left:1px solid var(--accent); border-top:1px solid var(--accent); transform:rotate(45deg)"></div>
+<div><div style="font-weight:700; font-size:13px">Screen 1 → HDMI confirm monitor</div><div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--dim); margin-top:3px">1920×1080 · 59.94  →  1280×720 · 59.94</div></div>
+<div><div style="color:var(--dim); margin-bottom:4px">Scale</div><div style="display:flex; gap:4px"><span style="flex:1; text-align:center; padding:5px 0; border-radius:6px; background:var(--accent); color:{{ onAccent }}; font-weight:600">Fit</span><span style="flex:1; text-align:center; padding:5px 0; border-radius:6px; border:1px solid var(--line)">Fill</span><span style="flex:1; text-align:center; padding:5px 0; border-radius:6px; border:1px solid var(--line)">Stretch</span><span style="flex:1; text-align:center; padding:5px 0; border-radius:6px; border:1px solid var(--line)">Crop</span></div></div>
+<div><div style="color:var(--dim); margin-bottom:4px">Filter</div><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--bg); border:1px solid var(--line)"><span>Lanczos · sharp text</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="display:flex; gap:12px"><div style="flex:1"><div style="color:var(--dim); margin-bottom:4px">Rotate</div><div style="display:flex; gap:3px"><span style="flex:1; text-align:center; padding:4px 0; border-radius:5px; background:var(--sel); border:1px solid var(--accent)">0°</span><span style="flex:1; text-align:center; padding:4px 0; border-radius:5px; border:1px solid var(--line)">90°</span><span style="flex:1; text-align:center; padding:4px 0; border-radius:5px; border:1px solid var(--line)">180°</span><span style="flex:1; text-align:center; padding:4px 0; border-radius:5px; border:1px solid var(--line)">270°</span></div></div><div><div style="color:var(--dim); margin-bottom:4px">Flip</div><div style="display:flex; gap:3px"><span style="padding:4px 8px; border-radius:5px; border:1px solid var(--line)">H</span><span style="padding:4px 8px; border-radius:5px; border:1px solid var(--line)">V</span></div></div></div>
+<div style="color:var(--dim)">Frame rate 59.94 → 59.94. No conversion.</div>
+<div style="display:flex; justify-content:space-between; align-items:center"><span style="color:var(--dim)">Edge blend, masks: Slices ›</span><span onClick="{{ toBadges }}" style="height:28px; padding:0 14px; display:flex; align-items:center; border-radius:6px; background:var(--accent); color:{{ onAccent }}; font-weight:600; cursor:pointer">Done</span></div>
+</div></sc-if>
+</div>
+<div style="position:absolute; left:16px; right:16px; bottom:12px; display:flex; justify-content:space-between; color:var(--dim); font-size:12px"><span>{{ vFoot }}</span><span>Drag from a dot to connect. Click a line to remove it.</span></div>
+</div>
+</sc-if>
+
+<!-- NETWORK -->
+<sc-if value="{{ isNetwork }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="{{label}}">CONTROL API</div>
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); display:flex; flex-direction:column">
+<div style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); background:var(--sel); border-radius:10px 10px 0 0">
+<div style="flex:1"><div style="color:var(--dim); font-size:12px">IP Address</div><div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:15px; font-weight:600">192.168.1.20</div></div>
+<button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Copy</button>
+</div>
+<sc-for list="{{apiRows}}" as="r" hint-placeholder-count="5">
+<div style="display:flex; align-items:center; gap:12px; padding:9px 14px; border-bottom:1px solid var(--line)">
+<div style="flex:1"><div style="font-weight:600">{{ r.label }}</div><div style="color:var(--dim); font-size:12px">{{ r.desc }}</div></div>
+<sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}"><span style="{{ r.track }}"><span style="{{ r.knob }}"></span></span></sc-if>
+<sc-if value="{{ r.isField }}" hint-placeholder-val="{{ false }}"><div style="min-width:130px; height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">{{ r.value }}</div></sc-if>
+<sc-if value="{{ r.isSelect }}" hint-placeholder-val="{{ false }}"><div style="min-width:220px; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ r.value }}</span><span style="color:var(--dim)">▾</span></div></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="{{label}}">NDI</div>
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); display:flex; flex-direction:column">
+<sc-for list="{{ndiRows}}" as="r" hint-placeholder-count="4">
+<div style="display:flex; align-items:center; gap:12px; padding:9px 14px; border-bottom:1px solid var(--line)">
+<div style="flex:1"><div style="font-weight:600">{{ r.label }}</div><div style="color:var(--dim); font-size:12px">{{ r.desc }}</div></div>
+<sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}"><span style="{{ r.track }}"><span style="{{ r.knob }}"></span></span></sc-if>
+<sc-if value="{{ r.isField }}" hint-placeholder-val="{{ false }}"><div style="min-width:200px; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace"><span>{{ r.value }}</span><span style="display:flex; align-items:center; gap:6px; font-family:-apple-system,sans-serif; font-size:11px; color:var(--dim)"><span style="width:7px; height:7px; border-radius:4px; background:var(--ok)"></span>connected</span></div></sc-if>
+<sc-if value="{{ r.isSelect }}" hint-placeholder-val="{{ false }}"><div style="min-width:200px; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ r.value }}</span><span style="color:var(--dim)">▾</span></div></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<!-- GENERIC SECTIONS (Updates, Media, Integrations) -->
+<sc-if value="{{ isGeneric }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{sections}}" as="sec" hint-placeholder-count="2">
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="{{label}}">{{ sec.title }}</div>
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); display:flex; flex-direction:column">
+<sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="4">
+<div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line)">
+<div style="flex:1; font-weight:600">{{ r.label }}</div>
+<sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}"><span style="{{ r.track }}"><span style="{{ r.knob }}"></span></span></sc-if>
+<sc-if value="{{ r.isField }}" hint-placeholder-val="{{ false }}"><div style="min-width:240px; height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ r.value }}</div></sc-if>
+<sc-if value="{{ r.isSelect }}" hint-placeholder-val="{{ false }}"><div style="min-width:240px; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ r.value }}</span><span style="color:var(--dim)">▾</span></div></sc-if>
+<sc-if value="{{ r.isText }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; gap:7px; color:var(--dim)"><sc-if value="{{ r.dot }}" hint-placeholder-val="{{ false }}"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span></sc-if>{{ r.value }}</span></sc-if>
+<sc-if value="{{ r.isButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ r.pick }}" style="height:28px; padding:0 14px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">{{ r.value }}</button></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</sc-if>
+
+<!-- GROUPS & LABELS -->
+<sc-if value="{{ isGroups }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="display:flex; align-items:center"><span style="{{label}}">GROUPS</span><div style="flex:1"></div><span onClick="{{ newGroup }}" style="color:var(--accent); font-weight:600; font-size:12px; cursor:pointer">+ New group</span></div>
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden">
+<sc-for list="{{groupRows}}" as="g" hint-placeholder-count="7">
+<div style="display:flex; align-items:center; gap:12px; padding:7px 14px; border-bottom:1px solid var(--line)">
+<span style="color:var(--dim); width:12px">⋮⋮</span>
+<span style="{{ g.swatch }}"></span>
+<span style="flex:1; font-weight:600">{{ g.name }}</span>
+<span style="min-width:26px; height:22px; padding:0 6px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ g.key }}</span>
+<button onClick="{{ g.edit }}" aria-label="{{ g.editLabel }}" style="width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg></button>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="display:flex; align-items:center"><span style="{{label}}">LABELS</span><div style="flex:1"></div><span onClick="{{ newLabel }}" style="color:var(--accent); font-weight:600; font-size:12px; cursor:pointer">+ New label</span></div>
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px">
+<sc-for list="{{labelChips}}" as="l" hint-placeholder-count="5"><button onClick="{{ l.edit }}" aria-label="{{ l.editLabel }}" style="{{ l.style }}">{{ l.name }}</button></sc-for>
+</div>
+</div>
+</sc-if>
+
+<!-- OTHER PANES -->
+<sc-if value="{{ isOther }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--dim); border-radius:10px; border:1px dashed var(--line)">Not designed yet</div>
+</sc-if>
+</div>
+</div>
+<!-- Edit dialog -->
+<sc-if value="{{ dlgOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45); border-radius:12px">
+<div role="dialog" aria-label="{{ dlgTitle }}" style="width:400px; display:flex; flex-direction:column; gap:14px; padding:18px; border-radius:12px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 20px 60px rgba(0,0,0,.5)">
+<div style="font-weight:700; font-size:15px">{{ dlgTitle }}</div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Name</span><div style="height:30px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--accent)">{{ dlgName }}</div></div>
+<div style="display:flex; flex-direction:column; gap:6px"><span style="color:var(--dim); font-size:12px">Color</span>
+<div style="display:flex; gap:8px"><sc-for list="{{dlgSwatches}}" as="w" hint-placeholder-count="8"><button onClick="{{ w.pick }}" aria-label="{{ w.name }}" style="{{ w.style }}"></button></sc-for></div></div>
+<sc-if value="{{ dlgIsGroup }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Shortcut key</span><div style="width:70px; height:30px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:'JetBrains Mono',ui-monospace,monospace">{{ dlgKey }}</div></div>
+</sc-if>
+<div style="display:flex; align-items:center; gap:8px; padding-top:4px">
+<sc-if value="{{ dlgExisting }}" hint-placeholder-val="{{ true }}"><button onClick="{{ dlgDelete }}" style="{{ dlgDelStyle }}">{{ dlgDelLabel }}</button></sc-if>
+<div style="flex:1"></div>
+<button onClick="{{ dlgClose }}" style="height:30px; padding:0 16px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer">Cancel</button>
+<button onClick="{{ dlgClose }}" style="height:30px; padding:0 16px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">Save</button>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"vx":{"editor":"enum","default":"","options":["","badges","popover","mismatch"]},"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"pane":{"editor":"enum","default":"network","options":["general","audio","video","network","updates","media","integrations","groups"]},"dlg":{"editor":"enum","default":"none","options":["none","group","newgroup","label"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { vx: (props && props.vx) || '', pane: (props && props.pane) || 'network', gcol: {}, dlg: ({ group: 'g', newgroup: 'g', label: 'l' })[props && props.dlg] || '', di: (props && props.dlg === 'newgroup') ? -1 : (props && props.dlg === 'label') ? 1 : 3, dcol: {}, ddel: false };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--next:#0a6bd6;--ok:#17803c;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--next:#4da3ff;--ok:#47c86e;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const items = [
+      ['general', 'General', '⚙', '#8e8e93'], ['updates', 'Updates', '↑', '#8e8e93'], null,
+      ['@var'], ['audio', 'Audio', '♪', '#ff453a'], ['network', 'Network', '◎', '#0a84ff'], null,
+      ['media', 'Media', '▶', '#30b87a'], ['integrations', 'Integrations', '⚭', '#a24be0'], null,
+      ['groups', 'Groups & Labels', '▤', '#2f9bd9'],
+    ];
+    const rowOf = (it, link) => ({
+      isGap: false, isVar: false, isItem: !link, isLink: !!link, label: it[1], glyph: it[2],
+      weight: it[0] === st.pane ? 700 : 500,
+      pick: () => this.setState({ pane: it[0] }),
+      chip: 'width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; background:' + it[3],
+      style: 'display:flex; align-items:center; gap:10px; padding:5px 8px; border-radius:7px; cursor:pointer; background:' + (it[0] === st.pane ? 'var(--sel)' : 'transparent')
+    });
+    const menu = items.map((it) => it === null ? { isGap: true, isVar: false, isItem: false, isLink: false }
+      : it[0] === '@var' ? { isGap: false, isVar: true, isItem: false, isLink: false, varRows: [rowOf(['output', 'Output', '▭', '#ff6b4a'], true), rowOf(['video', 'Video', '▦', '#ff6b4a'], false)] }
+      : rowOf(it, false));
+    const tog = (on) => ({
+      track: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; background:' + (on ? 'var(--accent)' : 'var(--line)'),
+      knob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (on ? onAccent : 'var(--dim)') + '; left:' + (on ? 18 : 2) + 'px'
+    });
+    const T = (label, desc, on) => ({ label, desc, isToggle: true, isField: false, isSelect: false, ...tog(on) });
+    const F = (label, desc, value) => ({ label, desc, value, isToggle: false, isField: true, isSelect: false });
+    const S = (label, desc, value) => ({ label, desc, value, isToggle: false, isField: false, isSelect: true });
+    const generalRows = [
+      S('Appearance', 'Light, dark, or follow macOS', 'Dark'),
+      T('Open the last playlist on launch', 'Start where you left off', true),
+      S('Default screen format', 'Used when a new screen is created', '1080p60'),
+    ];
+    const apiRows = [
+      T('Enable API', 'Lets Companion and other tools control the app', true),
+      S('Network Interface', 'Which connection the API listens on', 'Ethernet · 192.168.1.20'),
+      F('HTTP Port', 'Used by the Companion module', '8081'),
+      F('OSC Port', 'For OSC controllers', '9001'),
+      T('Announce on the network', 'Companion can find this app without typing an address', true),
+      T('Require a password', 'Ask for a password on every API request', false),
+    ];
+    const ndiRows = [
+      T('Use NDI Discovery Server', 'Find NDI sources across subnets', true),
+      F('Discovery Server', 'Host and port', 'l252-pi:5959'),
+      F('Machine Name', 'How this Mac appears to NDI receivers', 'MAC-STUDIO'),
+      S('Default Group', 'Used for new NDI outputs', 'public'),
+    ];
+
+    const K = (kind, label, value, extra) => ({ label, value: value || '', isToggle: kind === 't', isField: kind === 'f', isSelect: kind === 's', isText: kind === 'x', isButton: kind === 'b', dot: !!(extra && extra.dot), pick: (extra && extra.pick) || (() => {}), ...(kind === 't' ? tog(!!(extra && extra.on)) : { track: '', knob: '' }) });
+    const SECTIONS = {
+      updates: [
+        { title: 'VERSION', rows: [K('x', 'Installed', '0.1 · build 42'), K('s', 'Update channel', 'Stable'), K('x', 'Last checked', 'Today, 9:12 AM'), K('b', 'Check for updates', 'Check now')] },
+        { title: 'AUTOMATIC UPDATES', rows: [K('t', 'Check for updates on launch', '', { on: true }), K('t', 'Download updates in the background', '', { on: false })] }
+      ],
+      media: [
+        { title: 'VIDEO AND IMAGES', rows: [K('f', 'Library location', '~/Documents/CueMEStage/Library'), K('s', 'Playback format for new media', 'Optimize'), K('s', 'End action for new clips', 'Loop backgrounds, stop foregrounds'), K('t', 'Copy files into the library', '', { on: true }), K('x', 'Optimized media cache', '14.2 GB'), K('b', 'Clear cache', 'Clear')] },
+        { title: 'AUDIO', rows: [K('f', 'Audio library location', '~/Documents/CueMEStage/Audio\n'), K('s', 'Crossfade between tracks', '3 s'), K('s', 'Fade in and out', '0.5 s'), K('t', 'Normalize loudness', '', { on: true }), K('t', 'Copy files into the library', '', { on: true })] }
+      ],
+      integrations: [
+        { title: 'BITFOCUS COMPANION', rows: [K('b', 'API settings', 'Open Network', { pick: () => this.setState({ pane: 'network' }) })] },
+        { title: 'CCLI', rows: [K('f', 'License number', '[CCLI #]'), K('s', 'Report period', 'Quarterly'), K('t', 'Log songs when shown', '', { on: true }), K('t', 'Send reports automatically', '', { on: false }), K('x', 'Last report', 'Sep 30')] }
+      ]
+    };
+    const sections = SECTIONS[st.pane] || [];
+    const GROUPS = [['Intro', '#9a8a1f', 'I'], ['Verse', '#1f5f9e', 'V'], ['Pre-Chorus', '#7d3f98', 'P'], ['Chorus', '#2f8f4a', 'C'], ['Bridge', '#a05a1f', 'B'], ['Tag', '#9e3f55', 'T'], ['Outro', '#4a5560', 'O']];
+    const GPAL = ['#9a8a1f', '#1f5f9e', '#7d3f98', '#2f8f4a', '#a05a1f', '#9e3f55', '#4a5560', '#1f8f8f'];
+    const gcol = st.gcol || {};
+    const LBL = [['Translation', '#2fb4d9'], ['Spoken', '#e0731a'], ['Prayer', '#a24be0'], ['Announcement', '#ffb020'], ['Offering', '#47c86e'], ['Scripture reading', '#4da3ff']];
+    const LPAL = ['#2fb4d9', '#e0731a', '#a24be0', '#ffb020', '#47c86e', '#4da3ff', '#e0457b', '#8e8e93'];
+    const open = (kind, i) => () => this.setState({ dlg: kind, di: i, ddel: false });
+    const groupRows = GROUPS.map((g, i) => ({ name: g[0], key: g[2], swatch: 'width:22px; height:22px; border-radius:6px; background:' + g[1], edit: open('g', i), editLabel: 'Edit group ' + g[0] }));
+    const labelChips = LBL.map((l, i) => ({ name: l[0], edit: open('l', i), editLabel: 'Edit label ' + l[0], style: 'padding:4px 12px; border-radius:13px; font-size:12px; font-weight:600; cursor:pointer; background:transparent; border:1px solid ' + l[1] + '; color:' + l[1] }));
+    const isG = st.dlg === 'g';
+    const existing = st.di >= 0;
+    const item = existing ? (isG ? GROUPS[st.di] : LBL[st.di]) : null;
+    const pal = isG ? GPAL : LPAL;
+    const dk = st.dlg + st.di;
+    const dcolCur = st.dcol[dk] || (item ? item[1] : pal[0]);
+    const dlgSwatches = pal.map((c) => ({ name: 'Color ' + c, pick: () => this.setState({ dcol: { ...st.dcol, [dk]: c } }), style: 'width:28px; height:28px; border-radius:7px; cursor:pointer; padding:0; background:' + c + '; border:2px solid ' + (c === dcolCur ? 'var(--fg)' : 'transparent') }));
+    const nodeBase = 'position:absolute; box-sizing:border-box; padding:7px 10px; border-radius:8px; background:var(--bg); display:flex; flex-direction:column; justify-content:space-between; border:1px solid ';
+    const port = (c) => 'position:absolute; top:50%; margin-top:-5px; width:10px; height:10px; border-radius:5px; background:' + c;
+    const ACC = 'var(--accent)', BLU = 'var(--next)', OFF = 'var(--dim)';
+    const inputs = [
+      ['Audio', 'Audio bin + video clips', ACC], ['IMAG', 'SDI input', ACC], ['Floor Cam', 'NDI input · not routed', OFF], ['Lobby loop', 'Playlist', BLU], ['Microphone', 'Off', OFF],
+    ].map((r, i) => ({
+      name: r[0], sub: r[1], meter: r[2] === OFF ? 'var(--line)' : 'linear-gradient(90deg,' + r[2] + ' 60%, var(--line) 60%)',
+      port: port(r[2]),
+      style: nodeBase + 'var(--line); left:0; width:200px; top:' + (48 + i * 56) + 'px; height:44px; opacity:' + (r[2] === OFF ? 0.6 : 1)
+    }));
+    const chDefs = [['Main', 'Show mix', 60, 56, ACC], ['Lobby TV', 'Playlist mix', 190, 56, BLU]];
+    const channels = chDefs.map((c) => ({
+      name: c[0], sub: c[1], meter: 'linear-gradient(90deg,' + c[4] + ' 45%, var(--line) 45%)', port: port(c[4]),
+      style: nodeBase + 'var(--line); left:270px; width:180px; top:' + c[2] + 'px; height:' + c[3] + 'px'
+    }));
+    const hdr = 'position:absolute; left:520px; width:266px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:0 8px 0 10px; border-radius:8px; background:var(--panel); border:1px solid var(--line)';
+    const txt = 'position:absolute; left:520px; width:266px; box-sizing:border-box; display:flex; align-items:center; padding:0 10px; font-size:12px; color:var(--dim)';
+    const rowS = 'position:absolute; left:520px; width:266px; box-sizing:border-box; padding:5px 10px; border-radius:8px; background:var(--bg); display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--line)';
+    const D = [
+      { t: 'h', name: 'Dante Virtual Soundcard', sub: '64 channels · 48 kHz', y: 48, h: 38 },
+      { t: 'r', name: 'Out 1–2', y: 90, h: 32, g: 0 },
+      { t: 'r', name: 'Out 3–4', y: 126, h: 32, g: 1 },
+      { t: 'r', name: 'Out 5–6', y: 162, h: 32, g: -1 },
+      { t: 'x', name: '+ 29 more pairs', y: 196, h: 22 },
+      { t: 'h', name: 'Mac Studio Speakers', sub: '2 channels', y: 224, h: 38 },
+      { t: 'r', name: 'Out 1–2', y: 266, h: 32, g: -1 },
+      { t: 'h', name: 'Focusrite USB', sub: 'Not connected · routes kept', y: 306, h: 38, miss: true },
+      { t: 'r', name: 'Out 1–2', y: 348, h: 32, g: 1, miss: true },
+      { t: 'x', name: 'EMBEDDED IN VIDEO OUTPUTS', y: 390, h: 20 },
+      { t: 'r', name: 'Screen 1', tag: 'SDI', y: 414, h: 32, g: 0 },
+      { t: 'r', name: 'Screen 1', tag: 'NDI', y: 450, h: 32, g: 0 },
+      { t: 'r', name: 'Lobby TV', tag: 'NDI', y: 486, h: 32, g: 1 },
+      { t: 'x', name: 'Hidden interfaces (2) ▸', y: 526, h: 24 },
+    ];
+    const gc = (g) => g === 0 ? ACC : g === 1 ? BLU : OFF;
+    const dests = D.map((d) => ({
+      isHeader: d.t === 'h', isRow: d.t === 'r', isText: d.t === 'x',
+      name: d.name, sub: d.sub || '', tag: d.tag || '',
+      meter: d.t === 'r' ? (d.g >= 0 && !d.miss ? 'linear-gradient(90deg,' + gc(d.g) + ' 45%, var(--line) 45%)' : 'var(--line)') : 'transparent',
+      port: d.t === 'r' ? port(d.miss ? OFF : gc(d.g)) : '',
+      style: (d.t === 'h' ? hdr : d.t === 'r' ? rowS : txt) + '; top:' + d.y + 'px; height:' + d.h + 'px' + (d.miss ? '; opacity:.55' : '') + (d.t === 'x' && d.name.indexOf('Hidden') === 0 ? '; border:1px dashed var(--line); border-radius:8px' : '')
+    }));
+    const inY = (i) => 48 + i * 56 + 22;
+    const chY = (i) => chDefs[i][2] + chDefs[i][3] / 2;
+    const mkCurve = (x1, y1, x2, y2, color) => ({
+      d: 'M' + x1 + ',' + y1 + ' C' + (x1 + 40) + ',' + y1 + ' ' + (x2 - 40) + ',' + y2 + ' ' + x2 + ',' + y2,
+      style: 'fill:none; stroke-width:2; stroke:' + color
+    });
+    const curves = [
+      mkCurve(200, inY(0), 270, chY(0), ACC), mkCurve(200, inY(1), 270, chY(0), ACC),
+      mkCurve(200, inY(3), 270, chY(1), BLU),
+    ];
+    D.forEach((d) => { if (d.t === 'r' && d.g >= 0) { const c = mkCurve(450, chY(d.g), 520, d.y + d.h / 2, d.miss ? OFF : gc(d.g)); if (d.miss) c.style += '; stroke-dasharray:5 4; opacity:.7'; curves.push(c); } });
+    const SC = [ACC, ACC, ACC, BLU];
+    const vIn = [['Slides', 'Songs, scripture, decks', ACC], ['Video clips', 'Media bin · looks', ACC], ['IMAG', 'SDI in · card B', ACC], ['Floor Cam', 'NDI · not routed', OFF], ['Lobby loop', 'Playlist', BLU]];
+    let vInputs = vIn.map((r, i) => ({
+      name: r[0], sub: r[1], meter: r[2] === OFF ? 'var(--line)' : 'linear-gradient(90deg,' + r[2] + ' 60%, var(--line) 60%)', port: port(r[2]),
+      style: nodeBase + 'var(--line); left:0; width:200px; top:' + (48 + i * 56) + 'px; height:44px; opacity:' + (r[2] === OFF ? 0.6 : 1)
+    }));
+    const vSc = [['Screen 1', 'Audience · 1080p', 'SDI+NDI'], ['Stage Screen 1', 'Lyrics + timer', 'SDI'], ['Stage Screen 2', 'Next + clock', 'SDI'], ['Lobby TV', 'Announcements', 'NDI']];
+    let vScreens = vSc.map((c, i) => ({
+      name: c[0], sub: c[1], tag: c[2], meter: 'linear-gradient(90deg,' + SC[i] + ' 55%, var(--line) 55%)', port: port(SC[i]),
+      style: nodeBase + 'var(--line); left:270px; width:180px; top:' + (48 + i * 72) + 'px; height:56px'
+    }));
+    const vY = (i) => 48 + i * 72 + 28;
+    const VD = [
+      { t: 'h', name: 'DeckLink Duo 2 · A', sub: '4 × SDI out · 1080p59.94', y: 48, h: 38 },
+      { t: 'r', name: 'SDI 1', y: 90, h: 32, s: 0 }, { t: 'r', name: 'SDI 2', y: 126, h: 32, s: 1 }, { t: 'r', name: 'SDI 3', y: 162, h: 32, s: 2 }, { t: 'r', name: 'SDI 4', y: 198, h: 32, s: -1 },
+      { t: 'h', name: 'DeckLink Duo 2 · B', sub: 'SDI 1 in is IMAG · 3 out free', y: 240, h: 38 },
+      { t: 'r', name: 'SDI 2', y: 282, h: 32, s: -1 },
+      { t: 'x', name: 'NETWORK', y: 324, h: 20 },
+      { t: 'r', name: 'NDI · Screen 1', y: 348, h: 32, s: 0 }, { t: 'r', name: 'NDI · Lobby TV', y: 384, h: 32, s: 3 },
+      { t: 'x', name: 'Hidden cards (0) ▸', y: 424, h: 24 },
+    ];
+    let vDests = VD.map((d) => ({
+      isHeader: d.t === 'h', isRow: d.t === 'r', isText: d.t === 'x', name: d.name, sub: d.sub || '', tag: d.t === 'r' ? (d.s >= 0 ? vSc[d.s][0] : 'free') : '',
+      meter: d.t === 'r' ? (d.s >= 0 ? 'linear-gradient(90deg,' + SC[d.s] + ' 45%, var(--line) 45%)' : 'var(--line)') : 'transparent',
+      port: d.t === 'r' ? port(d.s >= 0 ? SC[d.s] : OFF) : '',
+      style: (d.t === 'h' ? hdr : d.t === 'r' ? rowS : txt) + '; top:' + d.y + 'px; height:' + d.h + 'px' + (d.t === 'r' && d.s < 0 ? '; opacity:.55' : '') + (d.t === 'x' && d.name.indexOf('Hidden') === 0 ? '; border:1px dashed var(--line); border-radius:8px' : '')
+    }));
+    let vCurves = [
+      mkCurve(200, 48 + 22, 270, vY(0), ACC), mkCurve(200, 48 + 22, 270, vY(1), ACC), mkCurve(200, 48 + 22, 270, vY(2), ACC),
+      mkCurve(200, 104 + 22, 270, vY(0), ACC), mkCurve(200, 160 + 22, 270, vY(0), ACC), mkCurve(200, 216 + 22, 270, vY(3), BLU)
+    ];
+    VD.forEach((d) => { if (d.t === 'r' && d.s >= 0) vCurves.push(mkCurve(450, vY(d.s), 520, d.y + d.h / 2, SC[d.s])); });
+
+    const VX = st.vx || '';
+    const WARN = light ? '#a85a00' : '#ffb020';
+    let vBadges = []; let vFoot = '2 DeckLink cards · 4 screens';
+    let vDesc = 'Route sources onto screens, and screens to outputs. Every DeckLink card and display macOS sees is listed. Same layout as Audio, so one routing idea covers both.';
+    if (VX) {
+      const mis = VX === 'mismatch'; const pop = VX === 'popover';
+      vDesc = 'Each screen is a format and each wire is a scaler, like a decimator. Amber marks a mismatch that needs a decision.';
+      vFoot = '';
+      const xIn = [['Slides', 'Songs, scripture, decks', ACC], ['Video clips', 'Media bin · 1080p', ACC], ['IMAG', 'SDI in · 1080p59.94', ACC], ['Floor Cam', 'NDI · 1080p50', mis ? WARN : OFF], ['Lobby loop', 'Playlist · 1080p', BLU]];
+      vInputs = xIn.map((r, i) => ({
+        name: r[0], sub: r[1], meter: r[2] === OFF ? 'var(--line)' : 'linear-gradient(90deg,' + r[2] + ' 60%, var(--line) 60%)', port: port(r[2]),
+        style: nodeBase + (r[2] === WARN ? WARN : 'var(--line)') + '; left:0; width:200px; top:' + (48 + i * 56) + 'px; height:44px; opacity:' + (r[2] === OFF ? 0.6 : 1)
+      }));
+      const SCX = [ACC, ACC, ACC, BLU, ACC];
+      const xSc = [['Screen 1', '1080p59.94', 'SDI+NDI'], ['Stage Screen 1', '1080p59.94', 'SDI'], ['Stage Screen 2', '1080p59.94', 'SDI'], ['Lobby TV', '1080p59.94', 'NDI'], ['IMAG pass-through', 'Direct · no layers', 'PASS']];
+      vScreens = xSc.map((c, i) => ({
+        name: c[0], sub: c[1], tag: c[2], meter: 'linear-gradient(90deg,' + SCX[i] + ' 55%, var(--line) 55%)', port: port(SCX[i]),
+        style: (i === 4 ? nodeBase.replace('solid', 'dashed') + 'var(--accent)' : nodeBase + (mis && i === 0 ? WARN : 'var(--line)')) + '; left:270px; width:180px; top:' + (48 + i * 72) + 'px; height:56px'
+      }));
+      const XD = [
+        { t: 'h', name: 'DeckLink Duo 2 · A', sub: '4 × SDI out · 1080p59.94', y: 48, h: 38 },
+        { t: 'r', name: 'SDI 1', y: 90, h: 32, s: 0, b: '1:1' }, { t: 'r', name: 'SDI 2', y: 126, h: 32, s: 1, b: '1:1' }, { t: 'r', name: 'SDI 3', y: 162, h: 32, s: 2, b: '1:1' }, { t: 'r', name: 'SDI 4', y: 198, h: 32, s: -1 },
+        { t: 'h', name: 'DeckLink Duo 2 · B', sub: 'SDI 1 in is IMAG · 3 out free', y: 240, h: 38 },
+        { t: 'r', name: 'SDI 2', y: 282, h: 32, s: -1 },
+        { t: 'x', name: 'NETWORK', y: 324, h: 20 },
+        { t: 'r', name: 'NDI · Screen 1', y: 348, h: 32, s: 0, b: '1:1' }, { t: 'r', name: 'NDI · Lobby TV', y: 384, h: 32, s: 3, b: '1:1' }, { t: 'r', name: 'NDI · IMAG', y: 420, h: 32, s: 4, b: '1:1' },
+        { t: 'x', name: 'DISPLAYS', y: 460, h: 20 },
+        { t: 'r', name: 'HDMI · Confirm 720p', y: 484, h: 32, s: 0, b: '→ 720p', hot: true }
+      ];
+      vDests = XD.map((d) => ({
+        isHeader: d.t === 'h', isRow: d.t === 'r', isText: d.t === 'x', name: d.name, sub: d.sub || '', tag: d.t === 'r' ? (d.s >= 0 ? xSc[d.s][0] : 'free') : '',
+        meter: d.t === 'r' ? (d.s >= 0 ? 'linear-gradient(90deg,' + SCX[d.s] + ' 45%, var(--line) 45%)' : 'var(--line)') : 'transparent',
+        port: d.t === 'r' ? port(d.s >= 0 ? SCX[d.s] : OFF) : '',
+        style: (d.t === 'h' ? hdr : d.t === 'r' ? rowS : txt) + '; top:' + d.y + 'px; height:' + d.h + 'px' + (d.t === 'r' && d.s < 0 ? '; opacity:.55' : '') + (d.t === 'r' && d.hot && pop ? '; border:1px solid var(--accent)' : '')
+      }));
+      vCurves = [
+        mkCurve(200, 70, 270, vY(0), ACC), mkCurve(200, 70, 270, vY(1), ACC), mkCurve(200, 70, 270, vY(2), ACC),
+        mkCurve(200, 126, 270, vY(0), ACC), mkCurve(200, 182, 270, vY(4), ACC), mkCurve(200, 294, 270, vY(3), BLU)
+      ];
+      if (mis) { const c = mkCurve(200, 238, 270, vY(0), WARN); c.style += '; stroke-dasharray:6 4'; vCurves.push(c); }
+      const bs = (x, y, bc, tc, bg, w) => 'position:absolute; left:' + x + 'px; top:' + y + 'px; transform:translate(-50%,-50%); padding:1px 7px; border-radius:9px; font-family:\'JetBrains Mono\',ui-monospace,monospace; font-size:10px; white-space:nowrap; z-index:2; background:' + (bg || 'var(--chrome)') + '; border:' + (w || 1) + 'px solid ' + bc + '; color:' + tc;
+      XD.forEach((d) => {
+        if (d.t !== 'r' || d.s < 0) return;
+        const yy = d.y + d.h / 2;
+        const c = mkCurve(450, vY(d.s), 520, yy, SCX[d.s]);
+        if (d.hot && pop) c.style += '; stroke-width:3.5';
+        vCurves.push(c);
+        const hot = !!d.hot;
+        vBadges.push({ text: d.b, pick: hot ? () => this.setState({ vx: pop ? 'badges' : 'popover' }) : () => {}, style: bs(485, (vY(d.s) + yy) / 2, hot ? 'var(--accent)' : 'var(--line)', hot ? 'var(--accent)' : 'var(--dim)', hot && pop ? 'var(--sel)' : null, hot && pop ? 2 : 1) });
+      });
+      vBadges.push({ text: 'Direct', pick: () => {}, style: bs(235, 273, 'var(--accent)', 'var(--accent)') });
+      if (mis) vBadges.push({ text: '50 → 59.94 ⚠', pick: () => this.setState({ vx: 'mismatch' }), style: bs(235, 157, WARN, WARN) });
+    }
+    const segDefs = [['', 'v0.1'], ['badges', 'Badges'], ['popover', 'Scaler'], ['mismatch', 'Mismatch']];
+    const vSegs = segDefs.map((g) => ({ label: g[1], pick: () => this.setState({ vx: g[0] }),
+      style: 'padding:4px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px; background:' + (VX === g[0] ? 'var(--accent)' : 'transparent') + '; color:' + (VX === g[0] ? onAccent : 'var(--fg)') }));
+    const vSegNote = VX ? 'After v0.1: each wire becomes a scaler' : 'v0.1: one format for everything (59.94)';
+    const toBadges = () => this.setState({ vx: 'badges' });
+    const titles = { general: 'General', audio: 'Audio', video: 'Video', network: 'Network' };
+    return {
+      vars, label, menu, vInputs, vScreens, vDests, vCurves, vBadges, vSegs, vSegNote, toBadges, vFoot, vDesc, warnC: WARN, vxOn: !!VX, vxOff: !VX, vxPop: VX === 'popover', vxWarn: VX === 'mismatch', vxLegend: VX === 'badges', isVideo: st.pane === 'video', generalRows, apiRows, ndiRows, inputs, channels, dests, curves,
+      colHead: "position:absolute; top:0; height:32px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--panel); border:1px solid var(--line); font-weight:600",
+      paneTitle: titles[st.pane] || (items.filter((x) => x && x[0] === st.pane)[0] || [0, 'Preferences'])[1],
+      isGeneral: st.pane === 'general', isAudio: st.pane === 'audio', isNetwork: st.pane === 'network',
+      sections, isGeneric: sections.length > 0, isGroups: st.pane === 'groups', groupRows, labelChips, onAccent: light ? '#ffffff' : '#0d0d0d',
+      newGroup: open('g', -1), newLabel: open('l', -1), dlgOpen: !!st.dlg, dlgIsGroup: isG, dlgExisting: existing, dlgSwatches,
+      dlgTitle: (existing ? 'Edit ' : 'New ') + (isG ? 'group' : 'label'), dlgName: item ? item[0] : (isG ? 'New group' : 'New label'), dlgKey: item && isG ? item[2] : '',
+      dlgClose: () => this.setState({ dlg: '', ddel: false }),
+      dlgDelete: () => (st.ddel ? this.setState({ dlg: '', ddel: false }) : this.setState({ ddel: true })),
+      dlgDelLabel: st.ddel ? '✓ Confirm delete' : 'Delete ' + (isG ? 'group' : 'label'),
+      dlgDelStyle: 'height:30px; padding:0 12px; border-radius:6px; cursor:pointer; background:transparent; font-weight:600; border:1px solid #e5484d; color:#e5484d' + (st.ddel ? '; background:#e5484d; color:#fff' : ''),
+      isOther: ['general', 'audio', 'video', 'network', 'updates', 'media', 'integrations', 'groups'].indexOf(st.pane) < 0
+    };
+  }
+}
+</script>
+</body>
+</html>

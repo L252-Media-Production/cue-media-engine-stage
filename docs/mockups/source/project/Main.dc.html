@@ -1,0 +1,1353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Operator view</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="position:relative; width:1440px; height:{{ outerH }}; background:#0f0f0f; border-radius:10px; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px">
+
+<!-- macOS menu bar (wired) -->
+<sc-if value="{{ hasBar }}" hint-placeholder-val="{{ true }}"><div style="position:relative; z-index:95; width:1440px; height:24px; display:flex; align-items:center; box-sizing:border-box; background:rgba(30,30,30,.96); border-bottom:1px solid #000; color:#f5f5f5">
+<span style="width:38px; text-align:center; font-size:15px">&#63743;</span>
+<sc-for list="{{ barItems }}" as="b" hint-placeholder-count="8"><span onClick="{{ b.pick }}" style="{{ b.style }}">{{ b.label }}</span></sc-for>
+<div style="flex:1"></div>
+<span style="color:#a8a8a8; padding-right:14px">Sun 9:41 AM</span>
+</div></sc-if>
+
+<div style="{{vars}}; width:1440px; height:900px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden; border-radius:10px">
+
+<!-- Slim title bar -->
+<div style="height:38px; flex:none; display:flex; align-items:center; gap:10px; padding:0 14px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="display:flex; gap:8px; width:64px">
+<span style="width:12px; height:12px; border-radius:6px; background:#ff5f57"></span>
+<span style="width:12px; height:12px; border-radius:6px; background:#febc2e"></span>
+<span style="width:12px; height:12px; border-radius:6px; background:#28c840"></span>
+</div>
+<svg width="20" height="20" viewBox="0 0 100 100" role="img" aria-label="CueME Stage"><rect width="100" height="100" rx="22" fill="#2b2b2b"/><rect x="30" y="20" width="16" height="16" fill="none" stroke="#f5f5f5" stroke-width="4"/><rect x="54" y="18" width="20" height="20" fill="#47c86e"/><path d="M32.06 74.3Q29.75 74.3 28.02 73.49Q26.3 72.68 25.36 71.19Q24.41 69.71 24.41 67.7H28.79Q28.79 68.93 29.67 69.67Q30.56 70.4 32.06 70.4Q33.53 70.4 34.36 69.69Q35.18 68.99 35.18 67.82Q35.18 66.89 34.64 66.16Q34.1 65.42 33.05 65.18L30.38 64.55Q27.8 63.95 26.29 62.23Q24.77 60.5 24.77 58.1Q24.77 55.16 26.67 53.48Q28.58 51.8 31.88 51.8Q35.18 51.8 37.13 53.49Q39.08 55.19 39.08 58.07H34.7Q34.7 56.93 33.95 56.28Q33.2 55.64 31.88 55.64Q30.59 55.64 29.87 56.27Q29.15 56.9 29.15 57.95Q29.15 59.66 31.22 60.14L33.98 60.77Q36.56 61.34 38.08 63.25Q39.59 65.15 39.59 67.82Q39.59 69.77 38.67 71.24Q37.76 72.71 36.06 73.5Q34.37 74.3 32.06 74.3ZM47.75 74V56.15H42.2V52.1H57.8V56.15H52.25V74ZM68.12 74.3Q65.93 74.3 64.28 73.47Q62.63 72.65 61.72 71.17Q60.8 69.68 60.8 67.7V58.4Q60.8 56.39 61.72 54.92Q62.63 53.45 64.28 52.62Q65.93 51.8 68.12 51.8Q70.34 51.8 71.97 52.62Q73.61 53.45 74.53 54.92Q75.44 56.39 75.44 58.4H70.94Q70.94 57.08 70.2 56.39Q69.47 55.7 68.12 55.7Q66.77 55.7 66.03 56.39Q65.3 57.08 65.3 58.4V67.7Q65.3 68.99 66.03 69.69Q66.77 70.4 68.12 70.4Q69.47 70.4 70.2 69.69Q70.94 68.99 70.94 67.7V65.66H67.7V61.85H75.44V67.7Q75.44 69.68 74.53 71.17Q73.61 72.65 71.97 73.47Q70.34 74.3 68.12 74.3Z" fill="#f5f5f5"/></svg>
+<div style="font-weight:600">Nov 22 Service</div>
+<div style="flex:1"></div>
+</div>
+
+<!-- Main area -->
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Left + center + bottom panel -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column">
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Service panel -->
+<div style="width:280px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line)">
+<div style="padding:10px 10px 4px; display:flex; flex-direction:column; gap:6px">
+<div style="display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+Search collections
+</div>
+<div style="display:flex; align-items:center; justify-content:space-between; padding:2px 4px 0"><span style="{{label}}">COLLECTIONS</span><a href="ServiceNewCollection.dc.html" style="color:var(--accent); font-weight:600; cursor:pointer; text-decoration:none">+ New</a></div>
+<div style="max-height:150px; overflow:auto; display:flex; flex-direction:column; gap:1px; border-bottom:1px solid var(--line); padding-bottom:6px">
+<sc-for list="{{colRows}}" as="t" hint-placeholder-count="5"><div onClick="{{ t.pick }}" style="{{ t.style }}"><span style="width:16px; color:var(--dim)">{{ t.icon }}</span><span style="flex:1; font-weight:{{ t.weight }}">{{ t.title }}</span><span style="color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ t.meta }}</span></div></sc-for>
+</div>
+</div>
+<div style="position:relative; padding:6px 10px 6px; display:flex; flex-direction:column; gap:8px">
+<div style="display:flex; align-items:center; gap:8px">
+<button onClick="{{ svcToggle }}" aria-label="Choose service" style="flex:1; height:30px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--fg); font-weight:700; cursor:pointer"><span>{{ svcName }}</span><span style="color:var(--dim)">▾</span></button>
+<span onClick="{{ svcToggleMenu }}" role="button" style="color:var(--accent); font-weight:600; cursor:pointer">+ Add ▾</span>
+</div>
+<sc-if value="{{ addMenuOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:42px; right:10px; width:170px; z-index:8; padding:4px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; font-size:12px"><div onClick="{{ addSection }}" style="padding:7px 10px; border-radius:5px; cursor:pointer">Section…</div><div style="padding:7px 10px; border-radius:5px; color:#6f6f6f">Activity…</div></div></sc-if>
+<sc-if value="{{ apkOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:42px; right:10px; width:260px; z-index:8; padding:10px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:8px"><span style="{{label}}">{{ apkTitle }}</span><sc-for list="{{apkRows}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="{{ r.dot }}"></span><div style="flex:1; min-width:0; display:flex; flex-direction:column"><span style="font-weight:600">{{ r.title }}</span><span style="color:var(--dim); font-size:11px">{{ r.sub }}</span></div></div></sc-for><div style="display:flex; justify-content:flex-end; gap:8px"><span onClick="{{ svcToggleAct }}" role="button" style="height:28px; padding:0 12px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; border:1px solid var(--line); cursor:pointer">Cancel</span><span onClick="{{ apkAdd }}" role="button" style="height:28px; padding:0 12px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">{{ apkBtn }}</span></div></div></sc-if>
+<sc-if value="{{ ctxOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:330px; left:56px; width:230px; z-index:9; padding:4px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; font-size:12px"><sc-for list="{{ctxRows}}" as="m" hint-placeholder-count="6"><sc-if value="{{ m.sep }}" hint-placeholder-val="{{ false }}"><div style="height:1px; margin:4px 6px; background:var(--line)"></div></sc-if><sc-if value="{{ m.isItem }}" hint-placeholder-val="{{ true }}"><div onClick="{{ m.act }}" style="{{ m.style }}"><span style="flex:1">{{ m.label }}</span><span style="font-size:10px; color:var(--dim)">{{ m.hint }}</span></div></sc-if></sc-for></div></sc-if>
+<sc-if value="{{ svcAddOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:42px; right:10px; width:220px; z-index:8; padding:10px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:8px"><span style="{{label}}">SECTION NAME</span><div style="height:30px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--bg); border:1px solid var(--accent)">Offering<span style="display:inline-block; width:1px; height:16px; margin-left:1px; background:var(--accent)"></span></div><div style="display:flex; justify-content:flex-end; gap:8px"><span onClick="{{ svcToggleAdd }}" role="button" style="height:28px; padding:0 12px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; border:1px solid var(--line); cursor:pointer">Cancel</span><span onClick="{{ svcToggleAdd }}" role="button" style="height:28px; padding:0 12px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">Add</span></div></div></sc-if>
+<sc-if value="{{ svcOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:42px; left:10px; right:10px; z-index:8; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{plists}}" as="t" hint-placeholder-count="2"><div onClick="{{ t.pick }}" style="{{ t.style }}"><span style="width:16px; color:var(--dim)">{{ t.icon }}</span><span style="flex:1; font-weight:{{ t.weight }}">{{ t.title }}</span><span style="color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ t.meta }}</span></div></sc-for>
+<a href="ServiceNewService.dc.html" style="display:block; padding:6px 8px; color:var(--accent); font-weight:600; cursor:pointer; text-decoration:none">+ New service</a>
+</div>
+</sc-if>
+</div>
+<div style="padding:4px 14px 4px; display:flex; justify-content:space-between; align-items:center"><span style="{{label}}">ITEMS</span><span style="color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ svcTotal }}</span></div>
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:1px; padding:0 8px">
+<sc-for list="{{playlist}}" as="p" hint-placeholder-count="12">
+<sc-if value="{{ p.isHead }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 8px 2px; {{label}}">{{ p.title }}</div></sc-if>
+<sc-if value="{{ p.isRow }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ p.pick }}" onContextMenu="{{ p.ctxOpen }}" style="{{ p.style }}">
+<span style="width:10px; flex:none; color:var(--dim); opacity:.6">⋮⋮</span>
+<span style="width:18px; flex:none; display:flex; align-items:center; color:var(--dim)"><sc-if value="{{ p.isSong }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></sc-if><sc-if value="{{ p.isScr }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></sc-if><sc-if value="{{ p.isPres }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg></sc-if><sc-if value="{{ p.isAnn }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="m17 2-5 5-5-5"/></svg></sc-if><sc-if value="{{ p.isMedia }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 12h18M3 16h4M17 8h4M17 16h4"/></svg></sc-if><sc-if value="{{ p.isIn }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></sc-if><sc-if value="{{ p.isAct }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5"/><path d="M12 15h.01"/></svg></sc-if></span>
+<div style="flex:1; min-width:0; display:flex; flex-direction:column"><span style="font-weight:{{ p.weight }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.title }}</span><sc-if value="{{ p.hasSub }}" hint-placeholder-val="{{ true }}"><span style="color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.sub }}</span></sc-if></div>
+<sc-if value="{{ p.isLive }}" hint-placeholder-val="{{ false }}"><span style="padding:1px 6px; border-radius:4px; background:var(--live); color:#fff; font-size:9px; font-weight:700">LIVE</span></sc-if>
+<span style="color:{{ p.metaColor }}; font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ p.meta }}</span>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</div>
+
+<!-- Slide grid -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg)">
+<div style="position:relative; padding:10px 18px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line)">
+<div style="font-weight:700; font-size:15px">{{ itemTitle }}</div>
+<sc-if value="{{ plMissing }}" hint-placeholder-val="{{ false }}"><span style="padding:2px 8px; border-radius:10px; border:1px solid var(--warn); color:var(--warn); font-size:11px">⚠ announce_intro.mp4 · file missing</span></sc-if>
+<sc-if value="{{ notActItem }}" hint-placeholder-val="{{ true }}"><span style="padding:2px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px">loop_blue_01.mov</span>
+<span style="padding:2px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px">♪ track_02.wav</span></sc-if>
+<sc-if value="{{ isActItem }}" hint-placeholder-val="{{ false }}"><span style="padding:2px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px">{{ actItemMode }}</span>
+<span style="{{ actSessStyle }}">{{ actSessLabel }}</span></sc-if>
+<div style="flex:1"></div>
+<div onClick="{{ toggleTarget }}" style="{{ targetBtnStyle }}"><span style="color:var(--dim)">Send to</span><span style="font-weight:600">{{ targetName }}</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ showEdit }}" hint-placeholder-val="{{ true }}"><a href="{{ editHref }}" style="color:var(--accent); font-size:12px; font-weight:600; text-decoration:none">Edit ✎</a></sc-if><sc-if value="{{ isActItem }}" hint-placeholder-val="{{ false }}"><span onClick="{{ chgAct }}" role="button" style="{{ chgStyle }}">{{ chgLabel }}</span></sc-if>
+<sc-if value="{{ targetOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:46px; right:60px; width:250px; z-index:6; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{targetRows}}" as="r" hint-placeholder-count="5">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:6px 8px 2px; font-size:11px; font-weight:700; color:var(--dim)">{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span>{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px; margin:4px 0; background:var(--line)"></div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<sc-if value="{{ notActItem }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1; overflow:hidden; padding:14px 18px; display:flex; flex-direction:column; gap:14px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+<div>
+<div style="{{label}}; margin-bottom:8px">{{ g.name }}</div>
+<div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px">
+<sc-for list="{{ g.slides }}" as="s" hint-placeholder-count="4">
+<div onClick="{{ s.pick }}" style="{{ s.style }}">
+<div style="aspect-ratio:16/9; background:linear-gradient(135deg,#1c3a5e,#0d1b2e); display:flex; align-items:center; justify-content:center; text-align:center; color:#fff; font-size:12px; line-height:1.35; padding:8px; white-space:pre-line">{{ s.text }}</div>
+<div style="display:flex; justify-content:space-between; padding:4px 8px; font-size:11px; color:var(--dim)"><span>{{ s.label }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace">{{ s.badge }}</span></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ isActItem }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; overflow:hidden; padding:14px 18px; display:flex; flex-direction:column; gap:12px">
+<sc-for list="{{ aGroups }}" as="g" hint-placeholder-count="3">
+<div>
+<div onClick="{{ g.toggle }}" style="{{label}}; margin-bottom:6px; display:flex; align-items:center; gap:6px; cursor:{{ g.cursor }}"><span style="width:10px">{{ g.mark }}</span><span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ g.name }}</span><span style="flex:1"></span><span style="font-weight:400; white-space:nowrap">{{ g.count }}</span></div>
+<sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px">
+<sc-for list="{{ g.slides }}" as="s" hint-placeholder-count="5">
+<div onClick="{{ s.pick }}" style="{{ s.style }}">
+<div style="aspect-ratio:16/9; position:relative; overflow:hidden; background:linear-gradient(135deg,#1c3a5e,#0d1b2e); color:#fff; padding:5px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:3px">
+<sc-if value="{{ s.dyn }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; top:3px; right:3px; width:5px; height:5px; border-radius:3px; background:#47c86e"></span></sc-if>
+<sc-if value="{{ s.kJoin }}" hint-placeholder-val="{{ false }}"><div style="font-size:7px; font-weight:700">{{ s.actName }}</div><div style="display:flex; align-items:center; gap:4px"><img src="{{ s.qr }}" alt="" width="30" height="30" style="border-radius:2px; background:#fff"><div style="text-align:left; line-height:1.25"><div style="font-size:5px; opacity:.8">join.cuemestage.com</div><div style="font-size:9px; font-weight:700; font-family:'JetBrains Mono',ui-monospace,monospace">482 913</div></div></div></sc-if>
+<sc-if value="{{ s.kPlayers }}" hint-placeholder-val="{{ false }}"><div style="font-size:9px; font-weight:700">12 joined</div><div style="display:flex; flex-wrap:wrap; gap:2px; justify-content:center"><span style="font-size:5px; padding:1px 4px; border-radius:6px; background:rgba(255,255,255,.2)">[Name]</span><span style="font-size:5px; padding:1px 4px; border-radius:6px; background:rgba(255,255,255,.2)">[Name]</span><span style="font-size:5px; padding:1px 4px; border-radius:6px; background:rgba(255,255,255,.2)">[Name]</span><span style="font-size:5px; padding:1px 4px; border-radius:6px; background:rgba(255,255,255,.2)">[Name]</span><span style="font-size:5px; padding:1px 4px; border-radius:6px; background:rgba(255,255,255,.2)">[Name]</span><span style="font-size:5px; padding:1px 4px; border-radius:6px; background:rgba(255,255,255,.2)">[Name]</span></div></sc-if>
+<sc-if value="{{ s.kReady }}" hint-placeholder-val="{{ false }}"><div style="font-size:5px; letter-spacing:.1em; opacity:.8">{{ s.readyText }}</div><div style="font-size:10px; font-weight:700">Get ready</div></sc-if>
+<sc-if value="{{ s.kQuestion }}" hint-placeholder-val="{{ false }}"><div style="font-size:5.5px; line-height:1.25">{{ s.prompt }}</div><div style="display:grid; grid-template-columns:1fr 1fr; gap:2px; width:100%"><div style="background:#e5483f; border-radius:2px; font-size:5px; padding:2px 3px; text-align:left">▲ Genesis</div><div style="background:#4da3ff; border-radius:2px; font-size:5px; padding:2px 3px; text-align:left">◆ John</div><div style="background:#d9a21b; border-radius:2px; font-size:5px; padding:2px 3px; text-align:left">● Romans</div><div style="background:#2fa85a; border-radius:2px; font-size:5px; padding:2px 3px; text-align:left">■ Acts</div></div></sc-if>
+<sc-if value="{{ s.kResponses }}" hint-placeholder-val="{{ false }}"><div style="font-size:5.5px; line-height:1.25">{{ s.prompt }}</div><div style="width:100%; display:flex; flex-direction:column; gap:2px"><div style="display:flex; align-items:center; gap:3px"><span style="font-size:5px; width:6px">▲</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:10%; height:100%; border-radius:2px; background:#e5483f"></div></div></div><div style="display:flex; align-items:center; gap:3px"><span style="font-size:5px; width:6px">◆</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:60%; height:100%; border-radius:2px; background:#4da3ff"></div></div></div><div style="display:flex; align-items:center; gap:3px"><span style="font-size:5px; width:6px">●</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:16%; height:100%; border-radius:2px; background:#d9a21b"></div></div></div><div style="display:flex; align-items:center; gap:3px"><span style="font-size:5px; width:6px">■</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:7%; height:100%; border-radius:2px; background:#2fa85a"></div></div></div></div><div style="font-size:5px; opacity:.8">71 / 86 answered</div></sc-if>
+<sc-if value="{{ s.kReveal }}" hint-placeholder-val="{{ false }}"><div style="font-size:5.5px; line-height:1.25">{{ s.prompt }}</div><div style="width:100%; display:flex; flex-direction:column; gap:2px"><div style="display:flex; align-items:center; gap:3px; opacity:.4"><span style="font-size:5px; width:6px">▲</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:10%; height:100%; border-radius:2px; background:#e5483f"></div></div></div><div style="display:flex; align-items:center; gap:3px"><span style="font-size:5px; width:6px">◆</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:60%; height:100%; border-radius:2px; background:#47c86e"></div></div><span style="font-size:6px; color:#47c86e">✓</span></div><div style="display:flex; align-items:center; gap:3px; opacity:.4"><span style="font-size:5px; width:6px">●</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:16%; height:100%; border-radius:2px; background:#d9a21b"></div></div></div><div style="display:flex; align-items:center; gap:3px; opacity:.4"><span style="font-size:5px; width:6px">■</span><div style="flex:1; height:5px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:7%; height:100%; border-radius:2px; background:#2fa85a"></div></div></div></div></sc-if>
+<sc-if value="{{ s.kBoard }}" hint-placeholder-val="{{ false }}"><div style="font-size:7px; font-weight:700">Leaderboard</div><div style="width:100%; display:flex; flex-direction:column; gap:1px; font-size:5px"><div style="display:flex; justify-content:space-between; padding:1px 3px; background:rgba(255,255,255,.14); border-radius:2px"><span>1 [Player name]</span><span>4,820</span></div><div style="display:flex; justify-content:space-between; padding:1px 3px; background:rgba(255,255,255,.1); border-radius:2px"><span>2 [Player name]</span><span>4,610</span></div><div style="display:flex; justify-content:space-between; padding:1px 3px; background:rgba(255,255,255,.1); border-radius:2px"><span>3 [Player name]</span><span>4,455</span></div><div style="display:flex; justify-content:space-between; padding:1px 3px; background:rgba(255,255,255,.1); border-radius:2px"><span>4 [Player name]</span><span>4,120</span></div></div></sc-if>
+<sc-if value="{{ s.kPodium }}" hint-placeholder-val="{{ false }}"><div style="font-size:7px; font-weight:700">Podium</div><div style="display:flex; align-items:flex-end; gap:3px; height:26px"><div style="width:22px; height:16px; background:#9aa4b2; border-radius:2px 2px 0 0; font-size:5px; padding-top:1px">2</div><div style="width:22px; height:26px; background:#d9a21b; border-radius:2px 2px 0 0; font-size:5px; padding-top:1px">1</div><div style="width:22px; height:11px; background:#b0703a; border-radius:2px 2px 0 0; font-size:5px; padding-top:1px">3</div></div></sc-if>
+<sc-if value="{{ s.kPoll }}" hint-placeholder-val="{{ false }}"><div style="font-size:5.5px; line-height:1.25">{{ s.prompt }}</div><div style="width:100%; display:flex; flex-direction:column; gap:2px"><div style="display:flex; align-items:center; gap:3px"><div style="flex:1; height:6px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:48%; height:100%; border-radius:2px; background:#4da3ff"></div></div><span style="font-size:5px">48%</span></div><div style="display:flex; align-items:center; gap:3px"><div style="flex:1; height:6px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:31%; height:100%; border-radius:2px; background:#d9a21b"></div></div><span style="font-size:5px">31%</span></div><div style="display:flex; align-items:center; gap:3px"><div style="flex:1; height:6px; border-radius:2px; background:rgba(255,255,255,.15)"><div style="width:21%; height:100%; border-radius:2px; background:#2fa85a"></div></div><span style="font-size:5px">21%</span></div></div></sc-if>
+<sc-if value="{{ s.kThanks }}" hint-placeholder-val="{{ false }}"><div style="font-size:8px; font-weight:700">{{ s.actName }}</div><div style="font-size:6px; opacity:.85">Thanks for playing</div></sc-if>
+</div>
+<div style="display:flex; justify-content:space-between; padding:4px 6px; font-size:10px; color:var(--dim); gap:4px"><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ s.label }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; white-space:nowrap">{{ s.badge }}</span></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ g.closed }}" hint-placeholder-val="{{ false }}"><div style="padding:4px 8px; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ g.summary }}</div></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+
+<!-- Bottom panel: Scripture / Media -->
+<div style="{{ panelStyle }}">
+<div style="height:32px; flex:none; display:flex; align-items:flex-end; gap:4px; padding:0 12px; border-bottom:1px solid var(--line)">
+<sc-for list="{{panelTabs}}" as="pt" hint-placeholder-count="2">
+<div onClick="{{ pt.pick }}" style="{{ pt.style }}">{{ pt.label }}</div>
+</sc-for>
+</div>
+<sc-if value="{{ isScripture }}" hint-placeholder-val="{{ true }}">
+<div style="position:relative; flex:1; min-height:0; display:flex; flex-direction:column; padding:8px 12px; gap:8px">
+<div style="display:flex; gap:8px; align-items:center">
+<div style="position:relative">
+<div onClick="{{ toggleTr }}" style="height:28px; padding:0 10px; display:flex; align-items:center; gap:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); cursor:pointer">{{ trName }} ▾</div>
+<sc-if value="{{ trOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:32px; left:0; width:260px; z-index:8; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{trRows}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="color:var(--dim); font-size:11px">{{ r.lang }}</span></div></sc-for>
+<div style="height:1px; margin:4px 0; background:var(--line)"></div>
+<a href="BibleSheet.dc.html" style="display:flex; padding:6px 8px; border-radius:5px; color:var(--accent); text-decoration:none">Get more translations…</a>
+<a href="BibleImport.dc.html" style="display:flex; padding:6px 8px; border-radius:5px; color:var(--accent); text-decoration:none">Import file…</a>
+</div>
+</sc-if>
+</div>
+<div style="position:relative">
+<div onClick="{{ toggleTp }}" style="height:28px; padding:0 10px; display:flex; align-items:center; gap:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); cursor:pointer"><span style="color:var(--dim)">Looks</span> ▾</div>
+<sc-if value="{{ tpOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:32px; left:0; width:300px; z-index:8; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<div style="padding:4px 8px 2px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)">SCRIPTURE GOES OUT AS</div>
+<sc-for list="{{tpRows}}" as="r" hint-placeholder-count="3"><div style="{{ r.style }}"><span style="flex:1">{{ r.label }}</span><span style="color:var(--dim); font-size:11px">{{ r.note }}</span></div></sc-for>
+<div style="height:1px; margin:4px 0; background:var(--line)"></div>
+<div onClick="{{ openLooks }}" style="display:flex; padding:6px 8px; border-radius:5px; color:var(--accent); cursor:pointer">Edit looks…</div>
+</div>
+</sc-if>
+</div>
+<sc-if value="{{ dualOn }}" hint-placeholder-val="{{ false }}"><div style="height:28px; padding:0 4px 0 10px; display:flex; align-items:center; gap:8px; border-radius:6px; border:1px solid var(--line); background:var(--panel)"><span>{{ tr2Name }}</span><span onClick="{{ dualOff }}" role="button" aria-label="Remove second translation" style="width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--dim); cursor:pointer">×</span></div></sc-if>
+<sc-if value="{{ dualOff2 }}" hint-placeholder-val="{{ true }}"><span onClick="{{ dualOnFn }}" style="color:var(--accent); font-weight:600; cursor:pointer">+ Translation</span></sc-if>
+<div style="position:relative">
+<div style="width:300px; height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; gap:8px; border-radius:6px; border:1px solid {{ searchBorder }}; background:var(--panel)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--dim)" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+<span onClick="{{ toggleSearch }}" style="flex:1; color:{{ searchColor }}; cursor:text">{{ searchText }}</span>
+</div>
+<sc-if value="{{ searchOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:32px; left:0; width:420px; z-index:9; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<div style="padding:4px 8px 2px; {{label}}">REFERENCES</div>
+<sc-for list="{{sugRefs}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:110px; font-weight:600">{{ r.ref }}</span><span style="flex:1; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.text }}</span></div></sc-for>
+<div style="padding:6px 8px 2px; {{label}}">WORDS IN {{ trName }}</div>
+<sc-for list="{{sugWords}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:110px; font-weight:600">{{ r.ref }}</span><span style="flex:1; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.text }}</span></div></sc-for>
+</div>
+</sc-if>
+</div>
+<button onClick="{{ toggleSpeech }}" aria-pressed="{{ speechOn }}" style="{{ micStyle }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg><span>{{ micLabel }}</span></button>
+<div style="flex:1"></div>
+<span style="{{label}}">RECENT</span>
+<sc-for list="{{recents}}" as="r" hint-placeholder-count="3"><span onClick="{{ r.pick }}" style="padding:3px 10px; border-radius:12px; cursor:pointer; background:var(--panel); border:1px solid var(--line); font-size:12px">{{ r.name }}</span></sc-for>
+</div>
+
+<div style="flex:1; min-height:0; display:flex; gap:10px">
+<div style="width:140px; flex:none; overflow:hidden; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{books}}" as="b" hint-placeholder-count="8"><div onClick="{{ b.pick }}" style="{{ b.style }}">{{ b.name }}</div></sc-for>
+</div>
+<div style="width:150px; flex:none; display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:3px; align-content:start">
+<sc-for list="{{chapters}}" as="c" hint-placeholder-count="21"><div onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.n }}</div></sc-for>
+</div>
+<div style="flex:1; min-width:0; overflow:hidden; display:flex; flex-direction:column; border-radius:6px; border:1px solid var(--line); background:var(--bg)">
+<sc-for list="{{verseRows}}" as="v" hint-placeholder-count="10">
+<div onClick="{{ v.pick }}" style="{{ v.style }}"><span style="width:22px; flex:none; text-align:right; color:var(--dim); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px">{{ v.n }}</span><span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ v.text }}</span></div>
+</sc-for>
+</div>
+<div style="width:390px; flex:none; display:flex; flex-direction:column; gap:8px">
+<div style="display:flex; align-items:center; gap:10px"><span style="font-weight:700; flex:1">{{ refText }}</span><span style="color:var(--dim); font-size:12px">per slide</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{vpsSeg}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for></div></div>
+<div style="flex:1; min-height:0; display:flex; gap:8px; overflow:hidden">
+<sc-for list="{{slideThumbs}}" as="t" hint-placeholder-count="2">
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px"><div style="aspect-ratio:16/9; box-sizing:border-box; padding:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; text-align:center; color:#fff; font-size:9px; line-height:1.3; background:linear-gradient(135deg,#1c3a5e,#0d1b2e); overflow:hidden; border-radius:4px"><span style="">{{ t.text }}</span><sc-if value="{{ t.hasText2 }}" hint-placeholder-val="{{ false }}"><span style="opacity:.75; font-style:italic">{{ t.text2 }}</span></sc-if><span style="margin-top:2px; font-weight:700; font-size:8px; opacity:.8">{{ t.ref }}</span></div><span style="color:var(--dim); font-size:11px">{{ t.label }}</span></div>
+</sc-for>
+</div>
+<div style="display:flex; gap:8px">
+<button style="flex:1; height:30px; border-radius:6px; border:1px solid var(--line); background:var(--chrome); color:var(--fg); cursor:pointer">Add to service</button>
+<button style="flex:1; height:30px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">Go live</button>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ speechOn }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; left:300px; top:44px; width:520px; z-index:9; padding:12px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 12px 36px rgba(0,0,0,.5); display:flex; flex-direction:column; gap:10px">
+<div style="display:flex; align-items:center; gap:10px"><span style="width:10px; height:10px; border-radius:5px; background:var(--live)"></span><span style="font-weight:700">Listening</span><div style="flex:1; display:flex; align-items:center; gap:2px; height:16px"><sc-for list="{{micBars}}" as="b" hint-placeholder-count="30"><span style="{{ b.style }}"></span></sc-for></div><span style="color:var(--dim); font-size:12px">Suggestions only · nothing goes live until you press Go live</span></div>
+<div style="padding:8px 10px; border-radius:6px; background:var(--bg); border:1px solid var(--line); color:var(--dim); font-style:italic">“…for God so loved the world that he gave his only begotten Son…”</div>
+<sc-for list="{{heard}}" as="h" hint-placeholder-count="3">
+<div style="display:flex; align-items:center; gap:10px; padding:5px 8px; border-radius:6px; background:var(--chrome)"><span style="width:110px; font-weight:600">{{ h.ref }}</span><span style="flex:1; color:var(--dim); font-size:12px">{{ h.tr }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; color:{{ h.conf }}">{{ h.pct }}</span><button onClick="{{ h.pick }}" style="height:24px; padding:0 12px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer">Select</button></div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ isMedia }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Media playlists -->
+<div style="width:250px; flex:none; display:flex; flex-direction:column; border-right:1px solid var(--line)">
+<div style="position:relative; padding:8px 12px 6px; display:flex; justify-content:space-between; align-items:center">
+<div style="flex:1; margin-right:10px; height:24px; padding:0 8px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:12px">Search media</div>
+<span onClick="{{ toggleAdd }}" style="color:var(--accent); font-weight:600; cursor:pointer">+ Add ▾</span>
+<sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:30px; right:8px; width:200px; z-index:7; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{addRows}}" as="r" hint-placeholder-count="3"><a href="{{ r.href }}" style="display:block; padding:6px 8px; border-radius:5px; cursor:pointer; color:var(--fg); text-decoration:none">{{ r.label }}</a></sc-for>
+</div>
+</sc-if>
+</div>
+<div style="flex:1; min-height:0; overflow:hidden; padding:0 8px; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{mfolders}}" as="f" hint-placeholder-count="5">
+<div onClick="{{ f.pick }}" style="{{ f.style }}">
+<span style="width:16px; color:var(--dim)">{{ f.icon }}</span>
+<span style="flex:1; font-weight:{{ f.weight }}">{{ f.name }}</span>
+<sc-if value="{{ f.linked }}" hint-placeholder-val="{{ false }}"><span title="Linked to a folder on this Mac" style="width:7px; height:7px; border-radius:4px; background:var(--ok)"></span></sc-if>
+<span style="color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ f.count }}</span>
+</div>
+</sc-for>
+</div>
+<div style="margin:8px; padding:7px 10px; border-radius:8px; border:1px dashed var(--line); color:var(--dim); font-size:12px; text-align:center">Drop files or folders from Finder here</div>
+</div>
+
+<!-- Media grid -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column">
+<div style="height:34px; flex:none; display:flex; align-items:center; gap:10px; padding:0 12px; border-bottom:1px solid var(--line)">
+<span style="font-weight:700">{{ mfName }}</span>
+<sc-if value="{{ mfLinked }}" hint-placeholder-val="{{ false }}">
+<span style="display:flex; align-items:center; gap:6px; padding:2px 8px; border-radius:10px; background:var(--sel); color:var(--accent); font-size:11px"><span style="width:6px; height:6px; border-radius:3px; background:var(--ok)"></span>Linked · watching</span>
+<span style="color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ mfPath }}</span>
+</sc-if>
+<sc-if value="{{ mfManaged }}" hint-placeholder-val="{{ true }}"><span style="color:var(--dim); font-size:12px">Drag files in from Finder to add them</span></sc-if>
+<div style="flex:1"></div>
+<sc-if value="{{ mfLinked }}" hint-placeholder-val="{{ false }}"><span style="color:var(--dim); font-size:11px">Updated 2 min ago · 1 new</span><span style="color:var(--accent); font-size:12px; font-weight:600">Unlink</span></sc-if>
+</div>
+<div style="flex:1; min-height:0; overflow:hidden; padding:10px 12px; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; align-content:start">
+<sc-for list="{{mitems}}" as="m" hint-placeholder-count="8">
+<div onClick="{{ m.pick }}" style="{{ m.style }}">
+<div style="{{ m.thumb }}">
+<span style="{{ m.typeChip }}">{{ m.typeLabel }}</span>
+<sc-if value="{{ m.isNew }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; top:4px; right:4px; padding:1px 5px; border-radius:3px; background:var(--accent); color:{{ onAccent }}; font-size:9px; font-weight:700">NEW</span></sc-if>
+<span style="position:absolute; left:4px; bottom:4px; padding:1px 5px; border-radius:3px; background:rgba(0,0,0,.6); color:#fff; font-size:9px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ m.dur }}</span>
+<span style="position:absolute; right:4px; bottom:4px; padding:1px 5px; border-radius:3px; background:rgba(0,0,0,.6); color:#fff; font-size:9px">{{ m.endLabel }}</span>
+</div>
+<div style="padding:3px 6px; font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ m.name }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<!-- Item settings -->
+<div style="width:250px; flex:none; display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-left:1px solid var(--line); overflow:hidden">
+<div style="{{ selThumb }}"></div>
+<div><div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ selName }}</div><div style="color:var(--dim); font-size:11px">{{ selMeta }}</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="{{label}}">TYPE</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{typeSeg}}" as="r" hint-placeholder-count="2"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for></div>
+</div>
+<div style="position:relative; display:flex; flex-direction:column; gap:3px"><span style="{{label}}">COMPOSITION</span>
+<div onClick="{{ toggleComp }}" style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><span>{{ compName }}</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ compOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:46px; left:0; right:0; z-index:9; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px"><sc-for list="{{compRows}}" as="r" hint-placeholder-count="5"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span>{{ r.label }}</div></sc-for></div></sc-if></div>
+<div style="position:relative; display:flex; flex-direction:column; gap:3px"><span style="{{label}}">LAYER</span>
+<div onClick="{{ toggleLayer }}" style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><span>{{ layerName }}</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ layerOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:46px; left:0; right:0; z-index:9; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px"><sc-for list="{{layerRows}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span>{{ r.label }}</div></sc-for></div></sc-if></div>
+<sc-if value="{{ selIsVideo }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="{{label}}">WHEN IT ENDS</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{endSeg}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for></div>
+</div>
+</sc-if>
+<div style="flex:1"></div>
+<div style="display:flex; gap:8px"><button style="flex:1; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Add to show</button><button style="flex:1; height:28px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700">Go live</button></div>
+</div>
+
+</div>
+</sc-if>
+<sc-if value="{{ isFunctions }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; display:flex">
+<div style="width:250px; flex:none; display:flex; flex-direction:column; border-right:1px solid var(--line)">
+<div style="padding:8px 10px 4px; display:flex; justify-content:flex-end; align-items:center"><a href="ActivityEditor.dc.html" style="color:var(--accent); font-weight:600; text-decoration:none">+ New</a></div>
+<div style="flex:1; min-height:0; overflow:hidden; padding:0 8px; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{actRows}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}"><span style="width:16px; color:var(--dim)">{{ a.icon }}</span><div style="flex:1; min-width:0; display:flex; flex-direction:column"><span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ a.title }}</span><span style="color:var(--dim); font-size:11px">{{ a.sub }}</span></div><sc-if value="{{ a.inSvc }}" hint-placeholder-val="{{ false }}"><span style="padding:1px 6px; border-radius:4px; border:1px solid var(--line); color:var(--dim); font-size:9px; font-weight:700">IN SERVICE</span></sc-if></div></sc-for>
+</div>
+</div>
+
+<sc-if value="{{ actIsList }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1; min-width:0; display:flex; flex-direction:column">
+<div style="display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--line)">
+<span style="font-weight:700; font-size:14px">{{ actName }}</span><span style="color:var(--dim); font-size:11px">{{ actHiddenNote }}</span>
+<span style="padding:2px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px">{{ actMode }}</span>
+<span style="padding:2px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px">{{ actScoring }}</span>
+<div style="flex:1"></div>
+<a href="ActivityEditor.dc.html" style="color:var(--accent); font-size:12px; font-weight:600; text-decoration:none">Edit ✎</a>
+<button style="height:28px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Add to service</button>
+<button onClick="{{ actStart }}" style="height:28px; padding:0 14px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700">Start</button>
+</div>
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
+<sc-for list="{{actQs}}" as="q" hint-placeholder-count="5"><div style="display:flex; align-items:center; gap:12px; padding:6px 14px; border-bottom:1px solid var(--line)"><span style="width:22px; color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ q.n }}</span><span style="{{ q.textStyle }}">{{ q.text }}</span><span style="{{ q.hiddenChip }}">HIDDEN</span><span style="color:var(--dim); font-size:11px">{{ q.type }}</span><span style="width:40px; text-align:right; color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ q.time }}</span><span style="width:56px; text-align:right; color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ q.pts }}</span><span onClick="{{ q.toggle }}" role="button" title="{{ q.tip }}" style="width:22px; text-align:center; cursor:pointer; color:var(--dim)">{{ q.eye }}</span></div></sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ actIsRun }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-width:0; display:flex">
+<div style="position:relative; width:200px; flex:none; display:flex; flex-direction:column; gap:6px; padding:8px 14px; border-right:1px solid var(--line)">
+<div style="display:flex; justify-content:space-between; align-items:center"><span style="{{label}}">JOIN</span><span style="color:var(--dim); font-size:11px">join.cuemestage.com</span></div>
+<div style="display:flex; align-items:center; gap:10px"><img src="{{ qrSrc }}" alt="QR code for join.cuemestage.com" width="84" height="84" style="border-radius:4px; background:#fff; flex:none"><div style="display:flex; flex-direction:column; gap:2px"><span style="color:var(--dim); font-size:10px">CODE</span><span style="font-size:24px; font-weight:700; letter-spacing:.08em; font-family:'JetBrains Mono',ui-monospace,monospace">4827</span></div></div>
+<div style="display:flex; align-items:center; gap:6px"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span><span style="font-size:12px">Relay connected</span><div style="flex:1"></div><span style="font-size:12px"><b style="font-family:'JetBrains Mono',ui-monospace,monospace">{{ aPlayerCount }}</b> <span style="color:var(--dim)">players</span></span></div>
+<div style="flex:1"></div>
+<span style="{{label}}">SHOWING ON</span>
+<div onClick="{{ toggleTargets }}" style="height:28px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; gap:6px; border-radius:6px; cursor:pointer; background:var(--panel); border:1px solid {{ atBorder }}"><span style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ atLabel }}</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ atOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; left:10px; bottom:42px; width:200px; z-index:9; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{atRows}}" as="r" hint-placeholder-count="5">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:5px 8px 2px; font-size:11px; font-weight:700; color:var(--dim)">{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px; height:16px; box-sizing:border-box; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; {{ r.box }}">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span></div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:10px 16px; gap:8px">
+<div style="display:flex; align-items:center; gap:10px"><span style="{{label}}">{{ aQ }}</span><span style="{{ aChip }}">{{ aState }}</span><div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{apvSeg}}" as="v" hint-placeholder-count="2"><span onClick="{{ v.pick }}" style="{{ v.style }}">{{ v.label }}</span></sc-for></div><div style="flex:1"></div><sc-if value="{{ aShowTimer }}" hint-placeholder-val="{{ true }}"><span style="font-size:22px; font-weight:600; font-family:'JetBrains Mono',ui-monospace,monospace">{{ aTimer }}</span></sc-if><span style="color:var(--dim); font-size:12px"><b style="color:var(--fg); font-family:'JetBrains Mono',ui-monospace,monospace">{{ aAnswered }}</b> answered</span></div>
+<sc-if value="{{ aStageView }}" hint-placeholder-val="{{ true }}"><div style="font-size:15px; font-weight:700">{{ aPrompt }}</div></sc-if>
+<sc-if value="{{ aShowOpts }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:5px">
+<sc-for list="{{aOpts}}" as="o" hint-placeholder-count="4"><div style="display:flex; align-items:center; gap:10px"><span style="width:18px; height:18px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; background:var(--panel); border:1px solid var(--line)">{{ o.k }}</span><span style="width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ o.text }}</span><div style="flex:1; height:12px; border-radius:6px; background:var(--panel); overflow:hidden"><div style="{{ o.bar }}"></div></div><span style="width:30px; text-align:right; color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ o.count }}</span></div></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ aPlayersView }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:3px">
+<sc-for list="{{aPlayers}}" as="p" hint-placeholder-count="6">
+<div style="{{ p.style }}"><span style="width:18px; color:var(--dim); font-family:'JetBrains Mono',ui-monospace,monospace">{{ p.rank }}</span><span style="width:8px; height:8px; border-radius:4px; flex:none; background:{{ p.dot }}"></span>
+<sc-if value="{{ p.editing }}" hint-placeholder-val="{{ false }}"><div style="flex:1; height:22px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; border-radius:4px; background:var(--bg); border:1px solid var(--accent)">{{ p.name }}<span style="display:inline-block; width:1px; height:14px; margin-left:1px; background:var(--accent)"></span></div></sc-if>
+<sc-if value="{{ p.notEditing }}" hint-placeholder-val="{{ true }}"><span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.name }}</span></sc-if>
+<span style="width:50px; text-align:right; color:var(--dim); font-family:'JetBrains Mono',ui-monospace,monospace">{{ p.score }}</span>
+<span onClick="{{ p.rename }}" role="button" style="{{ p.renStyle }}">{{ p.renLabel }}</span>
+<span onClick="{{ p.kick }}" role="button" style="{{ p.kickStyle }}">{{ p.kickLabel }}</span></div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ aShowBoard }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px">
+<sc-for list="{{aBoard}}" as="b" hint-placeholder-count="5"><div style="display:flex; align-items:center; gap:10px; padding:3px 8px; border-radius:5px; background:var(--panel)"><span style="width:18px; color:var(--dim); font-family:'JetBrains Mono',ui-monospace,monospace">{{ b.rank }}</span><span style="flex:1">{{ b.name }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace">{{ b.score }}</span></div></sc-for>
+</div>
+</sc-if>
+<div style="flex:1"></div>
+<div style="display:flex; gap:6px">
+<sc-for list="{{aBtns}}" as="b" hint-placeholder-count="6"><button onClick="{{ b.pick }}" style="{{ b.style }}"><span>{{ b.label }}</span><span style="color:var(--dim); font-size:10px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ b.key }}</span></button></sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ isAudioBin }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; display:flex">
+<div style="width:250px; flex:none; display:flex; flex-direction:column; border-right:1px solid var(--line)">
+<div style="padding:8px 12px 6px; display:flex; justify-content:space-between; align-items:center">
+<div style="flex:1; margin-right:10px; height:24px; padding:0 8px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:12px">Search audio</div>
+<span style="color:var(--accent); font-weight:600">+ Add</span>
+</div>
+<div style="flex:1; min-height:0; overflow:hidden; padding:0 8px; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{aFolders}}" as="f" hint-placeholder-count="8">
+<sc-if value="{{ f.isHead }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; padding:8px 8px 3px"><span style="{{label}}">{{ f.name }}</span><div style="flex:1"></div><sc-if value="{{ f.hasNew }}" hint-placeholder-val="{{ false }}"><span style="color:var(--accent); font-size:12px; font-weight:600; cursor:pointer">+ New</span></sc-if></div></sc-if>
+<sc-if value="{{ f.isRow }}" hint-placeholder-val="{{ true }}"><div onClick="{{ f.pick }}" style="{{ f.style }}"><span style="width:16px; color:var(--dim)">{{ f.icon }}</span><span style="flex:1; font-weight:{{ f.weight }}">{{ f.name }}</span><span style="color:var(--dim); font-size:11px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ f.count }}</span></div></sc-if>
+</sc-for>
+</div>
+<div style="margin:8px; padding:7px 10px; border-radius:8px; border:1px dashed var(--line); color:var(--dim); font-size:12px; text-align:center">Drop audio files here</div>
+</div>
+<div style="flex:1; min-width:0; display:flex; flex-direction:column">
+<div style="height:34px; flex:none; display:flex; align-items:center; gap:10px; padding:0 12px; border-bottom:1px solid var(--line)"><span style="font-weight:700">{{ afName }}</span>
+<sc-if value="{{ aIsList }}" hint-placeholder-val="{{ false }}"><span style="color:var(--dim); font-size:12px">{{ aListMeta }}</span></sc-if>
+<div style="flex:1"></div>
+<sc-if value="{{ aIsList }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ aShuffle }}" style="display:flex; align-items:center; gap:6px; cursor:pointer"><span style="{{ aShTrack }}"><span style="{{ aShKnob }}"></span></span><span>Shuffle</span></div>
+<div onClick="{{ aRepeat }}" style="display:flex; align-items:center; gap:6px; cursor:pointer"><span style="{{ aRpTrack }}"><span style="{{ aRpKnob }}"></span></span><span>Repeat</span></div>
+<button style="height:24px; padding:0 12px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700; cursor:pointer">▶ Play playlist</button>
+</sc-if>
+<sc-if value="{{ aIsFolder }}" hint-placeholder-val="{{ true }}"><span style="{{label}}">DURATION</span></sc-if></div>
+<div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
+<sc-for list="{{aTracks}}" as="t" hint-placeholder-count="6">
+<div onClick="{{ t.pick }}" style="{{ t.style }}">
+<sc-if value="{{ aIsList }}" hint-placeholder-val="{{ false }}"><span style="width:12px; color:var(--dim)">⋮⋮</span><span style="width:16px; color:var(--dim); font-size:12px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ t.n }}</span></sc-if>
+<button onClick="{{ t.play }}" aria-label="{{ t.playLabel }}" style="{{ t.playStyle }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><sc-if value="{{ t.on }}" hint-placeholder-val="{{ false }}"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></sc-if><sc-if value="{{ t.off }}" hint-placeholder-val="{{ true }}"><path d="M7 4l13 8-13 8z"/></sc-if></svg></button>
+<span style="width:200px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.name }}</span>
+<div style="flex:1; height:22px; display:flex; align-items:center; gap:1px; overflow:hidden"><sc-for list="{{ t.bars }}" as="b" hint-placeholder-count="40"><span style="{{ b.style }}"></span></sc-for></div>
+<sc-if value="{{ t.used }}" hint-placeholder-val="{{ false }}"><span style="padding:1px 8px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--dim); font-size:11px; white-space:nowrap">{{ t.usedLabel }}</span></sc-if>
+<span style="width:46px; text-align:right; color:var(--dim); font-size:12px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ t.dur }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="width:250px; flex:none; display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-left:1px solid var(--line); overflow:hidden">
+<div><div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ aSelName }}</div><div style="color:var(--dim); font-size:11px">{{ aSelMeta }}</div></div>
+<div style="height:44px; display:flex; align-items:center; gap:1px; border-radius:6px; background:var(--panel); border:1px solid var(--line); padding:0 6px"><sc-for list="{{ aSelBars }}" as="b" hint-placeholder-count="40"><span style="{{ b.style }}"></span></sc-for></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="{{label}}">VOLUME</span><div style="display:flex; align-items:center; gap:10px"><div style="flex:1; height:4px; border-radius:2px; background:var(--panel)"><div style="width:72%; height:4px; border-radius:2px; background:var(--accent)"></div></div><span style="color:var(--dim); font-size:12px; font-family:'JetBrains Mono',ui-monospace,monospace">-6 dB</span></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="{{label}}">FADE</span>
+<div style="display:flex; gap:8px"><div style="flex:1; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="color:var(--dim)">In</span><span>0.5 s</span></div><div style="flex:1; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="color:var(--dim)">Out</span><span>3 s</span></div></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="{{label}}">WHEN IT ENDS</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{aEndSeg}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for></div></div>
+<div style="flex:1"></div>
+<div style="display:flex; gap:8px"><button style="flex:1; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Add to slide</button><button style="flex:1; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Add to timeline</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLooks }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Looks list -->
+<div style="width:230px; flex:none; display:flex; flex-direction:column; border-right:1px solid var(--line)">
+<div style="padding:8px 12px 6px; display:flex; justify-content:space-between"><span style="{{label}}">LOOKS</span><span style="color:var(--accent); font-weight:600">+ New</span></div>
+<div style="padding:0 8px; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{lookRows}}" as="l" hint-placeholder-count="3">
+<div onClick="{{ l.pick }}" style="{{ l.style }}"><span style="font-weight:{{ l.weight }}">{{ l.name }}</span><span style="color:var(--dim); font-size:11px">{{ l.used }}</span></div>
+</sc-for>
+</div>
+<div style="flex:1"></div>
+<a href="OutputSetup.dc.html" style="margin:8px 12px; color:var(--accent); font-weight:600; text-decoration:none; font-size:12px">Assign looks in Output Setup ↗</a>
+</div>
+
+<!-- Look detail -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; padding:10px 14px; overflow:hidden">
+<div style="display:flex; align-items:center; gap:12px">
+<div style="width:220px; height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">{{ lookName }}</div>
+<div style="display:flex; align-items:center; gap:8px"><span style="color:var(--dim); font-size:12px">Background</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{bgSeg}}" as="a" hint-placeholder-count="2"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div></div>
+<span style="color:var(--dim); font-size:12px">{{ bgNote }}</span>
+</div>
+<div style="display:flex; gap:12px; min-height:0">
+<sc-for list="{{lookCards}}" as="c" hint-placeholder-count="4">
+<div style="position:relative; width:220px; flex:none; display:flex; flex-direction:column; gap:6px">
+<div style="font-weight:700">{{ c.title }}</div>
+<div style="{{ c.thumbStyle }}">
+<sc-for list="{{ c.items }}" as="i" hint-placeholder-count="2"><div style="{{ i.style }}">{{ i.text }}</div></sc-for>
+</div>
+<div onClick="{{ c.toggle }}" style="{{ c.pickStyle }}"><span>{{ c.template }}</span><span style="color:var(--dim)">{{ c.arrow }}</span></div>
+<sc-if value="{{ c.open }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:{{ c.menuTop }}; left:0; right:0; z-index:10; padding:6px; border-radius:10px; background:var(--panel); border:1px solid var(--line); box-shadow:0 16px 50px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px"><sc-for list="{{ c.options }}" as="op" hint-placeholder-count="4"><div onClick="{{ op.pick }}" style="{{ op.style }}"><span style="width:16px">{{ op.check }}</span><span style="flex:1">{{ op.name }}</span></div></sc-for></div></sc-if>
+<sc-if value="{{ c.hasEdit }}" hint-placeholder-val="{{ true }}"><a href="{{ c.href }}" style="color:var(--accent); font-weight:600; text-decoration:none; font-size:12px">Edit template ↗</a></sc-if>
+<sc-if value="{{ c.noEdit }}" hint-placeholder-val="{{ false }}"><span style="color:var(--dim); font-size:11px; line-height:1.3">{{ c.note }}</span></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+
+</div>
+</sc-if>
+</div>
+</div>
+
+<!-- Right column: one monitor, then tabs -->
+<div style="width:360px; flex:none; display:flex; flex-direction:column; gap:10px; padding:12px; background:var(--chrome); border-left:1px solid var(--line)">
+
+<div style="position:relative; display:flex; gap:6px">
+<div onClick="{{ toggleMenu }}" style="flex:1; min-width:0; height:30px; display:flex; align-items:center; justify-content:space-between; padding:0 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer">
+<span style="display:flex; align-items:center; gap:8px"><span style="{{ outDot }}"></span><span style="font-weight:600">{{ outName }}</span><span style="{{ outChip }}">{{ outStatus }}</span></span>
+<span style="color:var(--dim)">▾</span>
+</div>
+<div onClick="{{ toggleMv }}" style="{{ mvBtn }}">⊞</div>
+<sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:34px; left:0; width:230px; z-index:5; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{menuRows}}" as="r" hint-placeholder-count="5">
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:6px 8px 2px; font-size:11px; font-weight:700; color:var(--dim)">{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span>{{ r.label }}</div></sc-if>
+<sc-if value="{{ r.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px; margin:4px 0; background:var(--line)"></div></sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ isMv }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+<sc-for list="{{mvTiles}}" as="t" hint-placeholder-count="4">
+<div onClick="{{ t.pick }}" style="{{ t.style }}"><div style="{{ t.thumb }}"><span style="{{ t.textStyle }}">{{ t.text }}</span></div>
+<div style="display:flex; justify-content:space-between; align-items:center; gap:6px"><span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.name }}</span><span style="{{ t.chip }}">{{ t.status }}</span></div>
+<span style="color:var(--dim); font-size:11px">{{ t.look }}</span></div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ notMv }}" hint-placeholder-val="{{ true }}">
+<div style="{{ monStyle }}">
+<sc-if value="{{ isAudience }}" hint-placeholder-val="{{ true }}">
+<div style="{{ audStyle }}">{{ audText }}</div>
+</sc-if>
+<sc-if value="{{ isStage1 }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; inset:0; padding:10px; box-sizing:border-box; color:#fff; display:flex; flex-direction:column; justify-content:space-between">
+<div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; color:#9ab"><span>Song 2</span><span style="color:#47c86e; font-size:16px; font-weight:600">04:12</span></div>
+<div style="text-align:center; font-size:15px; font-weight:600; white-space:pre-line; line-height:1.35">{{ liveText }}</div>
+<div style="font-size:11px; color:#9ab; white-space:pre-line">Next: {{ nextText }}</div>
+</div>
+</sc-if>
+<sc-if value="{{ isAnn }}" hint-placeholder-val="{{ false }}">
+<div style="{{ annStyle }}"><span style="font-size:16px; font-weight:700">{{ annTitle }}</span><span style="font-size:11px; color:#c9b8ee">Date · time · place</span></div>
+</sc-if>
+<sc-if value="{{ isStage2 }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; inset:0; padding:10px; box-sizing:border-box; color:#fff; display:flex; flex-direction:column; justify-content:space-between">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:26px; font-weight:600; text-align:center">10:42</div>
+<div style="text-align:center; font-size:12px; color:#9ab; white-space:pre-line">Next slide<br><span style="color:#fff">{{ nextText }}</span></div>
+<div style="font-size:11px; color:#47c86e; text-align:center">Message: [Wrap up in 2 min]</div>
+</div>
+</sc-if>
+<sc-if value="{{ curBlack }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background:#000; display:flex; align-items:center; justify-content:center; color:var(--warn); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; letter-spacing:.1em">BLACK</div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ isStage }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:-4px">
+<span style="color:var(--dim); font-size:12px">Layout: {{ layoutName }}</span>
+<a href="StageEditor.dc.html" style="color:var(--accent); font-size:12px; font-weight:600; text-decoration:none">Open Stage Editor ↗</a>
+</div>
+</sc-if>
+
+<sc-if value="{{ notAnn }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; gap:8px">
+<button style="flex:1; height:32px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">◀ Previous</button>
+<button style="flex:1; height:32px; border-radius:6px; border:0; background:var(--accent); color:#0d0d0d; font-weight:700">Next ▶</button>
+</div>
+</sc-if>
+<sc-if value="{{ isAnn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="display:flex; gap:8px">
+<button style="width:56px; height:32px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">◀</button>
+<button onClick="{{ toggleLobby }}" style="flex:1; height:32px; border-radius:6px; border:0; background:var(--accent); color:#0d0d0d; font-weight:700">{{ lobbyLabel }}</button>
+<button style="width:56px; height:32px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">▶</button>
+</div>
+<div style="display:flex; justify-content:space-between; font-size:12px; color:var(--dim)"><span>Lobby loop · item 2 of 6</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace">0:12 left</span></div>
+</div>
+</sc-if>
+<div style="display:flex; flex-direction:column; gap:6px">
+<div style="position:relative; display:flex; align-items:center; justify-content:space-between"><span style="{{label}}">CLEAR</span><span onClick="{{ toggleScope }}" style="display:flex; align-items:center; gap:6px; padding:2px 8px; border-radius:5px; background:var(--panel); border:1px solid var(--line); cursor:pointer; font-size:12px">{{ scopeName }}<span style="color:var(--dim); font-size:10px">▾</span></span>
+<sc-if value="{{ scopeOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:24px; right:0; width:190px; z-index:6; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px"><sc-for list="{{scopeRows}}" as="r" hint-placeholder-count="5"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span>{{ r.label }}</div></sc-for></div></sc-if>
+</div>
+<div style="display:flex; gap:6px">
+<sc-for list="{{clears}}" as="c" hint-placeholder-count="6">
+<button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex:1; min-height:0; display:flex; flex-direction:column; border-radius:8px; background:var(--bg); border:1px solid var(--line); overflow:hidden">
+<div style="display:flex; border-bottom:1px solid var(--line)">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+<div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div>
+</sc-for>
+</div>
+
+<sc-if value="{{ isCue }}" hint-placeholder-val="{{ true }}">
+<div style="padding:14px; display:flex; flex-direction:column; gap:12px">
+<div style="display:flex; justify-content:space-between; align-items:center">
+<div><div style="font-weight:700">track_02.wav</div><div style="color:var(--dim); font-size:12px">[Song title]</div></div>
+<span style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim)"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>Plays with slide</span>
+</div>
+<div style="height:6px; border-radius:3px; background:var(--panel)"><div style="width:29%; height:6px; border-radius:3px; background:var(--accent)"></div></div>
+<div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; color:var(--dim)"><span>01:12</span><span>-03:00</span></div>
+<div style="display:flex; gap:8px; justify-content:center">
+<button aria-label="Previous track" style="width:44px; height:36px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">⏮</button>
+<button onClick="{{ togglePlay }}" style="width:96px; height:36px; border-radius:6px; border:0; background:var(--accent); color:#0d0d0d; font-weight:700">{{ playLabel }}</button>
+<button aria-label="Stop" style="width:44px; height:36px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">■</button>
+<button aria-label="Next track" style="width:44px; height:36px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">⏭</button>
+</div>
+<div style="display:flex; align-items:center; gap:10px; color:var(--dim); font-size:12px">Level<div style="flex:1; height:4px; border-radius:2px; background:var(--panel)"><div style="width:72%; height:4px; border-radius:2px; background:var(--dim)"></div></div>-6 dB</div>
+<div style="color:var(--dim); font-size:12px">Up next: Song 3 – track_03.wav</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMsg }}" hint-placeholder-val="{{ false }}">
+<div style="padding:10px 12px; display:flex; flex-direction:column; gap:8px; min-height:0">
+<div style="display:flex; align-items:center; gap:8px">
+<span style="{{label}}">MESSAGES</span>
+<span style="flex:1; color:var(--dim); font-size:11px">{{ msgLiveNote }}</span>
+<span onClick="{{ hideAllMsg }}" style="{{ hideAllMsgStyle }}">Hide all</span>
+<a href="MessageEditor.dc.html" style="color:var(--accent); font-weight:600; text-decoration:none">+ New</a>
+</div>
+<div style="display:flex; flex-direction:column; gap:6px">
+<sc-for list="{{msgRows}}" as="m" hint-placeholder-count="4">
+<div style="{{ m.style }}">
+<div style="flex:1; min-width:0"><div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ m.text }}</div><div style="color:var(--dim); font-size:11px">{{ m.to }}</div></div>
+<div onClick="{{ m.toggle }}" style="{{ m.btn }}">{{ m.btnLabel }}</div>
+<a href="MessageEdit.dc.html" title="Edit" aria-label="Edit" style="width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer; text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></a>
+<div onClick="{{ m.del }}" title="{{ m.delTitle }}" aria-label="{{ m.delTitle }}" style="{{ m.delStyle }}"><sc-if value="{{ m.confirm }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></sc-if><sc-if value="{{ m.noConfirm }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></sc-if></div>
+</div>
+</sc-for>
+</div>
+<div style="color:var(--dim); font-size:11px; line-height:1.4">Several messages can be live at once. Each goes only to the screens you pick for it, such as the green room, lobby or DSM.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isTimer }}" hint-placeholder-val="{{ false }}">
+<div style="padding:10px 12px; display:flex; flex-direction:column; gap:8px; min-height:0">
+<div style="display:flex; align-items:center; gap:8px">
+<span style="{{label}}">TIMERS</span>
+<span style="flex:1; color:var(--dim); font-size:11px">{{ tmrLiveNote }}</span>
+<span onClick="{{ stopAllTmr }}" style="{{ stopAllTmrStyle }}">Stop all</span>
+<a href="TimerEditor.dc.html" style="color:var(--accent); font-weight:600; text-decoration:none">+ New</a>
+</div>
+<div style="display:flex; flex-direction:column; gap:6px">
+<sc-for list="{{tmrRows}}" as="t" hint-placeholder-count="4">
+<div style="{{ t.style }}; flex-direction:column; align-items:stretch; gap:8px">
+<div style="display:flex; align-items:center; gap:8px">
+<div style="flex:1; min-width:0"><div style="font-weight:600">{{ t.name }}</div><div style="color:var(--dim); font-size:11px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.mode }}</div></div>
+<div style="{{ t.timeStyle }}">{{ t.time }}</div>
+<a href="TimerEdit.dc.html" title="Edit" aria-label="Edit" style="width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer; text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></a>
+<div onClick="{{ t.del }}" title="{{ t.delTitle }}" aria-label="{{ t.delTitle }}" style="{{ t.delStyle }}"><sc-if value="{{ t.confirm }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></sc-if><sc-if value="{{ t.noConfirm }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></sc-if></div>
+</div>
+<div style="display:flex; align-items:center; gap:8px">
+<div onClick="{{ t.toggle }}" title="Start / Pause" aria-label="Start or pause" style="{{ t.btn }}; min-width:34px; padding:0"><sc-if value="{{ t.isOn }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg></sc-if><sc-if value="{{ t.isOff }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg></sc-if></div>
+<div title="Restart" aria-label="Restart" style="width:34px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></div>
+<div style="flex:1"></div>
+<sc-if value="{{ t.canOvr }}" hint-placeholder-val="{{ true }}"><div onClick="{{ t.toggleOvr }}" style="{{ t.ovrStyle }}"><span style="{{ t.ovrTrack }}"><span style="{{ t.ovrKnob }}"></span></span>{{ t.ovrLabel }}</div></sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</div>
+
+<!-- Status bar -->
+<div style="height:28px; flex:none; display:flex; align-items:center; gap:20px; padding:0 14px; background:var(--chrome); border-top:1px solid var(--line); font-size:12px; color:var(--dim)">
+<span style="display:flex; align-items:center; gap:6px"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>Engine</span>
+<span style="display:flex; align-items:center; gap:6px"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>Outputs 3 / 3</span>
+<span style="display:flex; align-items:center; gap:6px"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>IMAG 1080p60</span>
+<span style="display:flex; align-items:center; gap:6px"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>Audio · 2 ch</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',ui-monospace,monospace">Dropped 0</span>
+<span style="font-family:'JetBrains Mono',ui-monospace,monospace">60.00 fps</span>
+</div>
+
+</div>
+<sc-if value="{{ mbOpen }}" hint-placeholder-val="{{ false }}"><div onClick="{{ mbClose }}" style="position:absolute; left:0; top:0; width:1440px; height:{{ outerH }}; z-index:90"></div></sc-if>
+<sc-if value="{{ mbOpen }}" hint-placeholder-val="{{ false }}"><div style="{{ dropStyle }}">
+<sc-for list="{{ dropRows }}" as="r" hint-placeholder-count="8">
+<sc-if value="{{ r.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px; background:#4a4a4a; margin:4px 6px"></div></sc-if>
+<sc-if value="{{ r.isSearch }}" hint-placeholder-val="{{ false }}"><div style="margin:3px 5px 4px; height:24px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; border-radius:6px; background:#1e1e1e; border:1px solid #4a4a4a; color:#8a8a8a">Search</div></sc-if>
+<sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="{{ r.keyStyle }}">{{ r.key }}</span></a></sc-if>
+<sc-if value="{{ r.isAct }}" hint-placeholder-val="{{ false }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="{{ r.keyStyle }}">{{ r.key }}</span></div></sc-if>
+</sc-for>
+</div></sc-if>
+<sc-if value="{{ subOpen }}" hint-placeholder-val="{{ false }}"><div style="{{ subStyle }}">
+<sc-for list="{{ subRows }}" as="r" hint-placeholder-count="8">
+<sc-if value="{{ r.isSep }}" hint-placeholder-val="{{ false }}"><div style="height:1px; background:#4a4a4a; margin:4px 6px"></div></sc-if>
+<sc-if value="{{ r.isSearch }}" hint-placeholder-val="{{ false }}"><div style="margin:3px 5px 4px; height:24px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; border-radius:6px; background:#1e1e1e; border:1px solid #4a4a4a; color:#8a8a8a">Search</div></sc-if>
+<sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}"><a href="{{ r.href }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="{{ r.keyStyle }}">{{ r.key }}</span></a></sc-if>
+<sc-if value="{{ r.isAct }}" hint-placeholder-val="{{ false }}"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px">{{ r.check }}</span><span style="flex:1">{{ r.label }}</span><span style="{{ r.keyStyle }}">{{ r.key }}</span></div></sc-if>
+</sc-for>
+</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"bar":{"editor":"enum","default":"on","options":["on","off"]},"addm":{"editor":"enum","default":"closed","options":["closed","open","menu"]},"colx":{"editor":"enum","default":"none","options":["none","open"]},"scr":{"editor":"enum","default":"normal","options":["normal","range","dual","search","speech"]},"svc":{"editor":"enum","default":"closed","options":["closed","open"]},"alist":{"editor":"enum","default":"no","options":["no","yes"]},"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"panel":{"editor":"enum","default":"scripture","options":["scripture","media","looks","audio","functions"]},"lmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"item":{"editor":"enum","default":"2","options":["0","1","2","3","4","5","6","7","8"]},"tab":{"editor":"enum","default":"cue","options":["cue","message","timer"]},"look":{"editor":"enum","default":"full","options":["full","lower","dual"]},"trmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"cmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"view":{"editor":"enum","default":"single","options":["single","multi"]},"smenu":{"editor":"enum","default":"closed","options":["closed","open"]},"black":{"editor":"enum","default":"none","options":["none","lobby"]},"tpmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"madd":{"editor":"enum","default":"closed","options":["closed","open"]},"tdd":{"editor":"enum","default":"closed","options":["closed","songs","scripture","messages"]},"act":{"editor":"enum","default":"list","options":["list","question","locked","reveal","board","players","targets"]},"slides":{"editor":"enum","default":"none","options":["none","game","gameq","poll","picker","ctx","ctxlive","change","hidden"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mbo: '', mbs: '', hq: (props && props.slides === 'hidden') ? { 2: true } : {}, ai: (props && props.slides === 'poll') ? 1 : 0, apk: !!(props && (props.slides === 'picker' || props.slides === 'change')), apkc: !!(props && props.slides === 'change'), ctx: !!(props && (props.slides === 'ctx' || props.slides === 'ctxlive')), apks: 0, asl: (props && props.slides === 'gameq') ? 3 : 0, aqx: { 0: true }, plLive: (props && (props.slides === 'game' || props.slides === 'gameq' || props.slides === 'poll' || props.slides === 'ctxlive')) ? 10 : undefined, asel: 0, astate: (props && props.act && props.act !== 'list') ? ((props.act === 'players' || props.act === 'targets') ? 'question' : props.act) : '', apv: (props && props.act === 'players') ? 'players' : 'stage', atp: !!(props && props.act === 'targets'), atg: { 0: true, 3: true }, akick: '', agone: {}, aren: -1, sel: 2, out: 0, menu: false, tab: ({ cue: 0, message: 1, timer: 2 })[props && props.tab] || 0, lyo: !!(props && props.lmenu === 'open'), ptab: (props && props.panel === 'media') ? 1 : (props && props.panel === 'looks') ? 2 : (props && props.panel === 'audio') ? 3 : (props && props.panel === 'functions') ? 4 : 0, af: (props && props.alist === 'yes') ? 4 : 0, at: (props && props.alist === 'yes') ? 0 : 1, ash: false, arp: true, aplay: (props && props.panel === 'audio') ? 1 : -1, aend: 'stop', lk: ({ full: 0, lower: 1, dual: 2 })[props && props.look] || 0, lkbg: [0, 1, 0], msgOn: { 1: true }, tmrOn: { 0: true }, ovr: { 0: true, 2: true, 3: false }, tr: 0, trm: !!(props && props.trmenu === 'open'), tp: 0, tpm: !!(props && props.tpmenu === 'open'), cdel: '', gone: {}, tsel: {}, tdd: (props && props.tdd && props.tdd !== 'closed') ? ((({ full: 0, lower: 1, dual: 2 })[props.look] || 0) + ':' + props.tdd) : '', mf: 3, mi: 4, mo: {}, madd: !!(props && props.madd === 'open'), book: 3, chap: 3, verse: 16, addm: !!(props && props.addm === 'open'), addmenu: !!(props && props.addm === 'menu'), colx: (props && props.colx === 'open') ? { 0: true } : {}, sv: (props && props.scr === 'range') ? 16 : 16, ev: (props && props.scr === 'range') ? 17 : 16, vps: 1, dual: !!(props && props.scr === 'dual'), spm: (props && props.scr === 'search') ? 'search' : (props && props.scr === 'speech') ? 'speech' : '', pl: (props && (props.slides === 'game' || props.slides === 'gameq' || props.slides === 'poll')) ? 10 : (props && props.item !== undefined) ? ([1, 4, 5, 6, 8, 2, 9, 11, 13][parseInt(String(props.item), 10)] || 5) : 5, svcm: !!(props && props.svc === 'open'), playing: true, target: 0, tmenu: false, cpo: !!(props && props.cmenu === 'open'), mcomp: {}, mv: !!(props && props.view === 'multi'), scope: 0, smenu: !!(props && props.smenu === 'open'), ost: (props && props.black === 'lobby') ? { 3: { black: true }, 1: {} } : {} };
+  }
+  msgTimerVals(light, onAccent) {
+    const st = this.state;
+    const row = (on) => 'display:flex; align-items:center; gap:8px; padding:7px 8px 7px 10px; border-radius:8px; background:' + (on ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid ' + (on ? 'var(--accent)' : 'var(--line)');
+    const btn = (on, kind) => 'min-width:58px; height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-radius:6px; cursor:pointer; font-weight:700; font-size:12px; ' + (on ? 'border:1px solid var(--live); background:transparent; color:var(--live)' : 'border:0; background:var(--accent); color:' + onAccent);
+    const msgs = [['Wrap up in 2 min', 'Stage, DSM'], ['Please be seated', 'Screen 1, Lobby TV'], ['Prayer next', 'Green room, Stage'], ['Nursery pick-up: Room 3', 'Lobby TV']];
+    const delSt = (key) => ({
+      confirm: st.cdel === key, noConfirm: st.cdel !== key, delTitle: st.cdel === key ? 'Click again to delete' : 'Delete',
+      delStyle: 'width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; cursor:pointer; background:' + (st.cdel === key ? 'var(--live)' : 'var(--panel)') + '; color:' + (st.cdel === key ? '#ffffff' : 'var(--dim)') + '; border:1px solid ' + (st.cdel === key ? 'var(--live)' : 'var(--line)'),
+      del: () => (st.cdel === key ? this.setState({ gone: { ...st.gone, [key]: true }, cdel: '' }) : this.setState({ cdel: key }))
+    });
+    const msgRows = msgs.map((m, i) => ({
+      text: m[0], to: m[1], style: row(!!st.msgOn[i]), btn: btn(!!st.msgOn[i]), btnLabel: st.msgOn[i] ? 'Hide' : 'Show', idx: i,
+      toggle: () => this.setState({ msgOn: { ...st.msgOn, [i]: !st.msgOn[i] } }),
+      ...delSt('m' + i)
+    })).filter((r) => !st.gone['m' + r.idx]);
+    const nMsg = msgs.filter((m, i) => st.msgOn[i] && !st.gone['m' + i]).length;
+    const segO = (on, over) => 'padding:0 10px; height:26px; display:flex; align-items:center; font-size:11px; white-space:nowrap; cursor:pointer; background:' + (on ? 'var(--sel)' : 'var(--panel)') + '; color:' + (on ? (over ? 'var(--warn)' : 'var(--fg)') : 'var(--dim)') + '; font-weight:' + (on ? 700 : 400);
+    const tm = [['Countdown', 'Count down from 5:00', '04:32', 1], ['Service clock', 'Count up from 0:00', '38:10', 0], ['Pre-service', 'Count down to 10:30 AM', st.ovr[2] ? '-01:12' : '00:00', 1], ['Prayer', 'Count down from 10:00', '10:00', 1]];
+    const tmrRows = tm.map((t, i) => ({ idx: i, ...delSt('t' + i),
+      name: t[0], mode: t[1], time: t[2], over: t[2].charAt(0) === '-', canOvr: !!t[3], ovrLabel: st.ovr[i] ? 'Overrun' : 'Stop', ovrStyle: 'height:26px; padding:0 10px 0 8px; box-sizing:border-box; display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; white-space:nowrap; cursor:pointer; border-radius:13px; background:var(--panel); border:1px solid ' + (st.ovr[i] ? 'var(--warn)' : 'var(--line)') + '; color:' + (st.ovr[i] ? 'var(--warn)' : 'var(--fg)'),
+      ovrTrack: 'width:26px; height:14px; border-radius:7px; position:relative; flex:none; background:' + (st.ovr[i] ? 'var(--warn)' : 'var(--line)'),
+      ovrKnob: 'position:absolute; top:2px; width:10px; height:10px; border-radius:5px; background:' + (st.ovr[i] ? '#1a1a1a' : 'var(--dim)') + '; left:' + (st.ovr[i] ? 14 : 2) + 'px',
+      isOn: !!st.tmrOn[i], isOff: !st.tmrOn[i],
+      toggleOvr: () => this.setState({ ovr: { ...st.ovr, [i]: !st.ovr[i] } }),
+      style: row(!!st.tmrOn[i]).replace(/border:1px solid [^;]*$/, '') + (t[2].charAt(0) === '-' ? '; border:1px solid var(--live)' : '; border:1px solid ' + (st.tmrOn[i] ? 'var(--accent)' : 'var(--line)')),
+      timeStyle: "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:20px; font-weight:600; color:" + (t[2].charAt(0) === '-' ? 'var(--live)' : st.tmrOn[i] ? 'var(--fg)' : 'var(--dim)'),
+      btn: btn(!!st.tmrOn[i]), btnLabel: st.tmrOn[i] ? 'Pause' : 'Start',
+      toggle: () => this.setState({ tmrOn: { ...st.tmrOn, [i]: !st.tmrOn[i] } })
+    })).filter((r) => !st.gone['t' + r.idx]);
+    const nTmr = tm.filter((t, i) => st.tmrOn[i] && !st.gone['t' + i]).length;
+    const link = (on) => 'font-size:12px; cursor:' + (on ? 'pointer' : 'default') + '; color:' + (on ? 'var(--fg)' : 'var(--dim)') + '; opacity:' + (on ? 1 : 0.5);
+    return {
+      msgRows, msgLiveNote: nMsg + ' live', hideAllMsg: () => this.setState({ msgOn: {} }), hideAllMsgStyle: link(nMsg > 0),
+      tmrRows, tmrLiveNote: nTmr + ' running', stopAllTmr: () => this.setState({ tmrOn: {} }), stopAllTmrStyle: link(nTmr > 0)
+    };
+  }
+  looksVals(light, onAccent) {
+    const st = this.state;
+    const names = ['Full screen', 'Lower third', 'Bilingual'];
+    const used = ['Screen 1, Lobby TV', 'Stream Lower Third', 'Not used yet'];
+    const lookRows = names.map((n, i) => ({
+      name: n, used: used[i], weight: i === st.lk ? 700 : 500,
+      pick: () => this.setState({ lk: i }),
+      style: 'display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (i === st.lk ? 'var(--sel)' : 'transparent')
+    }));
+    const lower = st.lk === 1;
+    const bgIdx = lower ? 1 : st.lkbg[st.lk];
+    const bgSeg = ['Solid', 'Transparent'].map((n, i) => ({
+      label: n, pick: () => { if (!lower) this.setState({ lkbg: st.lkbg.map((x, j) => j === st.lk ? i : x) }); },
+      style: 'padding:4px 14px; font-size:12px; cursor:' + (lower ? 'default' : 'pointer') + '; background:' + (bgIdx === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (bgIdx === i ? onAccent : 'var(--fg)') + '; font-weight:' + (bgIdx === i ? 700 : 400) + '; opacity:' + (lower && i === 0 ? 0.45 : 1)
+    }));
+    const transparent = bgIdx === 1;
+    const checker = 'background-color:#1c1c1c; background-image:linear-gradient(45deg,#2a2a2a 25%,transparent 25%,transparent 75%,#2a2a2a 75%),linear-gradient(45deg,#2a2a2a 25%,transparent 25%,transparent 75%,#2a2a2a 75%); background-size:16px 16px; background-position:0 0,8px 8px';
+    const thumbBase = 'position:relative; width:100%; aspect-ratio:16/9; border-radius:6px; border:1px solid var(--line); overflow:hidden; box-sizing:border-box; ' + (transparent ? checker : 'background:linear-gradient(135deg,#1c3a5e,#0d1b2e)');
+    const T = 'position:absolute; color:#fff; line-height:1.25; white-space:pre-line; ';
+    const center = T + 'inset:0; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:600; ';
+    const banner = { text: 'Message text', style: T + 'left:0; right:0; top:0; height:24%; background:rgba(255,176,32,.92); color:#1a1a1a; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700' };
+    const full = { text: 'Full slide', style: center + 'font-size:11px; color:#9ab0c4' };
+    const thumbsAll = [
+      { songs: [{ text: 'Lyric line one\nLyric line two', style: center + 'font-size:11px' }],
+        scripture: [{ text: 'Verse text appears here', style: center + 'font-size:10px; padding:0 12px; bottom:14px' }, { text: 'John 3:16 · KJV', style: T + 'left:0; right:0; bottom:6px; text-align:center; font-size:9px; color:#47c86e; font-weight:600' }],
+        messages: [banner], presentations: [full] },
+      { songs: [{ text: 'Lyric line one\nLyric line two', style: T + 'left:8px; bottom:8px; font-size:10px; font-weight:600; text-shadow:0 1px 3px rgba(0,0,0,.8)' }],
+        scripture: [{ text: 'John 3:16 · KJV', style: T + 'left:8px; bottom:30px; font-size:9px; color:#47c86e; font-weight:600' }, { text: 'Verse text appears here', style: T + 'left:8px; right:8px; bottom:8px; font-size:10px; font-weight:600' }],
+        messages: [], presentations: [] },
+      { songs: [{ text: 'Lyric line one\nLyric line two', style: T + 'left:0; right:0; top:8%; height:42%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:10px; font-weight:600' }, { text: 'Línea uno\nLínea dos', style: T + 'left:0; right:0; top:50%; height:42%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:10px; font-weight:600; color:#9ab0c4' }],
+        scripture: [{ text: 'KJV verse', style: T + 'left:0; width:50%; top:0; bottom:14px; display:flex; align-items:center; justify-content:center; font-size:10px' }, { text: 'RV1909 verse', style: T + 'left:50%; width:50%; top:0; bottom:14px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#9ab0c4' }],
+        messages: [banner], presentations: [full] }
+    ];
+    const thumbs = thumbsAll[st.lk];
+    const tpl = [
+      { songs: 'Full screen lyrics', scripture: 'Full screen', messages: 'Top banner', presentations: 'Full slide' },
+      { songs: 'Lower third lyrics', scripture: 'Lower third', messages: 'Not sent', presentations: 'Not sent' },
+      { songs: 'Two-language lyrics', scripture: 'Dual translation', messages: 'Top banner', presentations: 'Full slide' }
+    ][st.lk];
+    const OPTS = {
+      songs: ['Full screen lyrics', 'Lower third lyrics', 'Two-language lyrics'],
+      scripture: ['Full screen', 'Lower third', 'Dual translation'],
+      messages: ['Top banner', 'Bottom banner', 'Full-screen takeover', 'Scrolling ticker', 'Not sent'],
+      presentations: ['Full slide']
+    };
+    const msgBar = (css) => [{ text: 'Message text', style: T + css + '; background:rgba(255,176,32,.92); color:#1a1a1a; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700' }];
+    const MSG = {
+      'Top banner': banner ? [banner] : [],
+      'Bottom banner': msgBar('left:0; right:0; bottom:0; height:24%'),
+      'Full-screen takeover': msgBar('inset:0; font-size:14px; text-align:center'),
+      'Scrolling ticker': msgBar('left:0; right:0; bottom:0; height:20%; justify-content:flex-start; padding-left:34%; white-space:nowrap'),
+      'Not sent': []
+    };
+    const itemsFor = (type, name) => {
+      if (type === 'messages') return MSG[name] || [];
+      if (type === 'presentations') return name === 'Not sent' ? [] : [full];
+      const k = OPTS[type].indexOf(name);
+      return thumbsAll[k < 0 ? 0 : k][type];
+    };
+    const def = [['songs', 'Songs'], ['scripture', 'Scripture'], ['messages', 'Messages'], ['presentations', 'Presentations']];
+    const lookCards = def.map((d, di) => {
+      const key = st.lk + ':' + d[0];
+      const cur = st.tsel[key] || tpl[d[0]];
+      const sent = cur !== 'Not sent';
+      const fixed = d[0] === 'presentations';
+      const list = itemsFor(d[0], cur);
+      const items = list.length ? list : [{ text: 'Not sent', style: 'color:var(--dim); font-size:11px' }];
+      const isOpen = st.tdd === key;
+      const opts = (fixed ? [] : OPTS[d[0]]);
+      const idx = OPTS[d[0]].indexOf(cur);
+      return {
+        title: d[1], items,
+        thumbStyle: thumbBase + (sent ? '' : '; border-style:dashed; display:flex; align-items:center; justify-content:center'),
+        template: cur, arrow: fixed ? '' : '▾',
+        toggle: () => { if (!fixed) this.setState({ tdd: isOpen ? '' : key }); },
+        pickStyle: 'height:26px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); cursor:' + (fixed ? 'default' : 'pointer') + '; border:1px solid ' + (isOpen ? 'var(--accent)' : 'var(--line)') + '; opacity:' + (sent ? 1 : 0.6),
+        open: isOpen, menuTop: '186px',
+        options: opts.map((n) => ({ name: n, check: n === cur ? '✓' : '', pick: () => this.setState({ tsel: { ...st.tsel, [key]: n }, tdd: '' }), style: 'display:flex; align-items:center; padding:5px 8px; border-radius:5px; cursor:pointer; background:' + (n === cur ? 'var(--accent)' : 'transparent') + '; color:' + (n === cur ? onAccent : 'var(--fg)') })),
+        hasEdit: sent && !fixed, noEdit: !sent || fixed,
+        href: d[0] === 'messages' ? 'MessageTemplate.dc.html' : d[0] === 'scripture' ? ['BibleTemplate.dc.html', 'BibleTemplateLower.dc.html', 'BibleTemplateDual.dc.html'][idx < 0 ? 0 : idx] : ['SongTemplate.dc.html', 'SongTemplateLower.dc.html', 'SongTemplateDual.dc.html'][idx < 0 ? 0 : idx],
+        note: !sent ? (d[0] === 'messages' ? 'Messages are not sent to this look.' : 'Needs the whole slide, so nothing is sent.') : 'Sent as the whole slide.'
+      };
+    });
+    return {
+      lookRows, bgSeg, lookCards, lookName: names[st.lk],
+      bgNote: lower ? 'Always transparent. NDI sends alpha, so vMix or OBS add their own background.' : transparent ? 'Transparent. NDI sends alpha.' : ''
+    };
+  }
+  renderVals() {
+    const light = (this.state.thm ?? this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--live:#c4231c;--next:#0a6bd6;--ok:#17803c;--warn:#a85a00;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--live:#e5483f;--next:#4da3ff;--ok:#47c86e;--warn:#ffb020;--sel:#1f3a29';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const shortT = ['', 'Screen 1', 'Lobby TV', 'Screen 1 + Lobby TV'];
+    const mk = (i, lab, text, badge) => ({
+      label: (i === st.sel && st.target > 0) ? lab + ' → ' + shortT[st.target] : lab, text, badge,
+      pick: () => this.setState({ sel: i }),
+      style: 'border-radius:6px; overflow:hidden; cursor:pointer; background:var(--panel); border:2px solid ' + (i === st.sel ? 'var(--live)' : 'var(--line)')
+    });
+    const verse = [
+      mk(0, 'Verse 1', 'Lyric line one\nLyric line two', '1'),
+      mk(1, 'Verse 1', 'Lyric line three\nLyric line four', '2'),
+      mk(2, 'Chorus', 'Chorus line one\nChorus line two', '3'),
+      mk(3, 'Chorus', 'Chorus line three\nChorus line four', '4'),
+    ];
+    const rest = [
+      mk(4, 'Verse 2', 'Lyric line one\nLyric line two', '5'),
+      mk(5, 'Verse 2', 'Lyric line three\nLyric line four', '6'),
+      mk(6, 'Bridge', 'Bridge line one\nBridge line two', '7'),
+      mk(7, 'Chorus', 'Chorus line one\nChorus line two', '8'),
+    ];
+    const texts = [
+      'Lyric line one\nLyric line two','Lyric line three\nLyric line four','Chorus line one\nChorus line two','Chorus line three\nChorus line four',
+      'Lyric line one\nLyric line two','Lyric line three\nLyric line four','Bridge line one\nBridge line two','Chorus line one\nChorus line two'
+    ];
+    const rowBase = 'display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; background:';
+    const tree = [
+      ['▤', 'Worship Songs', '142'],
+      ['▤', 'Presentations', '24'],
+      ['▤', 'Announcements', '18'],
+    ].map((r) => ({
+      icon: r[0], title: r[1], meta: r[2],
+      weight: 500,
+      style: rowBase + 'transparent'
+    }));
+    const colItems = {
+      0: [['♪', 'Cristo Yo Te Amo', '4:12'], ['♪', 'Espiritu Santo', '5:03'], ['♪', 'Holy Forever', '4:48'], ['♪', 'Levanto un Aleluya', '3:55']],
+      1: [['▭', 'Welcome slides', '6'], ['▭', 'Sermon notes', '12']],
+      2: [['▭', 'Church news', '4'], ['▭', 'Offering', '2'], ['▭', 'Youth night', '3']]
+    };
+    const colRows = [];
+    tree.forEach((c, i) => {
+      const open = !!(st.colx && st.colx[i]);
+      colRows.push({ icon: open ? '▾' : '▸', title: c.title, meta: c.meta, weight: 600, style: rowBase + 'transparent', pick: () => this.setState({ colx: Object.assign({}, st.colx || {}, { [i]: !open }) }) });
+      if (open) colItems[i].forEach((r) => colRows.push({ icon: r[0], title: r[1], meta: r[2], weight: 400, style: rowBase + 'transparent; padding-left:26px', pick: () => {} }));
+    });
+    const plists = [
+      ['≡', 'Nov 22 Service', '9', true],
+      ['≡', 'Nov 15 Service', '7', false],
+    ].map((r) => ({
+      icon: r[0], title: r[1], meta: r[2],
+      weight: r[3] ? 700 : 500,
+      style: rowBase + (r[3] ? 'var(--sel)' : 'transparent')
+    }));
+    const ACTS = [['Welcome Quiz', 'Game', '5 questions', true, 'Speed scoring'], ['Sermon Poll', 'Poll', '3 questions', false, 'Anonymous'], ['Youth Trivia', 'Game', '10 questions', false, 'Fixed scoring']];
+    const ai = st.ai || 0;
+    const plRaw = [
+      ['head', 'PRE-SERVICE'],
+      ['media', 'Welcome loop', 'loop_blue_01.mov', '⚠ Missing'],
+      ['ann', 'Church news', 'Lobby TV', '→ Lobby TV'],
+      ['head', 'WORSHIP'],
+      ['song', '[Song title]', 'Default · ♪ track_01', '4:12'],
+      ['song', '[Song title]', 'Short · ♪ track_02', '4:30'],
+      ['song', '[Song title]', 'Default · ♪ track_03', '3:48'],
+      ['head', 'WORD'],
+      ['scripture', 'John 3:16', 'ESV', ''],
+      ['pres', 'Sermon slides', '24 slides', ''],
+      ['act', ACTS[ai][0], ACTS[ai][1] + ' · ' + ACTS[ai][2], '~6 min'],
+      ['input', 'IMAG – Sermon', 'SDI input 1', 'Live'],
+      ['head', 'CLOSING'],
+      ['song', '[Song title]', 'Default · ♪ track_05', '3:20'],
+    ];
+    const plLive = st.plLive === undefined ? 5 : st.plLive;
+    const rowsIdx = plRaw.map((r, i) => i).filter((i) => plRaw[i][0] !== 'head');
+    const nextIdx = rowsIdx.filter((i) => i > plLive)[0];
+    const pl = plRaw.map((r, i) => r[0] === 'head' ? { isHead: true, isRow: false, title: r[1] } : ({
+      isHead: false, isRow: true,
+      isSong: r[0] === 'song', isScr: r[0] === 'scripture', isPres: r[0] === 'pres', isAnn: r[0] === 'ann', isMedia: r[0] === 'media', isIn: r[0] === 'input', isAct: r[0] === 'act', title: r[1], sub: r[2], hasSub: !!r[2], meta: r[3] || '',
+      isLive: i === plLive, isNext: i === nextIdx,
+      metaColor: (r[3] || '').indexOf('→') === 0 ? 'var(--accent)' : (r[3] || '').indexOf('⚠') === 0 ? 'var(--warn)' : 'var(--dim)',
+      weight: i === st.pl ? 700 : 600,
+      pick: () => this.setState({ pl: i, ctx: false }),
+      ctxOpen: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ pl: i, ctx: r[0] === 'act' }); },
+      style: rowBase + (i === st.pl ? 'var(--sel)' : 'transparent') + (i === plLive ? '; box-shadow:inset 3px 0 0 var(--live)' : '')
+    }));
+    const itemStep = (d) => () => { const k = rowsIdx.indexOf(plLive); const n = rowsIdx[Math.max(0, Math.min(rowsIdx.length - 1, k + d))]; this.setState({ plLive: n, pl: n }); };
+    const outs = ['Screen 1', 'Stage Screen 1', 'Stage Screen 2', 'Lobby TV'];
+    const targetOpts = ['Default (audience screens)', 'Screen 1', 'Lobby TV', 'Screen 1 + Lobby TV'];
+    const targetRows = [
+      { isHeader: true, label: 'SEND THE NEXT GO TO' },
+      { isItem: true, label: targetOpts[0], i: 0 },
+      { isItem: true, label: targetOpts[1], i: 1 },
+      { isItem: true, label: targetOpts[2], i: 2 },
+      { isItem: true, label: targetOpts[3], i: 3 },
+      { isSep: true },
+      { isHeader: true, label: 'Right-click any slide or playlist item to pin it to a screen' },
+    ].map((r) => r.isItem ? {
+      ...r, isHeader: false, isSep: false,
+      check: r.i === st.target ? '✓' : '',
+      pick: () => this.setState({ target: r.i, tmenu: false }),
+      style: 'display:flex; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (r.i === st.target ? 'var(--sel)' : 'transparent')
+    } : { ...r, isHeader: !!r.isHeader, isItem: false, isSep: !!r.isSep });
+    const menuRows = [
+      { isHeader: true, label: 'AUDIENCE' },
+      { isItem: true, label: 'Screen 1', i: 0 },
+      { isHeader: true, label: 'STAGE' },
+      { isItem: true, label: 'Stage Screen 1', i: 1 },
+      { isItem: true, label: 'Stage Screen 2', i: 2 },
+      { isHeader: true, label: 'ANNOUNCEMENTS' },
+      { isItem: true, label: 'Lobby TV', i: 3 },
+      { isSep: true },
+      { isItem: true, label: 'Output Setup…', i: -1 },
+    ].map((r) => r.isItem ? {
+      ...r, isHeader: false, isSep: false,
+      check: r.i === st.out ? '✓' : '',
+      pick: () => this.setState({ out: r.i >= 0 ? r.i : st.out, menu: false }),
+      style: 'display:flex; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (r.i === st.out ? 'var(--sel)' : 'transparent') + '; color:' + (r.i === -1 ? 'var(--accent)' : 'var(--fg)')
+    } : { ...r, isHeader: !!r.isHeader, isItem: false, isSep: !!r.isSep });
+
+    const OLOOK = ['Full screen', 'Lyrics + timer', 'Next + clock', 'Lobby loop'];
+    const oSt = (i) => (st.ost && st.ost[i]) || {};
+    const isAudO = (i) => i === 0 || i === 3;
+    const stat = (i) => { const o = oSt(i); if (isAudO(i) && o.black) return 'BLACK'; if (o.slide && o.media) return 'CLEAR'; if (o.slide) return 'NO SLIDE'; if (o.media) return 'NO MEDIA'; return 'LIVE'; };
+    const statCol = (t) => t === 'LIVE' ? 'var(--live)' : t === 'BLACK' ? 'var(--warn)' : 'var(--dim)';
+    const chipS = (t) => "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; white-space:nowrap; color:" + statCol(t) + '; border:1px solid ' + statCol(t);
+    const scopeIdx = () => st.scope === 0 ? [0, 1, 2, 3] : [st.scope - 1];
+    const doClear = (key) => { const ids = scopeIdx(); const isOn = (i) => key === 'all' ? (oSt(i).slide && oSt(i).media && oSt(i).aud && oSt(i).msg) : !!oSt(i)[key];
+      const allOn = ids.every(isOn); const n = { ...(st.ost || {}) };
+      ids.forEach((i) => { const o = { ...(n[i] || {}) }; if (key === 'all') { o.slide = o.media = o.aud = o.msg = !allOn; } else { o[key] = !allOn; } n[i] = o; });
+      this.setState({ ost: n }); };
+    const litOn = (key) => scopeIdx().every((i) => key === 'all' ? (oSt(i).slide && oSt(i).media && oSt(i).aud && oSt(i).msg) : !!oSt(i)[key]);
+    const clearBtn = 'flex:1; min-width:0; height:28px; padding:0; border-radius:6px; font-size:12px; cursor:pointer; background:var(--panel); color:var(--fg); border:1px solid var(--line)';
+    const clears = [['All', 'all'], ['Slide', 'slide'], ['Media', 'media'], ['Audio', 'aud'], ['Message', 'msg'], ['Black', 'black']].map((c) => {
+      const on = litOn(c[1]); const blk = c[1] === 'black';
+      return { label: c[0], pick: () => doClear(c[1]),
+        style: clearBtn + (blk ? '; border:1px solid var(--warn); color:' + (on ? '#111' : 'var(--warn)') + '; background:' + (on ? 'var(--warn)' : 'transparent') : (on ? '; border:1px solid var(--accent); color:var(--accent); background:var(--sel)' : '')) };
+    });
+    const scopeNames = ['All screens', 'Screen 1', 'Stage Screen 1', 'Stage Screen 2', 'Lobby TV'];
+    const scopeRows = scopeNames.map((n, i) => ({ label: n, check: i === st.scope ? '✓' : '', pick: () => this.setState({ scope: i, smenu: false }),
+      style: 'display:flex; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === st.scope ? 'var(--sel)' : 'transparent') }));
+    const mvGrads = ['#1c3a5e,#0d1b2e', '#10151c,#0a0d12', '#10151c,#0a0d12', '#3a2a5e,#1a1230'];
+    const mvTiles = [0, 1, 2, 3].map((i) => { const t = stat(i); const o = oSt(i); const blk = t === 'BLACK';
+      return { name: outs[i], look: OLOOK[i], status: t, chip: chipS(t), pick: () => this.setState({ out: i, mv: false }),
+        text: blk ? 'BLACK' : (o.slide ? '' : (i === 0 ? 'Lyric line one' : i === 3 ? 'Lobby loop' : (i === 1 ? 'Song 2 · 04:12' : '10:42'))),
+        textStyle: blk ? "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:var(--warn); letter-spacing:.1em" : 'font-size:10px; color:#fff; text-align:center',
+        thumb: 'aspect-ratio:16/9; border-radius:4px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:' + (blk ? '#000' : (o.media && isAudO(i) ? '#0d1b2e' : 'linear-gradient(135deg,' + mvGrads[i] + ')')),
+        style: 'display:flex; flex-direction:column; gap:4px; padding:6px; border-radius:8px; cursor:pointer; background:var(--panel); border:2px solid ' + (i === st.out ? 'var(--accent)' : 'var(--line)') }; });
+    const curStat = stat(st.out);
+
+    const tabNames = ['Audio', 'Message', 'Timer'];
+    const tabs = tabNames.map((n, i) => ({
+      label: n,
+      pick: () => this.setState({ tab: i }),
+      style: 'flex:1; text-align:center; padding:9px 0; cursor:pointer; font-weight:600; border-bottom:2px solid ' + (i === st.tab ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.tab ? 'var(--fg)' : 'var(--dim)')
+    }));
+    const panelTabs = ['Scripture', 'Media', 'Looks', 'Audio', 'Activities'].map((n, i) => ({
+      label: n,
+      pick: () => this.setState({ ptab: i }),
+      style: 'padding:7px 14px; cursor:pointer; font-weight:600; border-bottom:2px solid ' + (i === st.ptab ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.ptab ? 'var(--fg)' : 'var(--dim)')
+    }));
+
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const mFolders = [
+      { id: 0, name: 'Sunday Loops', depth: 0, linked: false, icon: '▾' },
+      { id: 1, name: 'Advent', depth: 1, linked: false, icon: '▤' },
+      { id: 2, name: 'Countdowns', depth: 0, linked: false, icon: '▤' },
+      { id: 3, name: 'Worship Backgrounds', depth: 0, linked: true, icon: '⟳', path: '~/Movies/Worship Backgrounds' },
+      { id: 4, name: 'Lobby Photos', depth: 0, linked: true, icon: '⟳', path: '~/Pictures/Lobby' },
+    ];
+    const mData = {
+      0: [['sunday_loop_a.mov', 'video', 'bg', 'loop', '0:30'], ['sunday_loop_b.mov', 'video', 'bg', 'loop', '0:45'], ['welcome_intro.mp4', 'video', 'fg', 'next', '0:15']],
+      1: [['advent_candles.mov', 'video', 'bg', 'loop', '1:00'], ['advent_wreath.png', 'photo', 'fg', '', '—'], ['advent_title.mov', 'video', 'fg', 'stop', '0:08']],
+      2: [['countdown_5min.mov', 'video', 'fg', 'stop', '5:00'], ['countdown_10min.mov', 'video', 'fg', 'stop', '10:00'], ['countdown_2min.mov', 'video', 'fg', 'next', '2:00']],
+      3: [['loop_blue_01.mov', 'video', 'bg', 'loop', '0:30'], ['loop_warm_02.mov', 'video', 'bg', 'loop', '0:45'], ['loop_particles_03.mov', 'video', 'bg', 'loop', '1:00'], ['loop_green_04.mov', 'video', 'bg', 'loop', '0:40', true], ['countdown_5min.mov', 'video', 'fg', 'stop', '5:00'], ['welcome.png', 'photo', 'fg', '', '—'], ['church_logo.png', 'photo', 'fg', '', '—']],
+      4: [['lobby_01.jpg', 'photo', 'fg', '', '—'], ['lobby_02.jpg', 'photo', 'fg', '', '—'], ['lobby_03.jpg', 'photo', 'bg', '', '—'], ['lobby_04.jpg', 'photo', 'bg', '', '—']],
+    };
+    const grads = ['#2a4a6e,#101c2e', '#6e4a2a,#2e1c10', '#3a2a6e,#14102e', '#2a6e4a,#102e1c', '#6e2a3a,#2e1018', '#4a6e2a,#1c2e10', '#556070,#1a1f26', '#2a6e6e,#102e2e'];
+    const mfolders = mFolders.map((f) => ({
+      name: f.name, icon: f.icon, linked: f.linked, count: (mData[f.id] || []).length + (f.id === 3 ? 0 : 0),
+      weight: f.id === st.mf ? 700 : 500,
+      pick: () => this.setState({ mf: f.id, mi: 0, madd: false }),
+      style: rowBase + (f.id === st.mf ? 'var(--sel)' : 'transparent') + '; padding-left:' + (8 + f.depth * 18) + 'px'
+    }));
+    const curF = mFolders.filter((f) => f.id === st.mf)[0];
+    const segStyle = (on) => 'flex:1; text-align:center; padding:5px 0; cursor:pointer; background:' + (on ? 'var(--accent)' : 'var(--panel)') + '; color:' + (on ? onAccent : 'var(--fg)') + '; font-weight:' + (on ? 700 : 400);
+    const endGlyph = { loop: '↻ Loop', stop: '■ Stop', next: '⏭ Next', '': 'Photo' };
+    const mitems = (mData[st.mf] || []).map((d, i) => {
+      const o = st.mo[st.mf + '-' + i] || {};
+      const type = o.type || d[2];
+      const end = d[1] === 'photo' ? '' : (o.end || d[3]);
+      const sel = i === st.mi;
+      return {
+        name: d[0], dur: d[4], isNew: !!d[5], endLabel: endGlyph[end], kind: d[1], type, end,
+        typeLabel: type === 'bg' ? 'BG' : 'FG',
+        typeChip: 'position:absolute; top:4px; left:4px; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:700; background:' + (type === 'bg' ? 'rgba(0,0,0,.65)' : 'var(--accent)') + '; color:' + (type === 'bg' ? '#fff' : onAccent),
+        thumb: 'position:relative; aspect-ratio:16/9; background:linear-gradient(135deg,' + grads[i % grads.length] + ')',
+        pick: () => this.setState({ mi: i }),
+        style: 'border-radius:6px; overflow:hidden; cursor:pointer; background:var(--panel); border:2px solid ' + (sel ? 'var(--accent)' : 'var(--line)')
+      };
+    });
+    const aF = [['Worship Tracks', '▤'], ['Pre-service', '▤'], ['Stingers', '▤'], ['Sermon Beds', '▤'], ['Sunday Service', '≡'], ['Youth Night', '≡']];
+    const aD = {
+      0: [['track_01_opening.wav', '4:12', 'Song 1'], ['track_02.wav', '4:30', 'Song 2'], ['track_03.wav', '3:48', 'Song 3'], ['track_04_bridge_loop.wav', '5:05', ''], ['track_05_closing.wav', '3:20', '']],
+      1: [['preservice_mix.mp3', '32:00', ''], ['ambient_pad_C.wav', '6:00', '']],
+      2: [['chime_soft.wav', '0:04', ''], ['amen_stinger.wav', '0:09', '']],
+      3: [['sermon_bed_warm.wav', '8:00', ''], ['sermon_bed_calm.wav', '7:30', '']],
+      4: [['ambient_pad_C.wav', '6:00', ''], ['track_01_opening.wav', '4:12', 'Song 1'], ['track_02.wav', '4:30', 'Song 2'], ['track_03.wav', '3:48', 'Song 3'], ['sermon_bed_warm.wav', '8:00', ''], ['track_05_closing.wav', '3:20', '']],
+      5: [['track_04_bridge_loop.wav', '5:05', ''], ['chime_soft.wav', '0:04', ''], ['amen_stinger.wav', '0:09', '']],
+    };
+    const aFolders = [{ isHead: true, isRow: false, name: 'LIBRARY', hasNew: false }]
+      .concat(aF.slice(0, 4).map((f, i) => ({ isHead: false, isRow: true, name: f[0], icon: f[1], count: aD[i].length, weight: i === st.af ? 700 : 500, pick: () => this.setState({ af: i, at: 0, aplay: -1 }), style: rowBase + (i === st.af ? 'var(--sel)' : 'transparent') + '; padding-left:8px' })))
+      .concat([{ isHead: true, isRow: false, name: 'PLAYLISTS', hasNew: true }])
+      .concat(aF.slice(4).map((f, k) => { const i = k + 4; return { isHead: false, isRow: true, name: f[0], icon: f[1], count: aD[i].length, weight: i === st.af ? 700 : 500, pick: () => this.setState({ af: i, at: 0, aplay: -1 }), style: rowBase + (i === st.af ? 'var(--sel)' : 'transparent') + '; padding-left:8px' }; }));
+    const aIsList = st.af >= 4;
+    const secs = (aD[st.af] || []).reduce((a, d) => { const m = d[1].split(':').map(Number); return a + (m.length === 3 ? m[0] * 3600 + m[1] * 60 + m[2] : m[0] * 60 + m[1]); }, 0);
+    const aListMeta = (aD[st.af] || []).length + ' tracks · ' + Math.floor(secs / 60) + ' min';
+    const aTog = (on) => ({ t: 'width:30px; height:18px; border-radius:9px; position:relative; flex:none; background:' + (on ? 'var(--accent)' : 'var(--line)'), k: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:#fff; left:' + (on ? 14 : 2) + 'px' });
+    const mkBars = (seed, n, hot) => Array.from({ length: n }, (_, k) => { const h = 4 + Math.round(Math.abs(Math.sin((k + seed) * 0.7) * Math.cos((k + seed * 2) * 0.23)) * 16); return { style: 'flex:1; min-width:1px; border-radius:1px; height:' + h + 'px; background:' + (hot ? 'var(--accent)' : 'var(--dim)') + (hot ? '' : '; opacity:.55') }; });
+    const aTracks = (aD[st.af] || []).map((d, i) => {
+      const on = st.aplay === i;
+      return { n: i + 1, name: d[0], dur: d[1], used: !!d[2], usedLabel: '♪ ' + d[2], on, off: !on, bars: mkBars(i * 3 + st.af, 40, on),
+        playLabel: (on ? 'Pause ' : 'Play ') + d[0],
+        play: () => this.setState({ aplay: on ? -1 : i, at: i }),
+        playStyle: 'width:26px; height:26px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:13px; border:0; cursor:pointer; background:' + (on ? 'var(--accent)' : 'var(--panel)') + '; color:' + (on ? onAccent : 'var(--fg)'),
+        pick: () => this.setState({ at: i }),
+        style: 'display:flex; align-items:center; gap:12px; padding:5px 12px; cursor:pointer; border-bottom:1px solid var(--line); background:' + (i === st.at ? 'var(--sel)' : 'transparent') };
+    });
+    const aCur = (aD[st.af] || [])[st.at] || ['', '', ''];
+    const aEndSeg = [['loop', '↻ Loop'], ['stop', '■ Stop'], ['next', '⏭ Next']].map((r) => ({ label: r[1], pick: () => this.setState({ aend: r[0] }), style: segStyle(st.aend === r[0]) }));
+    const selI = mitems[st.mi] || mitems[0] || { name: '', kind: 'video', type: 'bg', end: 'loop', dur: '' };
+    const setO = (patch) => this.setState({ mo: { ...st.mo, [st.mf + '-' + st.mi]: { ...(st.mo[st.mf + '-' + st.mi] || {}), ...patch } } });
+    const COMPN = ['Master', 'Projector Left', 'Portrait TV 1', 'Portrait TV 2', 'Projector Right'];
+    const compCur = (st.mcomp && st.mcomp[st.mf + '-' + st.mi]) || 0;
+    const compRows = COMPN.map((n, i) => ({ label: n, check: i === compCur ? '✓' : '', pick: () => { this.setState({ mcomp: { ...st.mcomp, [st.mf + '-' + st.mi]: i }, cpo: false }); },
+      style: 'display:flex; align-items:center; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === compCur ? 'var(--sel)' : 'transparent') }));
+    const LAYS = ['Overlay', 'Motion', 'Background'];
+    const layerCur = selI.layer !== undefined ? selI.layer : (selI.type === 'bg' ? 2 : 0);
+    const layerRows = LAYS.map((n, i) => ({ label: n, check: i === layerCur ? '✓' : '', pick: () => { setO({ layer: i }); this.setState({ lyo: false }); },
+      style: 'display:flex; align-items:center; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === layerCur ? 'var(--sel)' : 'transparent') }));
+    const typeSeg = [['bg', 'Background'], ['fg', 'Foreground']].map((r) => ({ label: r[1], pick: () => setO({ type: r[0] }), style: segStyle(selI.type === r[0]) }));
+    const endSeg = [['loop', '↻ Loop'], ['stop', '■ Stop'], ['next', '⏭ Next']].map((r) => ({ label: r[1], pick: () => setO({ end: r[0] }), style: segStyle(selI.end === r[0]) }));
+    const addRows = [
+      { label: 'New folder', href: 'MediaNewFolder.dc.html' },
+      { label: 'Add files…', href: 'MediaDialog.dc.html' },
+      { label: 'Link a folder…', href: 'MediaLinkFolder.dc.html' },
+    ].map((r) => ({ ...r, pick: () => this.setState({ madd: false }) }));
+    const cell = (sel) => 'padding:5px 0; text-align:center; border-radius:4px; cursor:pointer; font-size:12px; background:' + (sel ? 'var(--accent)' : 'var(--panel)') + '; color:' + (sel ? (light ? '#fff' : '#0d0d0d') : 'var(--fg)') + '; font-weight:' + (sel ? 700 : 400);
+    const bookNames = ['Psalms', 'Proverbs', 'Isaiah', 'John', 'Acts', 'Romans', 'Ephesians', 'Philippians'];
+    const books = bookNames.map((n, i) => ({
+      name: n,
+      pick: () => this.setState({ book: i, spm: '' }),
+      style: 'padding:4px 8px; border-radius:4px; cursor:pointer; background:' + (i === st.book ? 'var(--sel)' : 'transparent') + '; font-weight:' + (i === st.book ? 700 : 400)
+    }));
+    const nums = [];
+    for (let n = 1; n <= 21; n++) nums.push(n);
+    const chapters = nums.map((n) => ({ n, pick: () => this.setState({ chap: n, spm: '' }), style: cell(n === st.chap) }));
+    const KJV = { 12: 'If I have told you earthly things, and ye believe not, how shall ye believe, if I tell you of heavenly things?', 13: 'And no man hath ascended up to heaven, but he that came down from heaven, even the Son of man which is in heaven.', 14: 'And as Moses lifted up the serpent in the wilderness, even so must the Son of man be lifted up:', 15: 'That whosoever believeth in him should not perish, but have eternal life.', 16: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.', 17: 'For God sent not his Son into the world to condemn the world; but that the world through him might be saved.', 18: 'He that believeth on him is not condemned: but he that believeth not is condemned already, because he hath not believed in the name of the only begotten Son of God.', 19: 'And this is the condemnation, that light is come into the world, and men loved darkness rather than light, because their deeds were evil.', 20: 'For every one that doeth evil hateth the light, neither cometh to the light, lest his deeds should be reproved.', 21: 'But he that doeth truth cometh to the light, that his deeds may be made manifest, that they are wrought in God.' };
+    const RV = { 16: 'Porque de tal manera amó Dios al mundo, que ha dado á su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.', 17: 'Porque no envió Dios á su Hijo al mundo para que condene al mundo, mas para que el mundo sea salvo por él.' };
+    const trNames = ['KJV', 'WEB', 'RV1909'];
+    const sv = st.sv, ev = st.ev;
+    const lo = Math.min(sv, ev), hi = Math.max(sv, ev);
+    const verseRows = Object.keys(KJV).map(Number).map((n) => ({
+      n, text: KJV[n],
+      pick: (e) => (e && e.shiftKey ? this.setState({ ev: n, spm: '' }) : this.setState({ sv: n, ev: n, spm: '' })),
+      style: 'display:flex; align-items:center; gap:10px; padding:5px 10px; cursor:pointer; border-bottom:1px solid var(--line); background:' + (n >= lo && n <= hi ? 'var(--sel)' : 'transparent') + (n >= lo && n <= hi ? '; box-shadow:inset 3px 0 0 var(--accent)' : '')
+    }));
+    const vpsSeg = [[1, '1'], [2, '2'], [0, 'Auto']].map((r) => ({ label: r[1], pick: () => this.setState({ vps: r[0] }), style: 'padding:3px 11px; cursor:pointer; font-size:12px; background:' + (st.vps === r[0] ? 'var(--accent)' : 'var(--panel)') + '; color:' + (st.vps === r[0] ? onAccent : 'var(--fg)') + '; font-weight:' + (st.vps === r[0] ? 700 : 400) }));
+    const refText = bookNames[st.book] + ' ' + st.chap + ':' + (lo === hi ? lo : lo + '–' + hi) + ' · ' + trNames[st.tr] + (st.dual ? ' + ' + trNames[2] : '');
+    const sel = [];
+    for (let n = lo; n <= hi; n++) sel.push(n);
+    const per = st.vps === 0 ? (sel.length > 2 ? 2 : sel.length) : st.vps;
+    const slideThumbs = [];
+    for (let k = 0; k < sel.length; k += per) {
+      const grp = sel.slice(k, k + per);
+      slideThumbs.push({
+        text: grp.map((n) => KJV[n]).join(' '),
+        hasText2: !!st.dual, text2: st.dual ? grp.map((n) => RV[n] || '[Texto RV1909]').join(' ') : '',
+        ref: bookNames[st.book] + ' ' + st.chap + ':' + (grp[0] === grp[grp.length - 1] ? grp[0] : grp[0] + '–' + grp[grp.length - 1]),
+        label: 'Slide ' + (slideThumbs.length + 1)
+      });
+    }
+    const sugMk = (ref, text, a, b) => ({ ref, text, pick: () => this.setState({ spm: '', sv: a, ev: b, chap: 3, book: 3 }), style: 'display:flex; gap:10px; padding:5px 8px; border-radius:5px; cursor:pointer' });
+    const sugRefs = [sugMk('John 3:1–21', 'Chapter 3 · 21 verses', 1, 21), sugMk('John 3:16', KJV[16], 16, 16), sugMk('John 3:16–17', KJV[16], 16, 17)];
+    const sugWords = [sugMk('John 3:16', 'For God so loved the world…', 16, 16), sugMk('1 John 4:11', 'Beloved, if God so loved us…', 16, 16), sugMk('Romans 5:8', 'But God commendeth his love toward us…', 16, 16)];
+    const recents = [['John 3:16', 3, 16, 16], ['Psalm 23:1', 0, 23, 1], ['Romans 8:28', 5, 8, 28]].map((r) => ({ name: r[0], pick: () => this.setState({ spm: '' }) }));
+    const heard = [['John 3:16', 'KJV', 0.96], ['John 3:17', 'KJV', 0.41], ['1 John 4:9', 'KJV', 0.33]].map((r) => ({ ref: r[0], tr: r[1], pct: Math.round(r[2] * 100) + '%', conf: r[2] > 0.8 ? 'var(--accent)' : 'var(--dim)', pick: () => this.setState({ spm: '', sv: 16, ev: 16 }) }));
+    const micBars = Array.from({ length: 30 }, (_, k) => ({ style: 'flex:1; border-radius:1px; background:var(--accent); height:' + (3 + Math.round(Math.abs(Math.sin(k * 0.8)) * 12)) + 'px' }));
+
+
+    const asel = st.asel || 0;
+    const actRows = ACTS.map((a, i) => ({ icon: a[1] === 'Game' ? '★' : '▥', title: a[0], sub: a[1] + ' · ' + a[2], inSvc: a[3], pick: () => this.setState({ asel: i, astate: '' }),
+      style: rowBase + (i === asel ? 'var(--sel)' : 'transparent') }));
+    const AQ = [['Which book did we read last week?', 'Choice', '0:20', '1000'], ['How many disciples did Jesus choose?', 'Choice', '0:15', '1000'], ['True or false: this is a sample question', 'True / False', '0:10', '500'], ['Name the city in this sample question', 'Choice', '0:20', '1000'], ['Final sample question', 'Choice', '0:30', '2000']];
+    const hq = st.hq || {};
+    const actQs = AQ.map((q, i) => ({ n: i + 1, text: q[0], type: q[1], time: q[2], pts: q[3] + ' pts', hidden: !!hq[i],
+      textStyle: 'flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:' + (hq[i] ? 0.45 : 1) + '; text-decoration:' + (hq[i] ? 'line-through' : 'none'),
+      hiddenChip: hq[i] ? 'padding:1px 6px; border-radius:4px; border:1px solid var(--line); color:var(--dim); font-size:9px; font-weight:700' : 'display:none',
+      eye: hq[i] ? '⊘' : '◉', tip: hq[i] ? 'Show question' : 'Hide question',
+      toggle: () => this.setState({ hq: { ...hq, [i]: !hq[i] } }) }));
+    const nHidden = Object.keys(hq).filter((k) => hq[k]).length;
+    const run = !!st.astate;
+    const as = st.astate || 'question';
+    const startAct = () => this.setState({ astate: 'question' });
+    const setA = (v) => () => this.setState({ astate: v });
+    const aChipCol = as === 'question' ? 'var(--live)' : as === 'locked' ? 'var(--warn)' : 'var(--accent)';
+    const aBtnBase = 'flex:1; min-width:0; height:38px; border-radius:6px; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.15; cursor:pointer; background:var(--panel); color:var(--fg); border:1px solid var(--line)';
+    const aBtn = (label, key, fn, on, hot) => ({ label, key, pick: fn, style: aBtnBase + (hot ? '; background:var(--accent); color:' + onAccentA + '; border:0; font-weight:700' : '') + (on ? '' : '; opacity:.45') });
+    const onAccentA = light ? '#ffffff' : '#0d0d0d';
+    const aBtns = [
+      aBtn('Lock', '⌘L', setA('locked'), as === 'question', as === 'question'),
+      aBtn('Reveal', '⌘R', setA('reveal'), as !== 'reveal' && as !== 'board', as === 'locked'),
+      aBtn('Leaderboard', '⌘B', setA('board'), as !== 'question', as === 'reveal'),
+      aBtn('Next', '⌘→', setA('question'), as === 'board', as === 'board'),
+      aBtn('Clear', '⌘⌫', () => this.setState({ astate: '' }), true, false),
+      aBtn('End', '', () => this.setState({ astate: '' }), true, false)
+    ];
+    const optT = ['Genesis', 'John', 'Romans', 'Acts'];
+    const optC = [9, 52, 14, 6];
+    const aOpts = optT.map((t, i) => { const win = as === 'reveal' && i === 1; const dim = as === 'reveal' && i !== 1; return { k: 'ABCD'.charAt(i), text: t, count: as === 'question' ? '' : String(optC[i]), bar: 'height:100%; border-radius:6px; width:' + (as === 'question' ? 0 : Math.round(optC[i] / 52 * 100)) + '%; background:' + (win ? 'var(--accent)' : 'var(--dim)') + (dim ? '; opacity:.4' : '') }; });
+    const aBoard = [['1', '[Player name]', '4,820'], ['2', '[Player name]', '4,610'], ['3', '[Player name]', '4,455'], ['4', '[Player name]', '4,120'], ['5', '[Player name]', '3,980']].map((r) => ({ rank: r[0], name: r[1], score: r[2] }));
+
+    const apv = st.apv || 'stage';
+    const agone = st.agone || {};
+    const PL = [['[Player name]', '4,820', 1], ['[Player name]', '4,610', 1], ['[Player name]', '4,455', 1], ['[Player name]', '4,120', 0], ['[Player name]', '3,980', 1], ['[Player name]', '3,760', 1], ['[Player name]', '3,540', 0]].map((r, i) => ({ r, i })).filter((x) => !agone[x.i]);
+    const pbtn = 'height:20px; padding:0 8px; box-sizing:border-box; display:flex; align-items:center; border-radius:4px; cursor:pointer; font-size:11px; border:1px solid var(--line); background:var(--panel); color:var(--fg)';
+    const aPlayers = PL.map((x, k) => { const ed = st.aren === x.i; const kc = st.akick === x.i; return { rank: String(k + 1), name: x.r[0], score: x.r[1], dot: x.r[2] ? 'var(--accent)' : 'var(--line)', editing: ed, notEditing: !ed,
+      style: 'display:flex; align-items:center; gap:8px; padding:3px 8px; border-radius:5px; background:var(--panel)',
+      renLabel: ed ? 'Save' : 'Rename', renStyle: pbtn + (ed ? '; background:var(--accent); color:' + onAccentA + '; border:0; font-weight:700' : ''),
+      rename: () => this.setState({ aren: ed ? -1 : x.i, akick: '' }),
+      kickLabel: kc ? 'Confirm' : 'Kick', kickStyle: pbtn + (kc ? '; background:var(--live); color:#fff; border:0; font-weight:700' : '; color:var(--dim)'),
+      kick: () => (kc ? this.setState({ agone: { ...agone, [x.i]: true }, akick: '' }) : this.setState({ akick: x.i, aren: -1 })) }; });
+    const apvSeg = [['stage', 'Stage'], ['players', 'Players']].map((r) => ({ label: r[1], pick: () => this.setState({ apv: r[0] }), style: 'padding:3px 10px; cursor:pointer; font-size:11px; background:' + (apv === r[0] ? 'var(--accent)' : 'var(--panel)') + '; color:' + (apv === r[0] ? onAccentA : 'var(--fg)') + '; font-weight:' + (apv === r[0] ? 700 : 400) }));
+    const atg = st.atg || {};
+    const SCR = ['Screen 1', 'Stage Screen 1', 'Stage Screen 2', 'Lobby TV'];
+    const atRows = [{ isHeader: true, label: 'AUDIENCE' }, { isItem: true, i: 0 }, { isHeader: true, label: 'STAGE' }, { isItem: true, i: 1 }, { isItem: true, i: 2 }, { isHeader: true, label: 'ANNOUNCEMENTS' }, { isItem: true, i: 3 }].map((r) => r.isItem ? { isHeader: false, isItem: true, label: SCR[r.i], check: atg[r.i] ? '✓' : '',
+      box: atg[r.i] ? 'background:var(--accent); color:' + onAccentA : 'border:1px solid var(--line)',
+      pick: () => this.setState({ atg: { ...atg, [r.i]: !atg[r.i] } }),
+      style: 'display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:5px; cursor:pointer' } : { ...r, isItem: false });
+    const atNames = SCR.filter((n, i) => atg[i]);
+    const qrN = 25; const qrCells = []; const fin = (x, y) => { const ins = (cx, cy) => x >= cx && x < cx + 7 && y >= cy && y < cy + 7; return [[0, 0], [qrN - 7, 0], [0, qrN - 7]].some((c) => ins(c[0], c[1])); };
+    for (let y = 0; y < qrN; y++) for (let x = 0; x < qrN; x++) { let on; if (fin(x, y)) { const c = [[0, 0], [qrN - 7, 0], [0, qrN - 7]].filter((c) => x >= c[0] && x < c[0] + 7 && y >= c[1] && y < c[1] + 7)[0]; const dx = x - c[0], dy = y - c[1]; on = dx === 0 || dy === 0 || dx === 6 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4); } else if ((x === 7 || y === 7 || x === qrN - 8 || y === qrN - 8) && (x < 8 || y < 8) ) { on = false; } else { on = ((x * 7 + y * 13 + x * y * 3) % 5 < 2) !== ((x + y) % 7 === 0); } if (on) qrCells.push('M' + x + ' ' + y + 'h1v1h-1z'); }
+    const qrSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 ' + (qrN + 4) + ' ' + (qrN + 4) + '" shape-rendering="crispEdges"><rect x="-2" y="-2" width="' + (qrN + 4) + '" height="' + (qrN + 4) + '" fill="#fff"/><path d="' + qrCells.join('') + '" fill="#111"/></svg>');
+    const ACT = ACTS[ai];
+    const aIsPoll = ACT[1] === 'Poll';
+    const aNQ = parseInt(ACT[2], 10);
+    const aqx = st.aqx || {};
+    const POLLQ = ['How are you feeling about this series?', 'Which topic should we cover next?', 'How did you hear about us?'];
+    const qPrompt = (q) => aIsPoll ? (POLLQ[q] || 'Sample poll question ' + (q + 1)) : (q < AQ.length ? AQ[q][0] : 'Sample question ' + (q + 1));
+    let aIdx = 0;
+    const aSel = st.asl || 0;
+    const mkS = (kind, label, badge, q) => { const i = aIdx++; return { kJoin: kind === 'join', kPlayers: kind === 'players', kReady: kind === 'ready', kQuestion: kind === 'question', kResponses: kind === 'responses', kReveal: kind === 'reveal', kBoard: kind === 'board', kPodium: kind === 'podium', kPoll: kind === 'results', kThanks: kind === 'thanks',
+      dyn: ['join', 'players', 'responses', 'reveal', 'board', 'podium', 'results'].indexOf(kind) >= 0, label, badge, prompt: q === undefined ? '' : qPrompt(q), readyText: 'QUESTION ' + ((q || 0) + 1) + ' OF ' + aNQ, actName: ACT[0], qr: qrSrc,
+      pick: () => this.setState({ asl: i }),
+      style: 'border-radius:6px; overflow:hidden; cursor:pointer; background:var(--panel); border:2px solid ' + (i === aSel ? 'var(--live)' : 'var(--line)') }; };
+    const aGroups = [{ name: 'OPENING', open: true, closed: false, mark: '', count: '2 slides', cursor: 'default', toggle: () => {}, summary: '', slides: [mkS('join', 'Join', '482 913'), mkS('players', 'Players', '12 joined')] }];
+    const qKinds = aIsPoll ? [['ready', 'Get ready', '0:03'], ['question', 'Question', '0:20'], ['responses', 'Live responses', '71 / 86'], ['results', 'Poll results', '86 votes']] : [['ready', 'Get ready', '0:03'], ['question', 'Question', '0:20'], ['responses', 'Live responses', '71 / 86'], ['reveal', 'Answer', '62%'], ['board', 'Leaderboard', 'Top 5']];
+    for (let q = 0; q < aNQ; q++) { const open = !!aqx[q]; const sl = qKinds.map((k) => mkS(k[0], k[1], k[2], q)); aGroups.push({ name: 'QUESTION ' + (q + 1) + ' · ' + qPrompt(q), open, closed: !open, mark: open ? '▾' : '▸', count: sl.length + ' slides', cursor: 'pointer', toggle: () => this.setState({ aqx: { ...aqx, [q]: !open } }), summary: qKinds.map((k) => k[1]).join(' · '), slides: sl }); }
+    aGroups.push({ name: 'CLOSING', open: true, closed: false, mark: '', count: aIsPoll ? '1 slide' : '2 slides', cursor: 'default', toggle: () => {}, summary: '', slides: aIsPoll ? [mkS('thanks', 'Thanks', '')] : [mkS('podium', 'Podium', 'Top 3'), mkS('thanks', 'Thanks', '')] });
+    const isActItem = plRaw[st.pl][0] === 'act';
+    const apks = st.apks || 0;
+    const apkRows = ACTS.map((a, i) => ({ title: a[0], sub: a[1] + ' · ' + a[2], pick: () => this.setState({ apks: i }),
+      dot: 'width:12px; height:12px; flex:none; box-sizing:border-box; border-radius:6px; border:2px solid ' + (i === apks ? 'var(--accent)' : 'var(--line)') + '; background:' + (i === apks ? 'var(--accent)' : 'transparent'),
+      style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (i === apks ? 'var(--sel)' : 'transparent') }));
+    const actLive = st.plLive === 10 && isActItem;
+    const mi = (label, hint, act, dis, red) => ({ sep: false, isItem: true, label, hint, act: dis ? (() => {}) : act, style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:5px; cursor:' + (dis ? 'default' : 'pointer') + '; color:' + (dis ? 'var(--dim)' : red ? 'var(--live)' : 'var(--fg)') + '; opacity:' + (dis ? 0.55 : 1) });
+    const msep = { sep: true, isItem: false };
+    const ctxRows = [mi('Go live', 'Enter', () => this.setState({ ctx: false, plLive: st.pl }), false), mi('Send to…', '', () => this.setState({ ctx: false }), false), msep, mi('Edit Activity…', '', () => this.setState({ ctx: false }), false), mi(actLive ? 'Change Activity… (end session first)' : 'Change Activity…', '', () => this.setState({ ctx: false, apk: true, apkc: true, apks: st.ai || 0 }), actLive), msep, mi('Remove from service', '', () => this.setState({ ctx: false }), false, true)];
+    const isStage1 = st.out === 1;
+    const isStage2 = st.out === 2;
+
+    // ---- wired macOS menu bar ----
+    const showEdit = plRaw[st.pl][0] === 'song' || plRaw[st.pl][0] === 'pres' || plRaw[st.pl][0] === 'act'; const editHref = plRaw[st.pl][0] === 'pres' ? 'PresentationEditor.dc.html' : plRaw[st.pl][0] === 'act' ? 'ActivityEditor.dc.html' : 'SongEditor.dc.html';
+    const hasBar = (this.props.bar ?? 'on') !== 'off';
+    const mbo = st.mbo || ''; const mbs = st.mbs || '';
+    const shut = (o) => () => this.setState(Object.assign({ mbo: '', mbs: '' }, o || {}));
+    const ck = (b) => b ? '✓' : '';
+    const MI = (label, key, o) => Object.assign({ label, key: key || '' }, o || {});
+    const HR = { sep: true };
+    const clearSub = [['All', 'all'], ['Slide', 'slide'], ['Media', 'media'], ['Audio', 'aud'], ['Message', 'msg'], ['Black', 'black']].map((c) => MI(c[0], '', { check: ck(litOn(c[1])), pick: () => { doClear(c[1]); this.setState({ mbo: '', mbs: '' }); } }));
+    const MENUS = {
+      app: { w: 250, rows: [MI('About CueME Stage'), MI('Check for Updates…'), HR, MI('Preferences…', '⌘,', { href: 'Preferences.dc.html' }), HR, MI('Hide CueME Stage', '⌘H'), MI('Hide Others', '⌥⌘H'), HR, MI('Quit CueME Stage', '⌘Q', { href: 'MainQuitLive.dc.html' })] },
+      file: { w: 270, rows: [MI('New Service…', '⌘N', { href: 'ServiceNewService.dc.html' }), MI('New Collection…', '⇧⌘N', { href: 'ServiceNewCollection.dc.html' }), MI('New Song…', '⌥⌘N', { href: 'SongEditor.dc.html' }), MI('New Presentation…', '⌃⌘N', { href: 'PresentationEditor.dc.html' }), HR, MI('Import…', '⇧⌘I', { off: true }), HR, MI('Close Window', '⌘W')] },
+      edit: { w: 250, rows: [MI('Undo', '⌘Z'), MI('Redo', '⇧⌘Z'), HR, MI('Cut', '⌘X'), MI('Copy', '⌘C'), MI('Paste', '⌘V'), MI('Delete', '⌫'), MI('Select All', '⌘A'), HR, MI('Find…', '⌘F', { pick: shut({ spm: 'search', ptab: 0 }) }), HR, MI('Edit Selected Item…', '⌘E', showEdit ? { href: editHref } : { off: true })] },
+      view: { w: 280, rows: [MI('Theme', '▸', { sub: [MI('Dark', '', { check: ck(!light), pick: shut({ thm: 'dark' }) }), MI('Light', '', { check: ck(light), pick: shut({ thm: 'light' }) })] }), MI('Show Multiview', '⇧⌘M', { check: ck(!!st.mv), pick: shut({ mv: !st.mv, menu: false }) }), HR,
+        MI('Scripture', '⌘1', { check: ck(st.ptab === 0), pick: shut({ ptab: 0 }) }), MI('Media', '⌘2', { check: ck(st.ptab === 1), pick: shut({ ptab: 1 }) }), MI('Looks', '⌘3', { check: ck(st.ptab === 2), pick: shut({ ptab: 2 }) }), MI('Audio', '⌘4', { check: ck(st.ptab === 3), pick: shut({ ptab: 3 }) }), MI('Activities', '⌘5', { check: ck(st.ptab === 4), pick: shut({ ptab: 4 }) }), HR,
+        MI('Audio (right column)', '⌥⌘1', { check: ck(st.tab === 0), pick: shut({ tab: 0 }) }), MI('Message', '⌥⌘2', { check: ck(st.tab === 1), pick: shut({ tab: 1 }) }), MI('Timer', '⌥⌘3', { check: ck(st.tab === 2), pick: shut({ tab: 2 }) }), HR, MI('Enter Full Screen', '⌃⌘F')] },
+      service: { w: 290, rows: [MI('Go Live', '↩', { pick: shut({ plLive: st.pl }) }), MI('Next Slide', '→', { pick: shut({ sel: Math.min(texts.length - 1, st.sel + 1) }) }), MI('Previous Slide', '←', { pick: shut({ sel: Math.max(0, st.sel - 1) }) }), HR,
+        MI('Clear', '▸', { sub: clearSub }), MI('Black Out', '⌘.', { check: ck(litOn('black')), pick: () => { doClear('black'); this.setState({ mbo: '', mbs: '' }); } }), HR,
+        MI('Audio', '▸', { sub: [MI('Stop Playback', '', { pick: shut({ aplay: -1 }) }), MI('Shuffle', '', { check: ck(st.ash), pick: shut({ ash: !st.ash }) }), MI('Repeat', '', { check: ck(st.arp), pick: shut({ arp: !st.arp }) })] }),
+        MI('Messages', '▸', { sub: [MI('Hide All Messages', '', { pick: shut({ msgOn: {} }) }), MI('Stop All Timers', '', { pick: shut({ tmrOn: {} }) })] }),
+        MI('Send Item to', '▸', { sub: targetOpts.map((n, i) => MI(n, '', { check: ck(st.target === i), pick: shut({ target: i }) })) }), HR,
+        MI('Add Section…'), MI('Add Activity…', '', { off: true })] },
+      output: { w: 270, rows: [MI('Output Setup…', '⇧⌘O', { href: 'OutputSetup.dc.html' }), MI('Visuals…', '⇧⌘V', { off: true }), HR,
+        MI('Monitor', '▸', { sub: outs.map((n, i) => MI(n, '', { check: ck(st.out === i && !st.mv), pick: shut({ out: i, mv: false }) })) }),
+        MI('Test Pattern', '▸', { sub: outs.map((n) => MI(n)) }), HR, MI('Restart Engine…', '', { href: 'MainRestartEngine.dc.html' })] },
+      window: { w: 250, rows: [MI('Minimize', '⌘M'), MI('Zoom'), HR, MI('Operator View', '⌘0', { check: '✓' }), MI('Output Setup', '', { href: 'OutputSetup.dc.html' }), MI('Visuals', '', { off: true }), HR, MI('Bring All to Front')] },
+      help: { w: 270, rows: [{ search: true }, HR, MI('CueME Stage Help'), MI('Keyboard Shortcuts…', '', { href: 'Preferences.dc.html' }), MI('Release Notes'), HR, MI('Export Diagnostics…'), MI('Report a Problem…')] }
+    };
+    const BAR = [['app', 'CueME Stage', 104], ['file', 'File', 44], ['edit', 'Edit', 44], ['view', 'View', 48], ['service', 'Service', 66], ['output', 'Output', 62], ['window', 'Window', 68], ['help', 'Help', 48]];
+    let barLeft = 38; let dropLeft = 38;
+    const barItems = BAR.map((b) => {
+      const on = b[0] === mbo;
+      if (on) dropLeft = barLeft;
+      barLeft += b[2];
+      return { label: b[1], pick: () => this.setState({ mbo: on ? '' : b[0], mbs: '' }),
+        style: 'width:' + b[2] + 'px; height:20px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-radius:4px; white-space:nowrap; cursor:pointer; font-weight:' + (b[0] === 'app' ? 700 : 400) + '; background:' + (on ? '#47c86e' : 'transparent') + '; color:' + (on ? '#0d0d0d' : '#f5f5f5') };
+    });
+    const mnu = MENUS[mbo];
+    const mbRow = 'display:flex; align-items:center; height:24px; box-sizing:border-box; padding:0 10px 0 6px; border-radius:5px; text-decoration:none; ';
+    const mkRow = (r, isSub) => {
+      if (r.sep) return { isSep: true, isSearch: false, isLink: false, isAct: false };
+      if (r.search) return { isSep: false, isSearch: true, isLink: false, isAct: false };
+      const open = !!r.sub && mbs === r.label && !isSub; const off = !!r.off;
+      const style = mbRow + 'cursor:' + (off ? 'default' : 'pointer') + '; color:' + (off ? '#6f6f6f' : open ? '#0d0d0d' : '#f5f5f5') + '; background:' + (open ? '#47c86e' : 'transparent');
+      const keyStyle = 'color:' + (off ? '#5a5a5a' : open ? '#0d0d0d' : '#a8a8a8');
+      const pick = off ? () => {} : r.sub ? () => this.setState({ mbs: open ? '' : r.label }) : (r.pick || shut());
+      return { isSep: false, isSearch: false, isLink: !!r.href && !off, isAct: !r.href || off, label: r.label, check: r.check || '', key: r.key, href: r.href || '', style, keyStyle, pick };
+    };
+    const dropRows = mnu ? mnu.rows.map((r) => mkRow(r, false)) : [];
+    let subRows = []; let subTop = 0; let subOpen = false;
+    if (mnu) {
+      let y = 31;
+      for (const r of mnu.rows) {
+        if (r.sub && mbs === r.label) { subRows = r.sub.map((x) => mkRow(x, true)); subTop = y - 5; subOpen = true; break; }
+        y += (r.sep ? 9 : r.search ? 31 : 24) + 1;
+      }
+    }
+    const dropStyle = 'position:absolute; z-index:100; top:26px; left:' + (dropLeft - 6) + 'px; width:' + (mnu ? mnu.w : 250) + 'px; padding:5px; box-sizing:border-box; border-radius:8px; background:rgba(44,44,44,.97); border:1px solid #444; box-shadow:0 12px 36px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px; color:#f5f5f5; font-size:13px';
+    const subStyle = 'position:absolute; z-index:101; top:' + subTop + 'px; left:' + (dropLeft - 6 + (mnu ? mnu.w : 250) - 4) + 'px; width:200px; padding:5px; box-sizing:border-box; border-radius:8px; background:rgba(44,44,44,.98); border:1px solid #444; box-shadow:0 12px 36px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:1px; color:#f5f5f5; font-size:13px';
+    return {
+      vars, label, tree, colRows, plists, svcAddOpen: !!st.addm, svcToggleAdd: () => this.setState({ addm: !st.addm, addmenu: false, svcm: false, apk: false }), addMenuOpen: !!st.addmenu, svcToggleMenu: () => this.setState({ addmenu: !st.addmenu, addm: false, apk: false, apkc: false, ctx: false, svcm: false }), addSection: () => this.setState({ addmenu: false, addm: true, apk: false, svcm: false }), addActivity: () => this.setState({ addmenu: false, addm: false, apk: true, apkc: false, ctx: false, svcm: false }), playlist: pl,
+      ctxOpen: !!st.ctx && isActItem, chgAct: actLive ? (() => {}) : (() => this.setState({ ctx: false, apk: true, apkc: true, apks: st.ai || 0 })), chgLabel: actLive ? 'Change Activity… (end session first)' : 'Change Activity…', chgStyle: 'font-size:12px; font-weight:600; margin-left:10px; cursor:' + (actLive ? 'default' : 'pointer') + '; color:' + (actLive ? 'var(--dim)' : 'var(--accent)') + '; opacity:' + (actLive ? 0.6 : 1), ctxRows, apkTitle: st.apkc ? 'CHANGE ACTIVITY' : 'LINK TO ACTIVITY', apkBtn: st.apkc ? 'Change' : 'Add',
+      apkOpen: !!st.apk, apkRows, svcToggleAct: () => this.setState({ apk: !st.apk, apkc: false, ctx: false, addm: false, addmenu: false, svcm: false }), apkAdd: () => st.apkc ? this.setState({ apk: false, apkc: false, ai: apks, asl: 0, aqx: { 0: true } }) : this.setState({ apk: false, apkc: false, ai: apks, pl: 10, asl: 0, aqx: { 0: true } }),
+      isActItem, notActItem: !isActItem, aGroups, itemTitle: isActItem ? ACT[0] : '[Song title]', actItemMode: ACT[1] + ' · ' + ACT[2],
+      actSessLabel: actLive ? 'Session: Lobby · 12 joined' : 'No session', actSessStyle: 'padding:2px 8px; border-radius:10px; font-size:11px; border:1px solid ' + (actLive ? 'var(--accent)' : 'var(--line)') + '; color:' + (actLive ? 'var(--accent)' : 'var(--dim)'),
+      groups: [{ name: 'VERSE / CHORUS', slides: verse }, { name: 'VERSE 2 / BRIDGE', slides: rest }],
+      menuOpen: st.menu, menuRows,
+      toggleMenu: () => this.setState({ menu: !st.menu }),
+      outName: outs[st.out],
+      aPlayers, apvSeg, aStageView: apv === 'stage', aPlayersView: apv === 'players', aPlayerCount: String(86 - Object.keys(agone).length),
+      qrSrc, atRows, atOpen: !!st.atp, toggleTargets: () => this.setState({ atp: !st.atp }), atLabel: atNames.join(', ') || 'No screens', atBorder: st.atp ? 'var(--accent)' : 'var(--line)',
+      actRows, actQs, actIsList: !run, actIsRun: run, actName: ACTS[asel][0], actHiddenNote: nHidden && asel === 0 ? '· ' + nHidden + ' hidden' : '', actMode: ACTS[asel][1], actScoring: ACTS[asel][4], actStart: startAct,
+      aQ: 'QUESTION 2 OF 5', aState: as === 'question' ? 'OPEN' : as === 'locked' ? 'LOCKED' : as === 'reveal' ? 'REVEALED' : 'LEADERBOARD',
+      aChip: "font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',ui-monospace,monospace; color:" + aChipCol + '; border:1px solid ' + aChipCol,
+      aShowTimer: as === 'question', aTimer: '0:14', aAnswered: as === 'question' ? '71 / 86' : '82 / 86',
+      aPrompt: as === 'board' ? 'Leaderboard' : 'Which book of the Bible tells of Nicodemus visiting Jesus at night?',
+      aShowOpts: apv === 'stage' && as !== 'board', aShowBoard: apv === 'stage' && as === 'board', aOpts, aBoard, aBtns,
+      isAudience: st.out === 0, isStage1, isStage2, isAnn: st.out === 3, isStage: st.out === 1 || st.out === 2,
+      annTitle: '[Announcement title]',
+      notAnn: st.out !== 3,
+      lobbyLabel: st.lobby === false ? '▶ Resume loop' : '❚❚ Pause loop',
+      toggleLobby: () => this.setState({ lobby: st.lobby === false }),
+      targetOpen: st.tmenu, targetRows, targetName: targetOpts[st.target].replace('Default (audience screens)', 'Default'),
+      toggleTarget: () => this.setState({ tmenu: !st.tmenu }),
+      targetBtnStyle: 'display:flex; align-items:center; gap:6px; height:26px; padding:0 10px; border-radius:6px; cursor:pointer; font-size:12px; background:' + (st.target > 0 ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid ' + (st.target > 0 ? 'var(--accent)' : 'var(--line)'),
+      layoutName: isStage1 ? 'Lyrics + timer' : 'Next + clock',
+      liveText: texts[st.sel] || '',
+      nextText: texts[st.sel + 1] || '—',
+      showEdit: plRaw[st.pl][0] === 'song' || plRaw[st.pl][0] === 'pres' || plRaw[st.pl][0] === 'act', editHref: plRaw[st.pl][0] === 'pres' ? 'PresentationEditor.dc.html' : plRaw[st.pl][0] === 'act' ? 'ActivityEditor.dc.html' : 'SongEditor.dc.html',
+      compName: COMPN[compCur], compRows, compOpen: !!st.cpo, toggleComp: () => this.setState({ cpo: !st.cpo, lyo: false }),
+      layerName: LAYS[layerCur], layerRows, layerOpen: !!st.lyo, toggleLayer: () => this.setState({ lyo: !st.lyo, cpo: false }),
+      clears, scopeRows, scopeName: scopeNames[st.scope], scopeOpen: !!st.smenu, toggleScope: () => this.setState({ smenu: !st.smenu }),
+      isMv: !!st.mv, notMv: !st.mv, mvTiles, toggleMv: () => this.setState({ mv: !st.mv, menu: false }),
+      mvBtn: 'width:30px; height:30px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; cursor:pointer; font-size:15px; border:1px solid ' + (st.mv ? 'var(--accent)' : 'var(--line)') + '; background:' + (st.mv ? 'var(--sel)' : 'var(--panel)') + '; color:' + (st.mv ? 'var(--accent)' : 'var(--fg)'),
+      outDot: 'width:8px; height:8px; border-radius:4px; background:' + statCol(curStat), outChip: chipS(curStat), outStatus: curStat, curBlack: curStat === 'BLACK',
+      monStyle: 'aspect-ratio:16/9; border-radius:6px; border:2px solid ' + statCol(curStat) + '; overflow:hidden; background:#000; position:relative',
+      audText: (oSt(0).slide || oSt(0).black) ? '' : (texts[st.sel] || ''),
+      audStyle: 'position:absolute; inset:0; background:' + (oSt(0).media ? '#0d1b2e' : 'linear-gradient(135deg,#1c3a5e,#0d1b2e)') + '; display:flex; align-items:center; justify-content:center; color:#fff; text-align:center; white-space:pre-line; line-height:1.4',
+      annStyle: 'position:absolute; inset:0; background:' + (oSt(3).media ? '#1a1230' : 'linear-gradient(135deg,#3a2a5e,#1a1230)') + '; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:#fff; text-align:center',
+      svcName: 'Nov 22 Service', svcOpen: !!st.svcm, svcToggle: () => this.setState({ svcm: !st.svcm }), svcTotal: '1:12:00', itemPrev: itemStep(-1), itemNext: itemStep(1),
+      tabs, panelTabs, openLooks: () => this.setState({ ptab: 2, tpm: false }),
+      ...this.looksVals(light, onAccent),
+      ...this.msgTimerVals(light, onAccent),
+      tpOpen: !!st.tpm, toggleTp: () => this.setState({ tpm: !st.tpm, trm: false }),
+      tpRows: [['Screen 1', 'Full screen'], ['Lobby TV', 'Full screen'], ['Stream Lower Third', 'Lower third']].map((r) => ({
+        label: r[0], note: r[1], style: 'display:flex; align-items:center; padding:6px 8px; border-radius:5px'
+      })),
+      trName: ['KJV', 'WEB', 'RV1909'][st.tr], trOpen: !!st.trm, toggleTr: () => this.setState({ trm: !st.trm, tpm: false }),
+      trRows: [['KJV', 'King James Version', 'English'], ['WEB', 'World English Bible', 'English'], ['RV1909', 'Reina Valera 1909', 'Spanish']].map((r, i) => ({
+        label: r[0] + ' · ' + r[1], lang: r[2], check: i === st.tr ? '✓' : '',
+        pick: () => this.setState({ tr: i, trm: false }),
+        style: 'display:flex; align-items:center; padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === st.tr ? 'var(--sel)' : 'transparent')
+      })), plMissing: st.pl === 1,
+      panelStyle: 'height:' + (st.ptab === 1 ? 392 : st.ptab === 0 ? 330 : st.ptab === 3 ? 330 : st.ptab === 4 ? 330 : st.ptab === 2 ? 330 : 236) + 'px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-top:1px solid var(--line)',
+      aFolders, aTracks, afName: aF[st.af][0], aIsList, aIsFolder: !aIsList, aListMeta, aShuffle: () => this.setState({ ash: !st.ash }), aRepeat: () => this.setState({ arp: !st.arp }), aShTrack: aTog(st.ash).t, aShKnob: aTog(st.ash).k, aRpTrack: aTog(st.arp).t, aRpKnob: aTog(st.arp).k, aSelName: aCur[0], aSelMeta: aCur[1] + ' · 48 kHz stereo', aSelBars: mkBars(st.at * 3 + st.af, 40, true), aEndSeg,
+      hasBar, outerH: hasBar ? '924px' : '900px', barItems, mbOpen: !!mnu, mbClose: shut(), dropRows, dropStyle, subRows, subOpen, subStyle,
+      onAccent, mfolders, mitems, typeSeg, endSeg, addRows, addOpen: !!st.madd, toggleAdd: () => this.setState({ madd: !st.madd }),
+      mfName: curF.name, mfLinked: curF.linked, mfManaged: !curF.linked, mfPath: curF.path || '',
+      selName: selI.name, selIsVideo: selI.kind === 'video', selMeta: (selI.kind === 'video' ? 'Video · ' + selI.dur : 'Photo') + ' · ' + curF.name,
+      selThumb: 'aspect-ratio:16/9; border-radius:6px; border:1px solid var(--line); background:linear-gradient(135deg,' + grads[st.mi % grads.length] + ')',
+      typeNote: selI.type === 'bg' ? 'Plays behind the slide text and stays until replaced.' : 'Plays fullscreen over the slides.',
+      endNote: selI.end === 'loop' ? 'Repeats until cleared or replaced.' : selI.end === 'stop' ? 'Plays once, then holds the last frame.' : 'Plays once, then goes to the next slide.',
+      isCue: st.tab === 0, isMsg: st.tab === 1, isTimer: st.tab === 2,
+      isScripture: st.ptab === 0, isMedia: st.ptab === 1, isLooks: st.ptab === 2, isAudioBin: st.ptab === 3, isFunctions: st.ptab === 4,
+      books, chapters,
+      refText, verseRows, vpsSeg, slideThumbs, sugRefs, sugWords, recents, heard, micBars,
+      dualOn: !!st.dual, dualOff2: !st.dual, tr2Name: trNames[2], dualOff: () => this.setState({ dual: false }), dualOnFn: () => this.setState({ dual: true }),
+      searchOpen: st.spm === 'search', toggleSearch: () => this.setState({ spm: st.spm === 'search' ? '' : 'search' }),
+      searchText: st.spm === 'search' ? 'john 3:1' : 'Type a reference or words, e.g. John 3:16', searchColor: st.spm === 'search' ? 'var(--fg)' : 'var(--dim)', searchBorder: st.spm === 'search' ? 'var(--accent)' : 'var(--line)',
+      speechOn: st.spm === 'speech', toggleSpeech: () => this.setState({ spm: st.spm === 'speech' ? '' : 'speech' }), micLabel: st.spm === 'speech' ? 'Listening' : 'Speech',
+      micStyle: 'height:28px; padding:0 12px; display:flex; align-items:center; gap:6px; border-radius:6px; cursor:pointer; border:1px solid ' + (st.spm === 'speech' ? 'var(--live)' : 'var(--line)') + '; background:' + (st.spm === 'speech' ? 'var(--live)' : 'var(--panel)') + '; color:' + (st.spm === 'speech' ? '#fff' : 'var(--fg)'),
+      media: ['loop_blue_01.mov', 'loop_warm_02.mov', 'announcements.mp4', 'countdown.mov', 'welcome.png', 'logo.png'],
+      playLabel: st.playing ? '❚❚ Pause' : '▶ Play',
+      togglePlay: () => this.setState({ playing: !st.playing })
+    };
+  }
+}
+</script>
+</body>
+</html>

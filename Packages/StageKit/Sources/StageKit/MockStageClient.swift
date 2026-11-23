@@ -8,6 +8,10 @@ import Foundation
 /// fixed amount while a voice plays, and the track ends at its trim Out (or the end of the file). The end action of
 /// `playAudio` decides the passes: `.loop` wraps to trim In for ever, `.once` plays two passes, `.default` and
 /// `.stop` one (the mock has no playlist, so both then stop). Volume and fade-in are checked but not simulated.
+///
+/// Outputs: the mock plays the engine's part and reports `sampleConnectors` (or the list it is given). Slides and
+/// messages go to output screens only, never to input screens. A test pattern is state only: the mock has no
+/// pixels, and the live slide is left as it was.
 public actor MockStageClient: StageClient {
     /// Reduction shown while a voice-over plays.
     public static let fakeDuckingDB = 8.0
@@ -29,7 +33,33 @@ public actor MockStageClient: StageClient {
     private var passesLeft: Int? = 0
     private var telemetryTask: Task<Void, Never>?
 
-    public init(library: Library = .sample) {
+    /// The connectors of the v0.1 rig: two DeckLink Duo 2 cards with 4 SDI connectors each (card B's 4th set to
+    /// input, for IMAG), two NDI senders and one display.
+    public static let sampleConnectors: [Connector] = {
+        func sdi(_ card: String, _ n: Int, _ kind: Connector.Kind = .sdiOut) -> Connector {
+            Connector(id: "decklink-\(card)-\(n)", kind: kind, label: kind == .sdiIn ? "SDI \(n) In" : "SDI \(n)",
+                      cardID: "decklink-\(card)", cardName: "DeckLink Duo 2 (\(card))", index: n)
+        }
+        return (1...4).map { sdi("A", $0) } + (1...3).map { sdi("B", $0) } + [sdi("B", 4, .sdiIn)] + [
+            Connector(id: "ndi-out-1", kind: .ndiOut, label: "NDI CueME Main"),
+            Connector(id: "ndi-out-2", kind: .ndiOut, label: "NDI CueME Stage"),
+            Connector(id: "display-1", kind: .display, label: "Display 1 (HDMI)"),
+        ]
+    }()
+
+    /// Each screen, in library order, on the first free connector that accepts it (with the sample: Left, Stage and
+    /// Right on card A, IMAG on card B's input).
+    public static func defaultAssignments(screens: [Screen], connectors: [Connector]) -> [OutputAssignment] {
+        var used: Set<Connector.ID> = []
+        return screens.map { screen in
+            let connector = connectors.first { $0.available && $0.accepts(screen.type) && !used.contains($0.id) }
+            if let connector { used.insert(connector.id) }
+            return OutputAssignment(screenID: screen.id, connectorID: connector?.id)
+        }
+    }
+
+    /// `assignments` nil = `defaultAssignments`.
+    public init(library: Library = .sample, connectors: [Connector] = MockStageClient.sampleConnectors, assignments: [OutputAssignment]? = nil) {
         self.library = library
         var slides: [Item.ID: [Slide]] = [:]
         for item in library.service.items {
@@ -42,7 +72,22 @@ public actor MockStageClient: StageClient {
             slides: slides,
             screens: library.screens.map { ScreenState(screenID: $0.id, name: $0.name) },
             messages: library.messages,
-            outputs: library.outputs.map { OutputStatus(outputID: $0.id, name: $0.name) }
+            outputs: library.outputs.map { OutputStatus(outputID: $0.id, name: $0.name) },
+            looks: library.looks,
+            connectors: connectors,
+            assignments: library.screens.map { screen in
+                OutputAssignment(
+                    screenID: screen.id,
+                    connectorID: (assignments ?? Self.defaultAssignments(screens: library.screens, connectors: connectors))
+                        .first { $0.screenID == screen.id }?.connectorID
+                )
+            },
+            screenSetups: Dictionary(uniqueKeysWithValues: library.screens.map { screen in
+                (screen.id, ScreenSetup(
+                    type: screen.type, onCanvas: screen.type == .audience,
+                    canvas: CanvasRect(x: screen.x, y: screen.y, width: screen.width, height: screen.height)
+                ))
+            })
         )
         // Nothing taken yet: Next starts at the first slide of the service (as `step(forward:)` says).
         if let item = library.service.items.first(where: { slides[$0.id] != nil }), let slide = slides[item.id]?.first {
@@ -121,6 +166,13 @@ public actor MockStageClient: StageClient {
         publish()
     }
 
+    /// Plays the engine reporting a connector as (un)available, e.g. a card that went missing.
+    public func simulateConnector(_ id: Connector.ID, available: Bool) {
+        guard let i = state.connectors.firstIndex(where: { $0.id == id }) else { return }
+        state.connectors[i].available = available
+        publish()
+    }
+
     // MARK: Commands
 
     private func apply(_ command: Command) {
@@ -147,11 +199,11 @@ public actor MockStageClient: StageClient {
 
         case let .clear(target):
             if target == .slide || target == .all {
-                for i in state.screens.indices { state.screens[i].live = nil }
+                for i in outputIndices { state.screens[i].live = nil }
             }
             if target == .messages || target == .all {
                 state.visibleMessages = []
-                for i in state.screens.indices { state.screens[i].messages = [] }
+                for i in outputIndices { state.screens[i].messages = [] }
             }
             if target == .audio { endTrack() }
             emit(.cleared(target))
@@ -167,10 +219,10 @@ public actor MockStageClient: StageClient {
 
         case let .showMessage(id, screens):
             guard library.messages.contains(where: { $0.id == id }) else { return reject(command, "unknown message") }
-            let known = Set(state.screens.map(\.screenID))
+            let known = Set(state.outputScreens.map(\.screenID))
             guard screens.allSatisfy(known.contains) else { return reject(command, "unknown screen") }
             let targets = screens.isEmpty ? known : Set(screens)
-            for i in state.screens.indices {
+            for i in outputIndices {
                 state.screens[i].messages.removeAll { $0 == id }
                 if targets.contains(state.screens[i].screenID) { state.screens[i].messages.append(id) }
             }
@@ -245,7 +297,51 @@ public actor MockStageClient: StageClient {
             skipped.insert(next.triggerID)
             emit(.triggerSkipped(triggerID: next.triggerID))
             refreshNextTrigger()
+
+        case let .assignScreen(screenID, connectorID):
+            guard let a = state.assignments.firstIndex(where: { $0.screenID == screenID }),
+                  let setup = state.screenSetups[screenID] else { return reject(command, "unknown screen") }
+            if let connectorID {
+                guard let connector = state.connector(connectorID) else { return reject(command, "unknown connector") }
+                guard connector.available else { return reject(command, "\(connector.label) is not available") }
+                guard connector.accepts(setup.type) else {
+                    return reject(command, setup.type.isInput ? "\(connector.label) is not an input" : "\(connector.label) is not an output")
+                }
+                if let other = state.assignments.first(where: { $0.connectorID == connectorID && $0.screenID != screenID }) {
+                    let name = state.screens.first { $0.screenID == other.screenID }?.name ?? "another screen"
+                    return reject(command, "\(connector.label) is already used by \(name)")
+                }
+            }
+            state.assignments[a].connectorID = connectorID
+
+        case let .setScreenSetup(screenID, setup):
+            guard state.screenSetups[screenID] != nil else { return reject(command, "unknown screen") }
+            if let reason = setup.invalidReason { return reject(command, reason) }
+            if let look = setup.lookID, !library.looks.contains(where: { $0.id == look }) { return reject(command, "unknown look") }
+            if let connector = state.connector(state.connectorID(for: screenID)), !connector.accepts(setup.type) {
+                return reject(command, "unassign \(connector.label) before changing the screen's direction")
+            }
+            state.screenSetups[screenID] = setup
+
+        case let .showTestPattern(target, pattern):
+            if case let .screen(id) = target, !state.outputScreens.contains(where: { $0.screenID == id }) {
+                return reject(command, "not an output screen")
+            }
+            let active = ActiveTestPattern(target: target, pattern: pattern)
+            guard state.testPattern != active else { return }
+            state.testPattern = active
+            emit(.testPatternChanged(active))
+
+        case .hideTestPattern:
+            guard state.testPattern != nil else { return reject(command, "no test pattern running") }
+            state.testPattern = nil
+            emit(.testPatternChanged(nil))
         }
+    }
+
+    /// Indices in `state.screens` of the screens that take slides and messages.
+    private var outputIndices: [Int] {
+        state.screens.indices.filter { state.screenSetups[state.screens[$0].screenID]?.type.isInput != true }
     }
 
     private func reject(_ command: Command, _ reason: String) {
@@ -275,7 +371,7 @@ public actor MockStageClient: StageClient {
 
     private func takeLive(itemIndex: Int, slideIndex: Int) -> Bool {
         guard let live = liveSlide(itemIndex: itemIndex, slideIndex: slideIndex) else { return false }
-        for i in state.screens.indices { state.screens[i].live = live }
+        for i in outputIndices { state.screens[i].live = live }
         cursor = (itemIndex, slideIndex)
         emit(.slideLive(live))
         return true

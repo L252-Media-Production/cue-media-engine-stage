@@ -6,10 +6,10 @@ import StageKit
 struct StageMenuCommands: Commands {
     let store: StageStore
     let ui: OperatorUIState
-    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.dark.rawValue
+    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
     @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
 
-    private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection) }
+    private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection, isModalOpen: ui.isModalOpen) }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -28,7 +28,7 @@ struct StageMenuCommands: Commands {
             Divider()
             Menu("Theme") {
                 ForEach(AppTheme.allCases, id: \.self) { theme in
-                    Toggle(theme == .dark ? "Dark" : "Light", isOn: Binding(
+                    Toggle(theme.title, isOn: Binding(
                         get: { AppTheme.resolve(themeRaw) == theme },
                         set: { if $0 { themeRaw = theme.rawValue } }
                     ))
@@ -100,9 +100,34 @@ struct StageMenuCommands: Commands {
         }
 
         CommandMenu("Output") {
-            Button("Screens…") {}.disabled(true)
-            Button("Outputs…") {}.disabled(true)
-            Button("Stage Display…") {}.disabled(true)
+            Button("Output Setup…") { ui.showOutputSetup = true }
+                .keyboardShortcut(Shortcuts.outputSetup)
+            Button("Visuals…") {}
+                .keyboardShortcut(Shortcuts.visuals)
+                .disabled(true)
+            Divider()
+            Menu("Monitor") {
+                ForEach(store.state.outputScreens) { screen in Button(screen.name) {} }
+            }
+            .disabled(true)
+            Menu("Test Pattern") {
+                let model = TestPatternMenuModel(state: store.state)
+                ForEach(TestPattern.allCases, id: \.self) { pattern in
+                    Menu(pattern.title) {
+                        ForEach(Array(model.targets.enumerated()), id: \.offset) { _, entry in
+                            Toggle(entry.title, isOn: Binding(
+                                get: { model.isActive(entry.target, pattern) },
+                                set: { _ in store.send(model.command(entry.target, pattern)) }
+                            ))
+                        }
+                    }
+                }
+                Divider()
+                Button("Off") { store.send(.hideTestPattern) }
+                    .disabled(!model.canTurnOff)
+            }
+            Divider()
+            Button("Restart Engine…") {}.disabled(true)
         }
     }
 }

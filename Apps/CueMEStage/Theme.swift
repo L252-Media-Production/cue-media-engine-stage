@@ -75,6 +75,52 @@ struct ThemeTokens {
     }
 }
 
+extension AppTheme {
+    /// What `NSApp.appearance` is set to: nil for Auto (the system appearance applies), Dark Aqua, or Aqua.
+    var appearanceName: NSAppearance.Name? {
+        switch self {
+        case .auto: nil
+        case .dark: .darkAqua
+        case .light: .aqua
+        }
+    }
+}
+
+/// Applies View > Theme to the whole app through `NSApp.appearance`, so every window, sheet, alert and menu follows,
+/// and Auto (nil) tracks the system live.
+@MainActor
+enum ThemeAppearance {
+    /// The theme applied at launch (nil before `applyStored` ran). For tests.
+    private(set) static var launchTheme: AppTheme?
+    private static var observer: NSObjectProtocol?
+
+    static func apply(_ theme: AppTheme, to app: NSApplication = .shared) {
+        let name = theme.appearanceName
+        guard app.appearance?.name != name else { return }
+        app.appearance = name.flatMap(NSAppearance.init(named:))
+    }
+
+    /// Reads the stored theme (fallback Dark) and applies it. Returns what it applied.
+    @discardableResult
+    static func applyStored(from defaults: UserDefaults = .standard, to app: NSApplication = .shared) -> AppTheme {
+        let theme = AppTheme.resolve(defaults.string(forKey: StorageKeys.theme) ?? AppTheme.fallback.rawValue)
+        apply(theme, to: app)
+        if launchTheme == nil { launchTheme = theme }
+        return theme
+    }
+
+    /// Re-applies the stored theme whenever the defaults change (View > Theme writes the key through @AppStorage).
+    /// The key has dots, so KVO on it is not an option; `apply` is a no-op when nothing changed.
+    static func startFollowingDefaults(_ defaults: UserDefaults = .standard) {
+        guard observer == nil else { return }
+        observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: defaults, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { _ = applyStored(from: defaults) }
+        }
+    }
+}
+
 private struct ThemeKey: EnvironmentKey {
     static let defaultValue = ThemeTokens.dark
 }

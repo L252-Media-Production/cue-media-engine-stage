@@ -52,8 +52,10 @@ final class MockStageClientTests: XCTestCase {
         let client = MockStageClient(library: lib)
         await client.send(.go(itemID: amazing.id, slideIndex: 1))
         let state = await client.currentState
-        XCTAssertEqual(state.screens.count, 2)
-        for screen in state.screens {
+        XCTAssertEqual(state.screens.count, 4)
+        XCTAssertEqual(state.outputScreens.map(\.name), ["Left", "Stage", "Right"])
+        XCTAssertNil(state.screens[3].live, "the IMAG input takes no slide")
+        for screen in state.outputScreens {
             XCTAssertEqual(screen.live?.itemID, amazing.id)
             XCTAssertEqual(screen.live?.slideIndex, 1)
             XCTAssertEqual(screen.live?.label, "Verse 2")
@@ -150,7 +152,7 @@ final class MockStageClientTests: XCTestCase {
 
         await client.send(.showMessage(message)) // empty = every screen
         var state = await client.currentState
-        XCTAssertEqual(state.screens.map(\.messages), [[message], [message]])
+        XCTAssertEqual(state.screens.map(\.messages), [[message], [message], [message], []], "every output screen, not IMAG")
 
         await client.send(.showMessage(message, screens: [stage])) // replaces the screens it is on
         state = await client.currentState
@@ -161,6 +163,9 @@ final class MockStageClientTests: XCTestCase {
         await client.send(.showMessage(message, screens: [UUID()]))
         state = await client.currentState
         XCTAssertEqual(state.screens.first { $0.screenID == stage }?.messages, [message], "unknown screen is refused")
+        await client.send(.showMessage(message, screens: [lib.screens[3].id]))
+        state = await client.currentState
+        XCTAssertEqual(state.screens.first { $0.screenID == stage }?.messages, [message], "an input screen is refused")
 
         await client.send(.hideMessage(message))
         state = await client.currentState

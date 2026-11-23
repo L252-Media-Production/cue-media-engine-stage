@@ -3,11 +3,18 @@ import Observation
 import SwiftUI
 import StageKit
 
-/// UI state shared by the operator view and the menu bar (not engine state): which service item is selected.
+/// UI state shared by the operator view and the menu bar (not engine state): which service item is selected and
+/// which sheet is open.
 @MainActor
 @Observable
 final class OperatorUIState {
     var selection: Item.ID?
+    var showOutputSetup = false
+
+    /// True while any sheet or dialog of the app is open. While it is, Go Live, Next and Previous are off in the menu
+    /// and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added here.
+    /// (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the sheet.)
+    var isModalOpen: Bool { showOutputSetup }
 }
 
 /// UserDefaults keys used through @AppStorage.
@@ -16,15 +23,22 @@ enum StorageKeys {
     static let theme = "cueme.theme"
     /// `BottomTab.rawValue` of the selected bottom-panel tab.
     static let bottomTab = "cueme.operator.bottomTab"
+    /// `OutputSetupTab.rawValue` of the Output Setup sheet.
+    static let outputSetupTab = "cueme.outputSetup.tab"
+    /// `Screen.ID.uuidString` of the screen selected in Output Setup.
+    static let outputSetupScreen = "cueme.outputSetup.screen"
 }
 
+/// View > Theme. A fresh install is dark (the `@AppStorage` default); Auto follows the system appearance.
 enum AppTheme: String, CaseIterable {
-    case dark, light
+    case auto, dark, light
 
-    /// An unknown saved value falls back to dark.
-    static func resolve(_ raw: String) -> AppTheme { AppTheme(rawValue: raw) ?? .dark }
+    /// A fresh install (the `@AppStorage` default) and an unknown saved value both get this.
+    static let fallback = AppTheme.dark
 
-    var colorScheme: ColorScheme { self == .dark ? .dark : .light }
+    static func resolve(_ raw: String) -> AppTheme { AppTheme(rawValue: raw) ?? fallback }
+
+    var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
 }
 
 /// Bottom-panel tabs, in menu order (View > Cmd-1 ... Cmd-5).
@@ -59,6 +73,8 @@ enum Shortcuts {
     static let audioStop = KeyboardShortcut(".", modifiers: [.command, .option])
     static let audioFadeOut = KeyboardShortcut("f", modifiers: [.command, .option])
     static let skipNextTrigger = KeyboardShortcut("s", modifiers: [.command, .option])
+    static let outputSetup = KeyboardShortcut("o", modifiers: [.command, .shift])
+    static let visuals = KeyboardShortcut("v", modifiers: [.command, .shift])
     /// Cmd-1 ... Cmd-5 in `BottomTab.allCases` order.
     static func tab(_ tab: BottomTab) -> KeyboardShortcut {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
@@ -67,7 +83,7 @@ enum Shortcuts {
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
-         skipNextTrigger] + BottomTab.allCases.map(tab)
+         skipNextTrigger, outputSetup, visuals] + BottomTab.allCases.map(tab)
     }
 
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
@@ -77,17 +93,24 @@ enum Shortcuts {
 }
 
 /// What the Service menu offers for a state and a selection. Pure, so it is tested without the UI.
+///
+/// While a sheet or dialog is open (`isModalOpen`), Go Live, Next and Previous are off, so nothing is taken live
+/// behind the sheet. Black Out, the audio emergency entries (Pause/Resume, Stop, Fade Out) and Clear stay on.
 struct ServiceMenuModel {
     let state: StageState
     let selection: Item.ID?
+    var isModalOpen = false
 
     /// The selected service item, when it is still in the service.
     var goLiveItem: Item? { state.item(selection) }
-    var goLiveCommand: Command? { goLiveItem.map { .go(itemID: $0.id, slideIndex: 0) } }
+    var goLiveCommand: Command? {
+        guard !isModalOpen else { return nil }
+        return goLiveItem.map { .go(itemID: $0.id, slideIndex: 0) }
+    }
 
-    var canNext: Bool { state.nextSlide != nil }
+    var canNext: Bool { !isModalOpen && state.nextSlide != nil }
     /// StageState does not say whether there is a slide before the cursor; the engine refuses at the start.
-    var canPrevious: Bool { !(state.service?.items.isEmpty ?? true) }
+    var canPrevious: Bool { !isModalOpen && !(state.service?.items.isEmpty ?? true) }
 
     var blackoutTitle: String { state.blackout ? "End Black Out" : "Black Out" }
     var blackoutCommand: Command { .blackout(!state.blackout) }

@@ -24,6 +24,26 @@ final class CodableTests: XCTestCase {
         try roundTrip(lib.outputs)
     }
 
+    func testOutputModelsRoundTrip() throws {
+        for connector in MockStageClient.sampleConnectors { try roundTrip(connector) }
+        try roundTrip(OutputAssignment(screenID: UUID(), connectorID: "ndi-out-1"))
+        try roundTrip(OutputAssignment(screenID: UUID(), connectorID: nil))
+        for type in ScreenType.allCases {
+            for rotation in ScreenRotation.allCases {
+                try roundTrip(ScreenSetup(type: type, lookID: UUID(), onCanvas: true, canvas: CanvasRect(x: -10, y: 5, width: 1080, height: 1920), rotation: rotation))
+            }
+        }
+        for pattern in TestPattern.allCases {
+            try roundTrip(ActiveTestPattern(target: .all, pattern: pattern))
+            try roundTrip(ActiveTestPattern(target: .screen(UUID()), pattern: pattern))
+        }
+        let id = UUID()
+        for warning: OutputWarning in [.canvasSpansCards([id, UUID()]), .canvasOnNonSDI(id), .connectorUnavailable(id)] {
+            try roundTrip(warning)
+        }
+        XCTAssertEqual(ScreenRotation.allCases.map(\.rawValue), [0, 90, 180, 270])
+    }
+
     func testEveryCommandRoundTrips() throws {
         let id = UUID()
         let commands: [Command] = [
@@ -36,6 +56,11 @@ final class CodableTests: XCTestCase {
             .playAudio(mediaID: id, options: AudioPlayOptions(endAction: .once)),
             .pauseAudio, .resumeAudio, .stopAudio, .fadeAudio(seconds: 2.5),
             .seekAudio(seconds: 42.25), .skipNextTrigger,
+            .assignScreen(id, connector: "decklink-A-1"), .assignScreen(id, connector: nil),
+            .setScreenSetup(id, ScreenSetup(type: .audience, lookID: UUID(), onCanvas: true,
+                                            canvas: CanvasRect(x: 1920, y: 0, width: 1080, height: 1920), rotation: .right)),
+            .setScreenSetup(id, ScreenSetup(type: .speaker)),
+            .showTestPattern(.all, .bars), .showTestPattern(.screen(id), .grid), .hideTestPattern,
         ]
         for command in commands {
             try roundTrip(command)
@@ -44,7 +69,7 @@ final class CodableTests: XCTestCase {
     }
 
     func testEnvelopeCarriesVersion() throws {
-        XCTAssertEqual(commandVersion, 2)
+        XCTAssertEqual(commandVersion, 3)
         let data = try JSONEncoder().encode(CommandEnvelope(.next))
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(object?["version"] as? Int, commandVersion)
@@ -91,8 +116,12 @@ final class CodableTests: XCTestCase {
         await client.send(.playAudio(mediaID: lib.media[0].id))
         await client.tick(seconds: 29)
         await client.simulateCounters(AudioCounters(droppedEnds: 1, droppedFires: 0, poolExhausted: 2))
+        await client.send(.showTestPattern(.all, .bars))
         let state = await client.currentState
         XCTAssertTrue(state.audio.voicePlaying)
+        XCTAssertFalse(state.connectors.isEmpty)
+        XCTAssertEqual(state.screenSetups.count, lib.screens.count)
+        XCTAssertNotNil(state.testPattern)
         try roundTrip(state)
 
         let live = try XCTUnwrap(state.primaryLive)
@@ -101,6 +130,7 @@ final class CodableTests: XCTestCase {
             .audioStarted(mediaID: lib.media[0].id), .audioEnded(mediaID: lib.media[0].id),
             .triggerFired(triggerID: UUID(), voiceMediaID: lib.media[1].id), .triggerSkipped(triggerID: UUID()),
             .countersChanged(state.audio.counters), .outputHealthChanged(state.outputs[0]),
+            .testPatternChanged(ActiveTestPattern(target: .screen(UUID()), pattern: .grid)), .testPatternChanged(nil),
         ]
         for event in events { try roundTrip(event) }
     }

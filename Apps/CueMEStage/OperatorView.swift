@@ -40,7 +40,7 @@ struct OperatorView: View {
                 }
             }
             Divider()
-            StatusBar(state: state, lastEvent: store.lastEvent)
+            StatusBar(state: state, lastEvent: store.lastEvent, send: store.send)
         }
         .background(theme.background)
         .foregroundStyle(theme.textPrimary)
@@ -53,6 +53,10 @@ struct OperatorView: View {
         .onChange(of: state.service?.id, initial: true) { _, _ in
             if selection == nil { selection = state.primaryLive?.itemID ?? state.nextSlide?.itemID }
         }
+        .sheet(isPresented: $ui.showOutputSetup) {
+            OutputSetupSheet(store: store).modifier(Themed())
+        }
+        .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
     }
 }
 
@@ -142,8 +146,12 @@ private struct MonitorRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: ThemeTokens.spacingM) {
-            ForEach(state.screens) { screen in
-                ScreenMonitor(screen: screen, itemTitle: state.item(screen.live?.itemID)?.title, blackout: state.blackout)
+            let testPattern = TestPatternMenuModel(state: state)
+            ForEach(state.outputScreens) { screen in
+                ScreenMonitor(
+                    screen: screen, itemTitle: state.item(screen.live?.itemID)?.title, blackout: state.blackout,
+                    testPattern: testPattern.pattern(on: screen.screenID)
+                )
             }
             NextCard(next: state.nextSlide, itemTitle: state.item(state.nextSlide?.itemID)?.title)
         }
@@ -156,11 +164,16 @@ private struct ScreenMonitor: View {
     let screen: ScreenState
     let itemTitle: String?
     let blackout: Bool
+    /// While a test pattern runs on this screen the monitor shows it, as the output does. The caption and the red
+    /// accent still tell what is live underneath.
+    let testPattern: TestPattern?
     @Environment(\.theme) private var theme
 
     var body: some View {
-        MonitorFrame(title: screen.name, caption: caption, accent: isOnAir ? theme.live : nil) {
-            if blackout {
+        MonitorFrame(title: screen.name, caption: caption, accent: isOnAir ? theme.live : nil, badge: testPattern == nil ? nil : "TEST") {
+            if let testPattern {
+                TestPatternView(pattern: testPattern)
+            } else if blackout {
                 // The output is black; say so, so it cannot be mistaken for "nothing live".
                 ZStack {
                     Color.black
@@ -212,6 +225,8 @@ private struct MonitorFrame<Content: View>: View {
     let title: String
     let caption: String?
     let accent: Color?
+    /// An amber chip after the title (the test pattern's "TEST").
+    var badge: String? = nil
     @ViewBuilder let content: Content
     @Environment(\.theme) private var theme
 
@@ -221,6 +236,7 @@ private struct MonitorFrame<Content: View>: View {
                 Text(title.uppercased())
                     .font(ThemeTokens.mono(11, weight: .bold))
                     .foregroundStyle(accent ?? theme.textSecondary)
+                if let badge { Chip(text: badge, color: theme.warning, filled: true) }
                 Spacer(minLength: ThemeTokens.spacingXS)
                 if let caption {
                     Text(caption)
@@ -587,10 +603,20 @@ private struct AudioPanel: View {
 private struct StatusBar: View {
     let state: StageState
     let lastEvent: StageEvent?
+    let send: (Command) -> Void
     @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: ThemeTokens.spacingL) {
+            if let description = TestPatternMenuModel(state: state).description {
+                // First in the bar and amber, so a running pattern is never missed. Clicking turns it off.
+                Button { send(.hideTestPattern) } label: {
+                    StatusChip(text: "TEST PATTERN", color: theme.warning).fontWeight(.bold)
+                }
+                .buttonStyle(.plain)
+                .help("\(description). Click to turn it off")
+                .accessibilityLabel("Test pattern running: \(description)")
+            }
             ForEach(state.outputs) { output in
                 HStack(spacing: ThemeTokens.spacingXS) {
                     Circle().fill(color(output.health)).frame(width: 8, height: 8)

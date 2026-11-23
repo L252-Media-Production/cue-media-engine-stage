@@ -8,6 +8,7 @@ struct OperatorView: View {
     let store: StageStore
     /// Shared with the menu bar (Service > Go Live acts on the selected item).
     @Bindable var ui: OperatorUIState
+    let studios: StudioController
     @Environment(\.theme) private var theme
 
     /// Which service item the slide grid shows; not engine state.
@@ -20,6 +21,12 @@ struct OperatorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let notice = studios.visibleNotice {
+                NoticeBar(text: notice) {
+                    if studios.studios.notice == notice { studios.studios.notice = nil } else { studios.notice = nil }
+                }
+                Divider()
+            }
             HStack(spacing: 0) {
                 ServicePanel(state: state, selection: $ui.selection) { item in
                     store.send(.go(itemID: item.id, slideIndex: 0))
@@ -56,6 +63,10 @@ struct OperatorView: View {
         .sheet(isPresented: $ui.showOutputSetup) {
             OutputSetupSheet(store: store).modifier(Themed())
         }
+        .sheet(isPresented: $ui.showRelink) {
+            RelinkSheet(studios: studios).modifier(Themed())
+        }
+        .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
     }
 }
@@ -661,6 +672,27 @@ private struct StatusBar: View {
 
 // MARK: Shared
 
+/// A non-blocking notice under the toolbar (a save that failed and is being retried, a missing Studio, ...).
+private struct NoticeBar: View {
+    let text: String
+    let dismiss: () -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: ThemeTokens.spacingS) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(theme.warning)
+            Text(text).font(.callout).lineLimit(2)
+            Spacer()
+            Button { dismiss() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.borderless)
+                .help("Dismiss")
+        }
+        .padding(.horizontal, ThemeTokens.spacingM)
+        .padding(.vertical, ThemeTokens.spacingS)
+        .background(theme.warning.opacity(0.12))
+    }
+}
+
 private struct PanelHeader: View {
     let title: String
     @Environment(\.theme) private var theme
@@ -730,7 +762,12 @@ private func timecode(_ seconds: Double) -> String {
 }
 
 #Preview {
-    OperatorView(store: .mock(), ui: OperatorUIState())
+    let store = StageStore.mock()
+    let studios = StudioController(
+        studios: StudioStore(environment: .init(machine: MachinePaths(root: FileManager.default.temporaryDirectory), identity: .init(id: UUID(), name: "Preview"), appVersion: "preview")),
+        stage: store, catalog: StudioCatalog(), defaults: .standard, documentsFolder: FileManager.default.temporaryDirectory, dialogs: AppKitStudioDialogs()
+    )
+    return OperatorView(store: store, ui: OperatorUIState(), studios: studios)
         .modifier(Themed())
         .frame(width: 1200, height: 780)
 }

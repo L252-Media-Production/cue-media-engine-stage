@@ -134,6 +134,17 @@ public struct OutputStatus: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// Which Studio the engine has loaded.
+public struct StudioInfo: Codable, Sendable, Hashable {
+    public var id: UUID
+    public var name: String
+
+    public init(id: UUID, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
 /// A full snapshot of what is live. Views render this and nothing else.
 public struct StageState: Codable, Sendable, Hashable {
     /// The loaded service, so the operator can pick items (read-only here; editing goes through commands).
@@ -163,6 +174,8 @@ public struct StageState: Codable, Sendable, Hashable {
     public var screenSetups: [Screen.ID: ScreenSetup]
     /// The test pattern being sent, or nil.
     public var testPattern: ActiveTestPattern?
+    /// The loaded Studio; nil when none is open.
+    public var studio: StudioInfo?
 
     public init(
         service: Service? = nil, slides: [Item.ID: [Slide]] = [:], screens: [ScreenState] = [], nextSlide: LiveSlide? = nil,
@@ -223,4 +236,6 @@ public enum StageEvent: Codable, Sendable, Hashable {
     case countersChanged(AudioCounters)
     case outputHealthChanged(OutputStatus)
     case testPatternChanged(ActiveTestPattern?)
+    case studioOpened(StudioInfo)
+    case studioClosed(StudioInfo)
 }

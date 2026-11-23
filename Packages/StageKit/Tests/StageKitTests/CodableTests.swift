@@ -61,6 +61,7 @@ final class CodableTests: XCTestCase {
                                             canvas: CanvasRect(x: 1920, y: 0, width: 1080, height: 1920), rotation: .right)),
             .setScreenSetup(id, ScreenSetup(type: .speaker)),
             .showTestPattern(.all, .bars), .showTestPattern(.screen(id), .grid), .hideTestPattern,
+            .openStudio(id), .closeStudio, .reloadStudio(id),
         ]
         for command in commands {
             try roundTrip(command)
@@ -69,7 +70,7 @@ final class CodableTests: XCTestCase {
     }
 
     func testEnvelopeCarriesVersion() throws {
-        XCTAssertEqual(commandVersion, 3)
+        XCTAssertEqual(commandVersion, 4)
         let data = try JSONEncoder().encode(CommandEnvelope(.next))
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(object?["version"] as? Int, commandVersion)
@@ -131,6 +132,7 @@ final class CodableTests: XCTestCase {
             .triggerFired(triggerID: UUID(), voiceMediaID: lib.media[1].id), .triggerSkipped(triggerID: UUID()),
             .countersChanged(state.audio.counters), .outputHealthChanged(state.outputs[0]),
             .testPatternChanged(ActiveTestPattern(target: .screen(UUID()), pattern: .grid)), .testPatternChanged(nil),
+            .studioOpened(StudioInfo(id: UUID(), name: "Sunday")), .studioClosed(StudioInfo(id: UUID(), name: "Sunday")),
         ]
         for event in events { try roundTrip(event) }
     }

@@ -190,6 +190,63 @@ final class StudioItemCodecTests: XCTestCase {
     }
 }
 
+final class MockStudioTests: XCTestCase {
+    func testOpenCloseAndReloadAStudio() async throws {
+        var studio = Studio(seededFrom: .sample, name: "Sunday", now: Date(), appVersion: "0.1")
+        let info = StudioInfo(id: studio.id, name: studio.name)
+        let box = Box(MockStageClient.LoadedStudio(info: info, library: studio.library(), assignments: []))
+        let client = MockStageClient(library: .sample, studioSource: { id in id == info.id ? box.value : nil })
+        let song = Library.sample.service.items[1]
+        await client.send(.go(itemID: song.id, slideIndex: 0))
+        await client.send(.playAudio(mediaID: Library.sample.media[0].id))
+        let events = await client.events()
+
+        await client.send(.openStudio(info.id))
+        var state = await client.currentState
+        XCTAssertEqual(state.studio, info)
+        XCTAssertNil(state.primaryLive, "switching stops what was live")
+        XCTAssertNil(state.audio.liveTrack)
+        XCTAssertEqual(state.screens.map(\.screenID), studio.screens.map(\.id))
+        XCTAssertTrue(state.assignments.allSatisfy { $0.connectorID == nil }, "no assignments here: Unassigned, nothing guessed")
+        XCTAssertEqual(state.connectors, MockStageClient.sampleConnectors, "connectors are the machine's, unchanged")
+        XCTAssertEqual(state.service?.id, studio.services[0].id)
+
+        // Reload keeps what is live.
+        await client.send(.go(itemID: studio.services[0].items[1].id, slideIndex: 1))
+        studio.messages.append(Message(text: "New"))
+        box.value = MockStageClient.LoadedStudio(info: info, library: studio.library(), assignments: [])
+        await client.send(.reloadStudio(info.id))
+        state = await client.currentState
+        XCTAssertEqual(state.messages.count, 2)
+        XCTAssertEqual(state.primaryLive?.slideIndex, 1)
+
+        await client.send(.openStudio(UUID()))
+        await client.send(.closeStudio)
+        state = await client.currentState
+        XCTAssertNil(state.studio)
+        XCTAssertEqual(state.screens, [])
+        await client.send(.closeStudio)
+
+        var seen: [StageEvent] = []
+        var iterator = events.makeAsyncIterator()
+        while seen.count < 6, let e = await iterator.next() { seen.append(e) }
+        XCTAssertTrue(seen.contains(.studioOpened(info)))
+        XCTAssertTrue(seen.contains(.studioClosed(info)))
+        XCTAssertTrue(seen.contains(.commandRejected(.closeStudio, reason: "no Studio open")))
+        XCTAssertTrue(seen.contains { if case .commandRejected(.openStudio, "unknown Studio") = $0 { true } else { false } })
+    }
+}
+
+final class Box<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: T
+    init(_ value: T) { _value = value }
+    var value: T {
+        get { lock.withLock { _value } }
+        set { lock.withLock { _value = newValue } }
+    }
+}
+
 /// A Sendable flag for @Sendable closures in tests.
 final class Flag: @unchecked Sendable {
     private let lock = NSLock()

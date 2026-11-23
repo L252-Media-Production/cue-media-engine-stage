@@ -1,7 +1,7 @@
 import Foundation
 
 /// Version of the `Command` wire format. Bump it whenever a case is added, removed or changes shape.
-public let commandVersion = 3
+public let commandVersion = 4
 
 /// Everything the operator UI can ask the engine to do. Views never call an engine directly; every control
 /// sends one of these through a `StageClient`.
@@ -58,6 +58,16 @@ public enum Command: Codable, Sendable, Hashable {
     /// Replace what the target outputs show with a test pattern. The live slide is not changed.
     case showTestPattern(TestPatternTarget, TestPattern)
     case hideTestPattern
+
+    // Studios
+    /// Load the Studio with this id: everything live stops and its show data, screens and this machine's output
+    /// assignments replace the current ones. (The engine will resolve the id itself; the mock is given a source.)
+    case openStudio(UUID)
+    /// Unload the Studio: nothing live, no service, no screens.
+    case closeStudio
+    /// The open Studio's show data changed on disk (items imported, media relinked): take the new content without
+    /// stopping anything live.
+    case reloadStudio(UUID)
 }
 
 /// Per-run overrides for `Command.playAudio`. Every field is optional: nil keeps the track's own setting.

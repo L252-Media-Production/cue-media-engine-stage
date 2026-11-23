@@ -11,11 +11,16 @@ final class OperatorUIState {
     var selection: Item.ID?
     var showOutputSetup = false
     var showRelink = false
+    /// The New collection dialog (a sheet).
+    var showNewCollection = false
+    /// The Section popover under "+ Add ▾".
+    var showAddSection = false
 
-    /// True while any sheet or dialog of the app is open. While it is, Go Live, Next and Previous are off in the menu
-    /// and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added here.
-    /// (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the sheet.)
-    var isModalOpen: Bool { showOutputSetup || showRelink }
+    /// True while any sheet, dialog or popover of the app is open. While it is, Go Live, Next and Previous are off in
+    /// the menu and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added
+    /// here. (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the
+    /// sheet.) Editor windows are not modal: they are separate windows, and `ShortcutGuard` keeps show keys out of them.
+    var isModalOpen: Bool { showOutputSetup || showRelink || showNewCollection || showAddSection }
 }
 
 /// UserDefaults keys used through @AppStorage.
@@ -291,6 +296,15 @@ enum Shortcuts {
     static let openStudio = KeyboardShortcut("o", modifiers: .command)
     /// File > Close Window (the system's Close is removed with the Save group).
     static let closeWindow = KeyboardShortcut("w", modifiers: .command)
+    /// File > New Collection… (MenuBar.dc.html `file`).
+    static let newCollection = KeyboardShortcut("n", modifiers: [.command, .shift])
+    /// File > New Song… (MenuBar.dc.html `file`).
+    static let newSong = KeyboardShortcut("n", modifiers: [.command, .option])
+    /// Edit > Edit Selected Item… (MenuBarRef.dc.html, Edit).
+    static let editSelectedItem = KeyboardShortcut("e", modifiers: .command)
+    /// Edit > Undo and Redo (the system's, replaced so a Song editor can take them).
+    static let undo = KeyboardShortcut("z", modifiers: .command)
+    static let redo = KeyboardShortcut("z", modifiers: [.command, .shift])
     /// Cmd-1 ... Cmd-5 in `BottomTab.allCases` order.
     static func tab(_ tab: BottomTab) -> KeyboardShortcut {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
@@ -299,8 +313,15 @@ enum Shortcuts {
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
-         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow] + BottomTab.allCases.map(tab)
+         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow, newCollection, newSong, editSelectedItem, undo, redo] + BottomTab.allCases.map(tab)
     }
+
+    /// Show shortcuts that are also standard text-editing keys. Checked against Cmd-Left/Right/Up/Down, Cmd-A, Cmd-Z,
+    /// Cmd-C/V/X, Cmd-Delete and Option-Delete: only Clear Slide (Cmd-Delete, "delete to start of line") and Clear All
+    /// (Shift-Cmd-Delete, its shifted form) collide. Black Out (Cmd-.) and the Option-Cmd audio keys are emergency
+    /// stops, not text keys. `ShortcutGuard` keeps these away from the menu while text has focus outside the operator
+    /// window.
+    static var textEditingCollisions: [KeyboardShortcut] { [clearSlide, clearAll] }
 
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
     static var unmodified: [KeyboardShortcut] {
@@ -357,6 +378,8 @@ struct ServiceMenuModel {
 struct FileMenuModel {
     let hasStudio: Bool
     let isModalOpen: Bool
+    /// The song of the selected service row, when it is a song.
+    var selectedSong: Song.ID? = nil
 
     var canNew: Bool { !isModalOpen }
     var canOpen: Bool { !isModalOpen }
@@ -365,10 +388,14 @@ struct FileMenuModel {
     var canImportItems: Bool { hasStudio && !isModalOpen }
     var canExport: Bool { hasStudio && !isModalOpen }
     var canRelink: Bool { hasStudio && !isModalOpen }
+    var canNewCollection: Bool { hasStudio && !isModalOpen }
     /// Not while a sheet is open: the sheet is the key window, and closing under it is not wanted.
     var canCloseWindow: Bool { !isModalOpen }
-    /// Until UI-3b brings the editors.
-    var canExportSelectedItem: Bool { false }
+    /// Songs only for now (presentations and announcements come with their editors).
+    var canExportSelectedItem: Bool { hasStudio && !isModalOpen && selectedSong != nil }
+    /// File > New Song… and Edit > Edit Selected Item… open an editor window (not modal).
+    var canNewSong: Bool { hasStudio && !isModalOpen }
+    var canEditSelectedItem: Bool { hasStudio && !isModalOpen && selectedSong != nil }
 }
 
 /// The status-bar "Engine" chip: neutral while every audio counter is 0, amber when any is above 0.

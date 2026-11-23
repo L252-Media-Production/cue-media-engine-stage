@@ -20,12 +20,41 @@ final class ServicePanelTests: XCTestCase {
 
     // MARK: Sections
 
-    func testItemsSitUnderTheItemsLabelAndNoSectionIsInvented() async {
+    func testAServiceWithoutSectionsIsOneBlockWithNoHeader() async {
         let model = ServiceListModel(state: await state(), studio: studio, relink: nil)
-        XCTAssertEqual(model.sections.map(\.title), ["ITEMS"], "the model has no sections: one group, the board's ITEMS label")
+        XCTAssertEqual(model.sections.map(\.title), [nil], "no sections in the Studio: one block under the ITEMS label")
         XCTAssertEqual(model.rows.map(\.title), lib.service.items.map(\.title), "every item, in service order")
-        XCTAssertFalse(model.sections.map(\.title).contains { ["PRE-SERVICE", "WORSHIP", "WORD", "CLOSING"].contains($0) })
         XCTAssertTrue(ServiceListModel(state: StageState(), studio: nil, relink: nil).sections.isEmpty, "no service, no rows")
+    }
+
+    func testRowsAreGroupedUnderTheirSectionHeaders() async {
+        var studio = studio
+        let items = lib.service.items
+        studio.setSections([
+            ServiceSection(name: "Worship", firstItemID: items[1].id),
+            ServiceSection(name: "Closing", firstItemID: items[3].id),
+            ServiceSection(name: "Offering"),
+            ServiceSection(name: "Gone", firstItemID: UUID()),
+        ], of: lib.service.id)
+        let model = ServiceListModel(state: await state(), studio: studio, relink: nil)
+        XCTAssertEqual(model.sections.map(\.title), [nil, "Worship", "Closing", "Offering", "Gone"])
+        XCTAssertEqual(model.sections.map { $0.rows.map(\.id) }, [[items[0].id], [items[1].id, items[2].id], [items[3].id], [], []],
+                       "items above the first header have none; headers without an item in the service go last, empty")
+        XCTAssertEqual(model.rows.map(\.id), items.map(\.id), "the service order is unchanged")
+        XCTAssertEqual(model.moving(items[0].id, by: 1), items[1].id, "arrows step over headers")
+    }
+
+    func testTheSectionPopoverAnchorsAtTheSelection() {
+        var popover = NewSectionModel()
+        XCTAssertFalse(popover.canAdd, "a name is needed")
+        popover.name = "  Offering "
+        XCTAssertTrue(popover.canAdd)
+        XCTAssertEqual(popover.trimmedName, "Offering")
+        XCTAssertEqual(NewSectionModel.label, "SECTION NAME")
+        let service = lib.service
+        XCTAssertEqual(NewSectionModel.anchor(selection: service.items[2].id, in: service), service.items[2].id)
+        XCTAssertNil(NewSectionModel.anchor(selection: nil, in: service), "nothing selected: at the end")
+        XCTAssertNil(NewSectionModel.anchor(selection: UUID(), in: service), "a selection not in the service: at the end")
     }
 
     // MARK: Sub-line and meta
@@ -91,18 +120,53 @@ final class ServicePanelTests: XCTestCase {
 
     // MARK: Collections and search
 
-    func testCollectionsAreTheStudiosSongs() {
+    func testAStudioWithoutCollectionsShowsItsSongsAsBefore() {
         var model = CollectionsModel(studio: studio)
         XCTAssertEqual(model.rows, [.collection(id: "songs", title: "Songs", count: studio.songs.count, isExpanded: false)])
         model.expanded = model.toggling("songs")
         XCTAssertEqual(model.rows.count, 1 + studio.songs.count, "expanded in place")
-        XCTAssertEqual(model.rows[1], .entry(.init(title: studio.songs[0].title, icon: "music.note")))
+        let first = studio.songs.min { $0.title < $1.title }!
+        XCTAssertEqual(model.rows[1], .entry(.init(title: first.title, icon: "music.note", songID: first.id)), "by title")
         model.expanded = model.toggling("songs")
         XCTAssertEqual(model.rows.count, 1, "collapsed again")
         XCTAssertTrue(CollectionsModel(studio: nil).rows.isEmpty, "no Studio, no collections")
         var empty = studio
         empty.songs = []
         XCTAssertTrue(CollectionsModel(studio: empty).rows.isEmpty, "no empty collection is shown")
+    }
+
+    func testRealCollectionsWithCountsThenLooseSongs() throws {
+        var studio = studio
+        let worship = StudioCollection(name: "Worship Songs"), kids = StudioCollection(name: "Kids Songs")
+        studio.collections = [worship, kids]
+        studio.songs[0].collectionID = worship.id
+        var model = CollectionsModel(studio: studio)
+        XCTAssertEqual(model.rows, [
+            .collection(id: worship.id.uuidString, title: "Worship Songs", count: 1, isExpanded: false),
+            .collection(id: kids.id.uuidString, title: "Kids Songs", count: 0, isExpanded: false),
+            .collection(id: "songs", title: "Songs", count: studio.songs.count - 1, isExpanded: false),
+        ], "in the Studio's order; an empty collection shows 0; songs in none are listed as Songs")
+        model.expanded = model.toggling(worship.id.uuidString)
+        XCTAssertEqual(model.rows[1], .entry(.init(title: studio.songs[0].title, icon: "music.note", songID: studio.songs[0].id)))
+
+        for i in studio.songs.indices { studio.songs[i].collectionID = worship.id }
+        XCTAssertFalse(CollectionsModel(studio: studio).rows.contains { if case .collection(id: "songs", _, _, _) = $0 { true } else { false } },
+                       "no Songs row when every song is in a collection")
+        studio.songs[0].collectionID = UUID()
+        XCTAssertEqual(CollectionsModel(studio: studio).collections.last?.entries.map(\.songID), [studio.songs[0].id],
+                       "a song naming an unknown collection is listed with the loose songs")
+    }
+
+    func testNewCollectionDialog() {
+        var dialog = NewCollectionModel()
+        XCTAssertFalse(dialog.canCreate)
+        dialog.name = "   "
+        XCTAssertFalse(dialog.canCreate)
+        dialog.name = " Kids Songs "
+        XCTAssertTrue(dialog.canCreate)
+        XCTAssertEqual(dialog.trimmedName, "Kids Songs")
+        XCTAssertEqual(NewCollectionModel.title, "New collection")
+        XCTAssertEqual(NewCollectionModel.createTitle, "Create collection")
     }
 
     /// Media files are not a collection (they belong in the Media and Audio bins), but a media item still shows as a

@@ -52,23 +52,37 @@ enum SlideGrouping {
 }
 
 /// The grid header (Main.dc.html L95–L104): title, file chips, "Send to ▾", "Edit ✎". Only data the model has: a media
-/// item's own file. Songs have no background or track in the model, so they have no chips.
+/// item's own file; a song's audio track and background (library items by id), when it has them.
 struct SlideGridHeaderModel {
     let item: Item?
     let studio: Studio?
 
     static let sendToTitle = "Default"
     static let sendToHelp = "Send to is not available in v0.1"
-    static let editHelp = "Editing is not available in v0.1"
 
     var title: String { item?.title ?? "Slides" }
 
     var chips: [String] {
-        guard case let .media(id)? = item?.content, let entry = studio?.media.first(where: { $0.id == id }) else { return [] }
-        return [entry.kind == .audio ? "♪ \(entry.fileName)" : entry.fileName]
+        func chip(_ id: MediaItem.ID?) -> String? {
+            guard let id, let entry = studio?.media.first(where: { $0.id == id }) else { return nil }
+            return entry.kind == .audio ? "♪ \(entry.fileName)" : entry.fileName
+        }
+        switch item?.content {
+        case let .media(id)?: return [chip(id)].compactMap { $0 }
+        case .song?: return [chip(song?.audioTrackID), chip(song?.backgroundID)].compactMap { $0 }
+        default: return []
+        }
     }
 
-    /// Edit is shown for items with an editor on the board (songs); disabled until the editors arrive (UI-3b).
+    /// The song the item plays, when it is a song of the Studio.
+    var song: Song? {
+        guard case let .song(id)? = item?.content else { return nil }
+        return studio?.songs.first { $0.id == id }
+    }
+
+    var songID: Song.ID? { song?.id }
+
+    /// Edit is shown for items with an editor on the board (songs); it opens the Song editor.
     var showsEdit: Bool {
         if case .song? = item?.content { true } else { false }
     }

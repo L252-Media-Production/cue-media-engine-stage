@@ -2,14 +2,16 @@ import SwiftUI
 import StageKit
 
 /// The service panel (Main.dc.html L48–L91), 280 pt on --chrome: search, COLLECTIONS, the service picker with
-/// "+ Add ▾", then the ITEMS list. Click selects, double-click or Return (Service > Go Live) takes the selection live,
-/// ↑ / ↓ move the selection while the list has focus.
+/// "+ Add ▾", then the ITEMS list under its section headers. Click selects, double-click or Return (Service > Go Live)
+/// takes the selection live, ↑ / ↓ move the selection while the list has focus.
 struct ServicePanel: View {
     let state: StageState
     let studio: Studio?
     let relink: RelinkReport?
-    @Binding var selection: Item.ID?
+    @Bindable var ui: OperatorUIState
     let go: (Item.ID) -> Void
+    /// Adds a section header above the given item (nil = at the end).
+    let addSection: (String, Item.ID?) -> Void
     @Environment(\.theme) private var theme
     @State private var query = ""
     @State private var expanded: Set<String> = []
@@ -21,13 +23,12 @@ struct ServicePanel: View {
                 HStack {
                     SectionLabel(text: "COLLECTIONS")
                     Spacer()
-                    Button("+ New") {}
+                    Button("+ New") { ui.showNewCollection = true }
                         .buttonStyle(.plain)
                         .fontWeight(.semibold)
                         .foregroundStyle(theme.accent)
-                        .disabled(true)
-                        .opacity(0.5)
-                        .help("New collections are not available in v0.1")
+                        .disabled(studio == nil)
+                        .help("New collection (⇧⌘N)")
                         .accessibilityLabel("New collection")
                 }
                 .padding(.horizontal, 4)
@@ -40,11 +41,14 @@ struct ServicePanel: View {
             }
             .padding(EdgeInsets(top: 10, leading: 10, bottom: 4, trailing: 10))
 
-            ServiceHeader(model: ServicePickerModel(state: state, studio: studio))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+            ServiceHeader(model: ServicePickerModel(state: state, studio: studio), canAddSection: studio != nil && state.service != nil,
+                          showAddSection: $ui.showAddSection) { name in
+                addSection(name, NewSectionModel.anchor(selection: ui.selection, in: state.service))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
 
-            ItemList(model: ServiceListModel(state: state, studio: studio, relink: relink), selection: $selection, go: go)
+            ItemList(model: ServiceListModel(state: state, studio: studio, relink: relink), selection: $ui.selection, go: go)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(theme.surface) // --chrome (Main.dc.html L49)
@@ -84,6 +88,7 @@ private struct CollectionsList: View {
     let model: CollectionsModel
     let toggle: (String) -> Void
     @Environment(\.theme) private var theme
+    @Environment(\.editSong) private var editSong
 
     var body: some View {
         let rows = model.rows
@@ -110,6 +115,11 @@ private struct CollectionsList: View {
                     case let .entry(entry):
                         CollectionLine(icon: entry.icon, title: entry.title, meta: entry.meta, weight: .regular, indent: 18)
                             .accessibilityElement(children: .combine)
+                            .contextMenu {
+                                if let song = entry.songID {
+                                    Button("Edit…") { editSong?(song, nil) }.disabled(editSong == nil)
+                                }
+                            }
                     }
                 }
             }
@@ -151,6 +161,9 @@ private struct CollectionLine: View {
 /// The 30 pt service picker, bold, with ▾ (Main.dc.html L62), and "+ Add ▾" in the accent (L63).
 private struct ServiceHeader: View {
     let model: ServicePickerModel
+    let canAddSection: Bool
+    @Binding var showAddSection: Bool
+    let addSection: (String) -> Void
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -186,9 +199,8 @@ private struct ServiceHeader: View {
             .accessibilityValue(model.title)
 
             Menu {
-                Button("Section…") {}
-                    .disabled(true)
-                    .help(ServicePickerModel.sectionHelp)
+                Button("Section…") { showAddSection = true }
+                    .disabled(!canAddSection)
                 Button("Activity…") {}
                     .disabled(true)
                     .help(ServicePickerModel.activityHelp)
@@ -200,7 +212,52 @@ private struct ServiceHeader: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .accessibilityLabel("Add to service")
+            .popover(isPresented: $showAddSection, arrowEdge: .bottom) {
+                SectionPopover { name in
+                    addSection(name)
+                    showAddSection = false
+                } cancel: { showAddSection = false }
+                .modifier(Themed())
+            }
         }
+    }
+}
+
+/// The Section popover (Main.dc.html L68): 220 pt on --panel, SECTION NAME, a field, Cancel and Add.
+private struct SectionPopover: View {
+    let add: (String) -> Void
+    let cancel: () -> Void
+    @State private var model = NewSectionModel()
+    @FocusState private var focused: Bool
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(text: NewSectionModel.label)
+            TextField("", text: $model.name, prompt: Text("Offering"))
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(theme.background, in: RoundedRectangle(cornerRadius: ThemeTokens.radius))
+                .overlay(RoundedRectangle(cornerRadius: ThemeTokens.radius).stroke(theme.accent, lineWidth: 1))
+                .onSubmit { if model.canAdd { add(model.trimmedName) } }
+                .accessibilityLabel("Section name")
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel", action: cancel)
+                    .buttonStyle(PanelButtonStyle(kind: .secondary, minWidth: 0, height: 28, font: .system(size: 12)))
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") { add(model.trimmedName) }
+                    .buttonStyle(PanelButtonStyle(kind: .primary, minWidth: 0, height: 28, font: .system(size: 12, weight: .bold)))
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!model.canAdd)
+            }
+        }
+        .padding(10)
+        .frame(width: 220)
+        .background(theme.surfaceRaised)
+        .onAppear { focused = true }
     }
 }
 
@@ -211,6 +268,7 @@ private struct ItemList: View {
     @Binding var selection: Item.ID?
     let go: (Item.ID) -> Void
     @Environment(\.theme) private var theme
+    @Environment(\.editSong) private var editSong
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -228,11 +286,13 @@ private struct ItemList: View {
                         if sections.isEmpty {
                             EmptyMessage(text: model.state.service == nil ? "No service" : "This service has no items")
                         }
-                        // The model has no sections yet; its one group is the ITEMS label above, so headings are
-                        // drawn only for further groups.
-                        ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
-                            if index > 0 {
-                                SectionLabel(text: section.title).padding(EdgeInsets(top: 8, leading: 8, bottom: 2, trailing: 8))
+                        // Main.dc.html L74: a header row is the section's name in the label style, padding 8 8 2.
+                        ForEach(sections) { section in
+                            if let title = section.title {
+                                SectionLabel(text: title.uppercased())
+                                    .padding(EdgeInsets(top: 8, leading: 8, bottom: 2, trailing: 8))
+                                    .accessibilityAddTraits(.isHeader)
+                                    .accessibilityLabel("Section \(title)")
                             }
                             ForEach(section.rows) { row in
                                 ServiceRowView(row: row, isSelected: selection == row.id)
@@ -242,7 +302,12 @@ private struct ItemList: View {
                                         selection = row.id
                                         focused = true
                                     })
-                                    .contextMenu { Button("Go Live") { go(row.id) } }
+                                    .contextMenu {
+                                        Button("Go Live") { go(row.id) }
+                                        if let song = row.songID {
+                                            Button("Edit…") { editSong?(song, nil) }.disabled(editSong == nil)
+                                        }
+                                    }
                             }
                         }
                     }

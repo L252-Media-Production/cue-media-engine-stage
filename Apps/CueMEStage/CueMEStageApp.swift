@@ -36,7 +36,23 @@ struct CueMEStageApp: App {
         .commands {
             StageMenuCommands(store: app.store, ui: app.ui, studios: app.studios)
         }
+
+        // The Song editor: its own window, one per song (opening a song that has one brings it to the front).
+        WindowGroup("Song Editor", id: SongEditorScene.id, for: SongEditorTarget.self) { $target in
+            if let target {
+                SongEditorView(model: app.editors.model(for: target, controller: app.studios)) {
+                    app.editors.close(target)
+                }
+                .modifier(Themed())
+            }
+        }
+        .defaultSize(width: 1440, height: 900)
+        .commandsRemoved()
     }
+}
+
+enum SongEditorScene {
+    static let id = "song-editor"
 }
 
 /// Owns the engine client, the UI state and the Studio controller, opens the last Studio at launch, routes files
@@ -44,6 +60,7 @@ struct CueMEStageApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let ui = OperatorUIState()
+    var editors: SongEditorRegistry { studios.editors }
     let store: StageStore
     let studios: StudioController
     private var launched = false

@@ -13,6 +13,7 @@ final class FakeDialogs: StudioDialogs {
     var lockAsked: [String] = []
     var quitAnswer = false
     var quitAsked: [String] = []
+    var saveAnswer: URL?
 
     func confirmSwitch(live: String, action: String) -> Bool { switchAsked.append(live); return switchAnswer }
     func lockChoice(message: String) -> LockChoice { lockAsked.append(message); return lockAnswer }
@@ -20,7 +21,7 @@ final class FakeDialogs: StudioDialogs {
     func clashChoice(for item: StudioItemPayload, remaining: Int) -> (ItemClashChoice, forAll: Bool) { (.skip, true) }
     func chooseFile(title: String, types: [UTType], directory: URL?) -> URL? { nil }
     func chooseFolder(title: String) -> URL? { nil }
-    func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL? { nil }
+    func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL? { saveAnswer }
     func showError(_ title: String, _ error: Error) { XCTFail("\(title): \(error)") }
     func confirmQuit(subject: String) -> Bool { quitAsked.append(subject); return quitAnswer }
 }
@@ -287,7 +288,7 @@ final class StudioControllerTests: TempFolderTestCase {
         XCTAssertFalse(open.canExport)
         let closed = FileMenuModel(hasStudio: true, isModalOpen: false)
         XCTAssertTrue(closed.canNew && closed.canOpen && closed.canClose && closed.canImportItems && closed.canExport && closed.canRelink)
-        XCTAssertFalse(closed.canExportSelectedItem, "until UI-3b")
+        XCTAssertFalse(closed.canExportSelectedItem, "nothing selected")
         XCTAssertFalse(FileMenuModel(hasStudio: false, isModalOpen: false).canClose)
         XCTAssertTrue(closed.canCloseWindow)
         XCTAssertFalse(open.canCloseWindow, "not under a sheet")

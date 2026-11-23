@@ -10,13 +10,23 @@ struct StageMenuCommands: Commands {
     @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
     @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
     @AppStorage(StorageKeys.monitorScreens) private var monitorRaw = ""
+    @Environment(\.openWindow) private var openWindow
+    /// The Song editor of the key window, if it is one: Undo and Redo go to it.
+    @FocusedValue(\.songEditor) private var editor
+
+    private var selectedSong: Song.ID? { studios.song(for: store.state.item(ui.selection))?.id }
+    private var fileModel: FileMenuModel {
+        FileMenuModel(hasStudio: studios.studios.studio != nil, isModalOpen: ui.isModalOpen, selectedSong: selectedSong)
+    }
+
+    private func openEditor(_ song: Song.ID) { SongEditorScene.open(song, studios: studios, with: openWindow) }
 
     private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection, isModalOpen: ui.isModalOpen) }
 
     var body: some Commands {
         // Replacing the New group also removes the WindowGroup's New Window, so Cmd-N is New Studio only.
         CommandGroup(replacing: .newItem) {
-            let file = FileMenuModel(hasStudio: studios.studios.studio != nil, isModalOpen: ui.isModalOpen)
+            let file = fileModel
             Button("New Studio…") { studios.newStudio() }
                 .keyboardShortcut(Shortcuts.newStudio)
                 .disabled(!file.canNew)
@@ -41,6 +51,12 @@ struct StageMenuCommands: Commands {
             Divider()
             // MenuBar.dc.html `file`: the New group comes first, then Import, then Close Window.
             Button("New Service…") {}.disabled(true)
+            Button("New Collection…") { ui.showNewCollection = true }
+                .keyboardShortcut(Shortcuts.newCollection)
+                .disabled(!file.canNewCollection)
+            Button("New Song…") { if let id = studios.newSong() { openEditor(id) } }
+                .keyboardShortcut(Shortcuts.newSong)
+                .disabled(!file.canNewSong)
             Divider()
             Button("Import Studio…") { studios.chooseAndImportStudio() }
                 .disabled(!file.canImportStudio)
@@ -48,7 +64,7 @@ struct StageMenuCommands: Commands {
                 .disabled(!file.canImportItems)
             Button("Export Studio…") { studios.exportStudio() }
                 .disabled(!file.canExport)
-            Button("Export Selected Item…") {}
+            Button("Export Selected Item…") { if let id = file.selectedSong { studios.exportSong(id) } }
                 .disabled(!file.canExportSelectedItem)
             Divider()
             Button("Relink Media…") { ui.showRelink = true }
@@ -60,6 +76,27 @@ struct StageMenuCommands: Commands {
             Button("Close Window") { (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil) }
                 .keyboardShortcut(Shortcuts.closeWindow)
                 .disabled(!file.canCloseWindow)
+        }
+        // Undo and Redo: in a Song editor they undo its edits (never show control); elsewhere they go to the focused
+        // text field as usual.
+        CommandGroup(replacing: .undoRedo) {
+            Button("Undo") {
+                if let editor { editor.undo() } else { NSApp.sendAction(Selector(("undo:")), to: nil, from: nil) }
+            }
+            .keyboardShortcut(Shortcuts.undo)
+            .disabled(editor.map { !$0.canUndo } ?? false)
+            Button("Redo") {
+                if let editor { editor.redo() } else { NSApp.sendAction(Selector(("redo:")), to: nil, from: nil) }
+            }
+            .keyboardShortcut(Shortcuts.redo)
+            .disabled(editor.map { !$0.canRedo } ?? false)
+        }
+        // Edit > Edit Selected Item… last (MenuBarRef.dc.html, Edit).
+        CommandGroup(after: .textEditing) {
+            Divider()
+            Button("Edit Selected Item…") { if let id = fileModel.selectedSong { openEditor(id) } }
+                .keyboardShortcut(Shortcuts.editSelectedItem)
+                .disabled(!fileModel.canEditSelectedItem)
         }
         // A Studio saves itself (autosave), so there is no Save; the system's Save items are removed.
         CommandGroup(replacing: .saveItem) {}
@@ -141,7 +178,8 @@ struct StageMenuCommands: Commands {
             }
             .disabled(!model.hasMessages)
             Divider()
-            Button("Add Section…") {}.disabled(true)
+            Button("Add Section…") { ui.showAddSection = true }
+                .disabled(studios.studios.studio == nil || store.state.service == nil || ui.isModalOpen)
             Button("Add Activity…") {}.disabled(true)
         }
 

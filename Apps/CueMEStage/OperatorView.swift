@@ -10,6 +10,7 @@ struct OperatorView: View {
     @Bindable var ui: OperatorUIState
     let studios: StudioController
     @Environment(\.theme) private var theme
+    @Environment(\.openWindow) private var openWindow
     /// Panel sizes, on this machine (`PanelSizes`). View > Reset Panel Sizes writes the same keys.
     @AppStorage private var serviceWidth: Double
     @AppStorage private var rightWidth: Double
@@ -61,9 +62,10 @@ struct OperatorView: View {
                     // Main.dc.html L44: service and slide grid, the bottom panel under both; the right column beside them.
                     VStack(spacing: 0) {
                         HStack(spacing: 0) {
-                            ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport,
-                                         selection: $ui.selection) { id in
+                            ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport, ui: ui) { id in
                                 store.send(.go(itemID: id, slideIndex: 0))
+                            } addSection: { name, item in
+                                studios.addSection(named: name, above: item)
                             }
                             .frame(width: sizes.service)
                             PanelDivider(axis: .vertical, value: sizes.service, direction: 1, label: "Service panel width") {
@@ -107,6 +109,11 @@ struct OperatorView: View {
         .sheet(isPresented: $ui.showRelink) {
             RelinkSheet(studios: studios).modifier(Themed())
         }
+        .sheet(isPresented: $ui.showNewCollection) {
+            NewCollectionSheet { name in studios.addCollection(named: name) }.modifier(Themed())
+        }
+        .background(ShortcutGuardWindowMarker(role: .operator))
+        .environment(\.editSong, { id, slide in SongEditorScene.open(id, slide: slide, studios: studios, with: openWindow) })
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
     }
@@ -159,6 +166,7 @@ private struct SlideGrid: View {
     let item: Item?
     let go: (Item, Int) -> Void
     @Environment(\.theme) private var theme
+    @Environment(\.editSong) private var editSong
     /// The card with keyboard focus is the selected one (accent border); a click takes a slide live.
     @FocusState private var focusedSlide: Slide.ID?
 
@@ -203,7 +211,8 @@ private struct SlideGrid: View {
                                 ForEach(Array(group.slides.enumerated()), id: \.element.id) { offset, slide in
                                     let index = group.firstIndex + offset
                                     SlideCard(number: index + 1, slide: slide, isLive: index == live,
-                                              isSelected: focusedSlide == slide.id) {
+                                              isSelected: focusedSlide == slide.id,
+                                              edit: editAction(item: item, slide: slide)) {
                                         go(item, index)
                                     }
                                     .focused($focusedSlide, equals: slide.id)
@@ -221,6 +230,12 @@ private struct SlideGrid: View {
         }
         // A new grid per item, so `onAppear` scrolls to the live slide when the item changes.
         .id(item.id)
+    }
+
+    /// A song's slide card opens the Song editor on that slide.
+    private func editAction(item: Item, slide: Slide) -> (() -> Void)? {
+        guard case let .song(song) = item.content, let editSong else { return nil }
+        return { editSong(song, slide.id) }
     }
 
     private func reveal(_ index: Int?, in slides: [Slide], _ proxy: ScrollViewProxy, animated: Bool) {
@@ -245,6 +260,7 @@ private struct SlideGrid: View {
 /// Title 15/700, file chips, "Send to ▾" and "Edit ✎" (Main.dc.html L95–L104).
 private struct SlideGridHeader: View {
     let model: SlideGridHeaderModel
+    @Environment(\.editSong) private var editSong
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -283,13 +299,12 @@ private struct SlideGridHeader: View {
             .help(SlideGridHeaderModel.sendToHelp)
             .accessibilityLabel("Send to \(SlideGridHeaderModel.sendToTitle)")
             if model.showsEdit {
-                Button("Edit ✎") {}
+                Button("Edit ✎") { if let id = model.songID { editSong?(id, nil) } }
                     .buttonStyle(.plain)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.accent)
-                    .disabled(true)
-                    .opacity(0.5)
-                    .help(SlideGridHeaderModel.editHelp)
+                    .disabled(editSong == nil || model.songID == nil)
+                    .help("Open the Song editor (⌘E)")
                     .accessibilityLabel("Edit")
             }
         }
@@ -307,6 +322,8 @@ private struct SlideCard: View {
     let slide: Slide
     let isLive: Bool
     let isSelected: Bool
+    /// Right-click > Edit…: the Song editor on this slide; nil when the item has no editor.
+    var edit: (() -> Void)? = nil
     let action: () -> Void
     @Environment(\.theme) private var theme
     @State private var hovering = false
@@ -351,6 +368,10 @@ private struct SlideCard: View {
         .focusEffectDisabled()
         .onHover { hovering = $0 }
         .help("Take \(slide.label) live")
+        .contextMenu {
+            Button("Go Live", action: action)
+            if let edit { Button("Edit…", action: edit) }
+        }
         .accessibilityLabel("Slide \(number), \(slide.label)")
         .accessibilityValue(isLive ? "Live" : "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])

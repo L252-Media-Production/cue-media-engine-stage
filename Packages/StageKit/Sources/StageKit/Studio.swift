@@ -86,6 +86,36 @@ public struct StudioScreen: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// collections.json: a named collection of slide-bearing library items (songs now; presentations and announcements
+/// later). Media is never in a collection. A song names its collection (`Song.collectionID`), so it is in at most one.
+public struct StudioCollection: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var name: String
+    /// The look the collection's items use; nil = the default. Not editable until Looks exist in the editor.
+    public var lookID: Look.ID?
+
+    public init(id: UUID = UUID(), name: String, lookID: Look.ID? = nil) {
+        self.id = id
+        self.name = name
+        self.lookID = lookID
+    }
+}
+
+/// A header row in a service's item list ("Pre-service", "Worship"). Stored in the service's file under `sections`,
+/// never in `Service.items`, so the engine's item order (and its cursor) is not touched by adding one.
+public struct ServiceSection: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var name: String
+    /// The item the header sits above. nil, or an item no longer in the service: the header goes to the end.
+    public var firstItemID: Item.ID?
+
+    public init(id: UUID = UUID(), name: String, firstItemID: Item.ID? = nil) {
+        self.id = id
+        self.name = name
+        self.firstItemID = firstItemID
+    }
+}
+
 /// library/<id>.json: one library item. Only songs exist so far; "presentation" is reserved for UI-3b.
 public struct LibraryItemFile: Codable, Sendable, Hashable {
     public enum Kind: String, Codable, Sendable { case song }
@@ -131,9 +161,14 @@ public struct Studio: Sendable, Hashable {
     public var screens: [StudioScreen]
     public var timers: [StageTimer]
     public var messages: [Message]
+    /// collections.json, in display order. Written only when there is at least one.
+    public var collections: [StudioCollection]
+    /// Section headers per service, in the service's file (`sections`). A service without sections has no entry.
+    public var sections: [Service.ID: [ServiceSection]]
 
     public init(manifest: StudioManifest, songs: [Song] = [], services: [Service] = [], audioSettings: [MediaItem.ID: AudioSettings] = [:],
-                media: [MediaIndexEntry] = [], looks: [Look] = [], screens: [StudioScreen] = [], timers: [StageTimer] = [], messages: [Message] = []) {
+                media: [MediaIndexEntry] = [], looks: [Look] = [], screens: [StudioScreen] = [], timers: [StageTimer] = [], messages: [Message] = [],
+                collections: [StudioCollection] = [], sections: [Service.ID: [ServiceSection]] = [:]) {
         self.manifest = manifest
         self.songs = songs
         self.services = services
@@ -143,6 +178,8 @@ public struct Studio: Sendable, Hashable {
         self.screens = screens
         self.timers = timers
         self.messages = messages
+        self.collections = collections
+        self.sections = sections.filter { !$0.value.isEmpty }
     }
 
     public var id: UUID { manifest.id }
@@ -153,7 +190,16 @@ public struct Studio: Sendable, Hashable {
         var copy = self
         copy.songs.sort { $0.id.uuidString < $1.id.uuidString }
         copy.services.sort { $0.id.uuidString < $1.id.uuidString }
+        copy.sections = copy.sections.filter { !$0.value.isEmpty }
         return copy
+    }
+
+    /// The section headers of a service, in order (empty when it has none).
+    public func sections(of service: Service.ID) -> [ServiceSection] { sections[service] ?? [] }
+
+    /// Replaces a service's section headers; an empty list removes the entry (so the file stays as it was).
+    public mutating func setSections(_ list: [ServiceSection], of service: Service.ID) {
+        sections[service] = list.isEmpty ? nil : list
     }
 
     /// The service that opens with the Studio.
@@ -166,7 +212,7 @@ public struct Studio: Sendable, Hashable {
     public func library() -> Library {
         Library(
             service: activeService ?? Service(name: "No service", items: []),
-            songs: songs,
+            songs: songs.map(\.capitalizationApplied),
             media: media.map { MediaItem(id: $0.id, name: $0.name, kind: $0.kind, location: $0.lastKnownPath ?? "", duration: $0.duration) },
             audioSettings: audioSettings,
             looks: looks,
@@ -218,6 +264,25 @@ public struct Studio: Sendable, Hashable {
         duplicates(screens, "screen")
         duplicates(timers, "timer")
         duplicates(messages, "message")
+        duplicates(collections, "collection")
+
+        let collectionIDs = Set(collections.map(\.id))
+        for song in songs {
+            if let c = song.collectionID, !collectionIDs.contains(c) { issues.append("song \(song.title) is in an unknown collection") }
+            for (what, ref) in [("audio track", song.audioTrackID), ("background", song.backgroundID)] {
+                if let ref, !media.contains(where: { $0.id == ref }) { issues.append("song \(song.title) uses unknown media as its \(what)") }
+            }
+            let slideIDs = Set(song.slides.map(\.id))
+            var grouped: Set<Slide.ID> = []
+            for group in song.groups ?? [] {
+                for id in group.slideIDs {
+                    if !slideIDs.contains(id) { issues.append("song \(song.title): group \(group.name) has an unknown slide") }
+                    if !grouped.insert(id).inserted { issues.append("song \(song.title): a slide is in more than one group") }
+                }
+            }
+        }
+        let serviceIDs = Set(services.map(\.id))
+        for id in sections.keys where !serviceIDs.contains(id) { issues.append("sections for unknown service \(id)") }
 
         let songIDs = Set(songs.map(\.id)), mediaIDs = Set(media.map(\.id))
         for service in services {

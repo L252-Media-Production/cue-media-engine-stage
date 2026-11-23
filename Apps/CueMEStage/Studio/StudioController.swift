@@ -26,6 +26,8 @@ final class StudioController {
     /// Where new Studios go (~/Documents/CueME Stage in the app, a temp folder in tests).
     @ObservationIgnored let documentsFolder: URL
     @ObservationIgnored var dialogs: StudioDialogs
+    /// The open Song editors' models, one per song.
+    @ObservationIgnored let editors = SongEditorRegistry()
 
     /// A non-blocking message (a missing last Studio, an import summary). Save failures come from `studios.notice`.
     var notice: String?
@@ -83,7 +85,7 @@ final class StudioController {
         }
         do {
             try FileManager.default.createDirectory(at: documentsFolder, withIntermediateDirectories: true)
-            let studio = Studio(seededFrom: .sample, name: "Studio", now: studios.environment.now(), appVersion: studios.environment.appVersion)
+            let studio = Studio.sample(name: "Studio", now: studios.environment.now(), appVersion: studios.environment.appVersion)
             try studios.create(studio, at: url)
             didOpen()
         } catch {
@@ -193,6 +195,87 @@ final class StudioController {
         catalog.put(.init(info: StudioInfo(id: studio.id, name: studio.name), library: studio.library(),
                           assignments: savedAssignments ?? []))
         stage.send(.reloadStudio(studio.id))
+    }
+
+    // MARK: Editing show data
+
+    /// Changes the open Studio's show data: autosaved by the store (changed files only, about a second later), then
+    /// the engine gets the new content with `reloadStudio`. Nothing on the outputs changes: the engine keeps what is
+    /// live until something is taken again.
+    func edit(_ change: (inout Studio) -> Void) {
+        guard let before = studios.studio else { return }
+        studios.update(change)
+        if studios.studio != before { reloadEngine() }
+    }
+
+    /// File > New Collection… / "+ New": an empty collection at the end. Returns its id (nil without a Studio or name).
+    @discardableResult
+    func addCollection(named name: String) -> StudioCollection.ID? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard studios.studio != nil, !trimmed.isEmpty else { return nil }
+        let collection = StudioCollection(name: trimmed)
+        edit { $0.collections.append(collection) }
+        return collection.id
+    }
+
+    /// + Add ▾ > Section…: a header in the service on air, above `item` (or at the end when nil).
+    @discardableResult
+    func addSection(named name: String, above item: Item.ID?) -> ServiceSection.ID? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let service = studios.studio?.activeService, !trimmed.isEmpty else { return nil }
+        let anchor = NewSectionModel.anchor(selection: item, in: service)
+        let section = ServiceSection(name: trimmed, firstItemID: anchor)
+        edit { $0.setSections($0.sections(of: service.id) + [section], of: service.id) }
+        return section.id
+    }
+
+    /// A song changed in the Song editor: stored, and every service row that plays it gets its title and slide count.
+    func updateSong(_ song: Song) {
+        edit { studio in
+            guard let i = studio.songs.firstIndex(where: { $0.id == song.id }) else { return }
+            studio.songs[i] = song
+            for s in studio.services.indices {
+                for j in studio.services[s].items.indices where studio.services[s].items[j].content == .song(song.id) {
+                    studio.services[s].items[j].title = song.title
+                    studio.services[s].items[j].slideCount = song.slides.count
+                }
+            }
+        }
+    }
+
+    /// File > New Song…: an untitled song with one empty slide, in no collection. Returns its id.
+    @discardableResult
+    func newSong() -> Song.ID? {
+        guard studios.studio != nil else { return nil }
+        let song = Song(title: "Untitled Song", slides: [Slide(label: "", lines: [])])
+        edit { $0.songs.append(song) }
+        return song.id
+    }
+
+    /// The song a service item plays, when it is one.
+    func song(for item: Item?) -> Song? {
+        guard case let .song(id)? = item?.content else { return nil }
+        return studios.studio?.songs.first { $0.id == id }
+    }
+
+    /// File > Export Selected Item…: one song as a .stgitem file, with refs to the media it uses.
+    func exportSong(_ id: Song.ID) {
+        guard let studio = studios.studio, let song = studio.songs.first(where: { $0.id == id }) else { return }
+        guard let target = dialogs.chooseSave(title: "Export Selected Item", name: "\(song.title).\(StudioFormat.itemExtension)",
+                                              type: .cuemeItems, directory: nil) else { return }
+        do {
+            try writeItemFile([.song(song)], to: target)
+            notice = "Exported “\(song.title)” to \(target.lastPathComponent)."
+        } catch {
+            dialogs.showError("“\(song.title)” could not be exported", error)
+        }
+    }
+
+    func writeItemFile(_ items: [StudioItemPayload], to url: URL) throws {
+        guard let studio = studios.studio else { return }
+        let data = try StudioItemCodec.encode(items, media: studio.media, appVersion: studios.environment.appVersion,
+                                              exported: studios.environment.now())
+        try AtomicFile.write(data, to: url)
     }
 
     // MARK: Engine state back into the Studio and the machine
@@ -340,6 +423,26 @@ final class StudioController {
 }
 
 extension Studio {
+    /// The first-launch Studio: the sample show, its songs in a "Worship Songs" collection, and the service in
+    /// sections as on the board (Pre-service, Worship, Closing).
+    static func sample(name: String, now: Date, appVersion: String) -> Studio {
+        var studio = Studio(seededFrom: .sample, name: name, now: now, appVersion: appVersion)
+        let worship = StudioCollection(name: "Worship Songs")
+        studio.collections = [worship]
+        for i in studio.songs.indices { studio.songs[i].collectionID = worship.id }
+        if let service = studio.services.first {
+            func first(_ match: (Item) -> Bool) -> Item.ID? { service.items.first(where: match)?.id }
+            let isMedia: (Item) -> Bool = { if case .media = $0.content { true } else { false } }
+            let songs = service.items.filter { if case .song = $0.content { true } else { false } }
+            studio.setSections([
+                ServiceSection(name: "Pre-service", firstItemID: first(isMedia)),
+                ServiceSection(name: "Worship", firstItemID: songs.first?.id),
+                ServiceSection(name: "Closing", firstItemID: songs.count > 1 ? songs.last?.id : nil),
+            ].filter { $0.firstItemID != nil }, of: service.id)
+        }
+        return studio
+    }
+
     /// A new, empty Studio: one empty service, a Default look, and the standard screens (two audience screens on
     /// the canvas, a stage display, the IMAG input) with new ids.
     static func blank(name: String, now: Date, appVersion: String) -> Studio {

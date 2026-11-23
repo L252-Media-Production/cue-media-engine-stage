@@ -5,7 +5,7 @@ struct CueMEStageApp: App {
     // TODO(ipc): swap the mock for the StageEngine IPC client once it exists. Nothing else changes.
     @State private var store = StageStore.mock()
     @State private var ui = OperatorUIState()
-    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.dark.rawValue
+    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
 
     init() {
         // Before any view reads ThemeTokens (which also registers on first use, so the order is safe either way).

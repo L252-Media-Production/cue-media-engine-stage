@@ -56,6 +56,7 @@ struct OperatorView: View {
         .sheet(isPresented: $ui.showOutputSetup) {
             OutputSetupSheet(store: store).modifier(Themed())
         }
+        .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
     }
 }
 

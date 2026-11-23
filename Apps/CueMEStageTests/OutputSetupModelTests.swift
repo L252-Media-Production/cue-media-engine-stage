@@ -104,6 +104,32 @@ final class OutputSetupModelTests: XCTestCase {
         XCTAssertTrue(Set(choices).isSubset(of: Set(s.connectors.map(\.id))))
     }
 
+    func testClickingATile() async {
+        let client = MockStageClient(library: lib)
+        await client.simulateConnector("decklink-A-4", available: false)
+        let s = await client.currentState
+        func connector(_ id: String) -> Connector { s.connectors.first { $0.id == id }! }
+        var draft = OutputSetupDraft()
+
+        XCTAssertEqual(draft.tileAction(for: connector("decklink-A-2"), selected: right, in: s), .select(stage), "has a screen: select it")
+        XCTAssertEqual(draft.tileAction(for: connector("decklink-B-1"), selected: right, in: s), .assign("decklink-B-1"), "free")
+        XCTAssertEqual(draft.tileAction(for: connector("decklink-A-4"), selected: right, in: s), .none, "unavailable")
+        XCTAssertEqual(draft.tileAction(for: connector("decklink-B-1"), selected: imag, in: s), .none, "wrong direction")
+        XCTAssertEqual(draft.tileAction(for: connector("decklink-B-1"), selected: nil, in: s), .none, "nothing selected")
+
+        // A click is the picker's edit: in the working copy only, sent by Apply.
+        guard case let .assign(id) = draft.tileAction(for: connector("ndi-out-1"), selected: right, in: s) else { return XCTFail() }
+        draft.assign(id, to: right, in: s)
+        XCTAssertEqual(draft.connectorID(right, in: s), "ndi-out-1")
+        XCTAssertEqual(s.connectorID(for: right), "decklink-A-3", "not sent yet")
+        XCTAssertEqual(draft.tileAction(for: connector("ndi-out-1"), selected: left, in: s), .select(right), "now taken in the draft")
+        XCTAssertEqual(draft.tileAction(for: connector("decklink-A-3"), selected: left, in: s), .assign("decklink-A-3"), "freed in the draft")
+        XCTAssertEqual(draft.commands(in: s), [.assignScreen(right, connector: nil), .assignScreen(right, connector: "ndi-out-1")])
+        let after = await applied(draft, to: s)
+        XCTAssertEqual(after.connectorID(for: right), "ndi-out-1")
+        XCTAssertEqual(after.outputWarnings, [.canvasOnNonSDI(right)])
+    }
+
     func testSheetTabFallsBackToScreens() {
         XCTAssertEqual(OutputSetupTab.resolve("Screens"), .screens)
         XCTAssertEqual(OutputSetupTab.resolve("Slices"), .screens, "disabled in v0.1")

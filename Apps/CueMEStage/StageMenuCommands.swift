@@ -6,10 +6,10 @@ import StageKit
 struct StageMenuCommands: Commands {
     let store: StageStore
     let ui: OperatorUIState
-    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.dark.rawValue
+    @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
     @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
 
-    private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection) }
+    private var model: ServiceMenuModel { ServiceMenuModel(state: store.state, selection: ui.selection, isModalOpen: ui.isModalOpen) }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -28,7 +28,7 @@ struct StageMenuCommands: Commands {
             Divider()
             Menu("Theme") {
                 ForEach(AppTheme.allCases, id: \.self) { theme in
-                    Toggle(theme == .dark ? "Dark" : "Light", isOn: Binding(
+                    Toggle(theme.title, isOn: Binding(
                         get: { AppTheme.resolve(themeRaw) == theme },
                         set: { if $0 { themeRaw = theme.rawValue } }
                     ))

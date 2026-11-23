@@ -17,9 +17,17 @@ final class ShortcutGuardTests: XCTestCase {
         override var acceptsFirstResponder: Bool { true }
     }
 
+    /// Records the key presses that reach it (a control inside a sheet).
+    private final class KeyView: NSView {
+        var keys: [String] = []
+        override var acceptsFirstResponder: Bool { true }
+        override func keyDown(with event: NSEvent) { keys.append(event.charactersIgnoringModifiers ?? "") }
+    }
+
     private var savedMenu: NSMenu?
     private var window: NSWindow!
     private let counter = Counter()
+    private let goLive = Counter()
 
     private let rightArrow = String(Character(UnicodeScalar(NSRightArrowFunctionKey)!))
 
@@ -33,6 +41,10 @@ final class ShortcutGuardTests: XCTestCase {
         next.keyEquivalentModifierMask = []
         next.target = counter
         sub.addItem(next)
+        let go = NSMenuItem(title: "Go Live", action: #selector(Counter.fire(_:)), keyEquivalent: "\r")
+        go.keyEquivalentModifierMask = []
+        go.target = goLive
+        sub.addItem(go)
         top.submenu = sub
         menu.addItem(top)
         NSApp.mainMenu = menu
@@ -44,6 +56,8 @@ final class ShortcutGuardTests: XCTestCase {
     }
 
     override func tearDown() async throws {
+        ShortcutGuard.isModalOpen = false
+        if let sheet = window.attachedSheet { window.endSheet(sheet) }
         window.orderOut(nil)
         NSApp.mainMenu = savedMenu
     }
@@ -119,6 +133,79 @@ final class ShortcutGuardTests: XCTestCase {
             if let found = firstTextField(in: sub) { return found }
         }
         return nil
+    }
+
+    // MARK: While a sheet is open
+
+    func testRightArrowDoesNotReachTheMenuWhileModal() {
+        // A focused view that does not use the arrow: normally the key climbs the responder chain to the menu.
+        let plain = PlainView(frame: NSRect(x: 0, y: 0, width: 50, height: 50))
+        window.contentView?.addSubview(plain)
+        XCTAssertTrue(window.makeFirstResponder(plain))
+
+        ShortcutGuard.isModalOpen = true
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        NSApp.sendEvent(keyDown("\r", keyCode: 36))
+        XCTAssertEqual(counter.count, 0, "Next Slide (.next) did not fire")
+        XCTAssertEqual(goLive.count, 0, "Go Live did not fire")
+
+        // A view that would use the arrow does not get it either (only text input and key equivalents do).
+        let control = KeyView(frame: NSRect(x: 60, y: 0, width: 50, height: 50))
+        window.contentView?.addSubview(control)
+        XCTAssertTrue(window.makeFirstResponder(control))
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        XCTAssertEqual(control.keys, [])
+        XCTAssertEqual(counter.count, 0)
+
+        ShortcutGuard.isModalOpen = false
+        XCTAssertTrue(window.makeFirstResponder(plain))
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        XCTAssertEqual(counter.count, 1, "control: back to normal once the sheet closes")
+    }
+
+    func testArrowsStillMoveTheCursorInASheetsTextField() throws {
+        let field = NSTextField(string: "abcdef")
+        field.frame = NSRect(x: 10, y: 10, width: 200, height: 24)
+        window.contentView?.addSubview(field)
+        XCTAssertTrue(window.makeFirstResponder(field))
+        let editor = try XCTUnwrap(window.firstResponder as? NSTextView)
+        editor.setSelectedRange(NSRange(location: 0, length: 0))
+
+        ShortcutGuard.isModalOpen = true
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        NSApp.sendEvent(keyDown(rightArrow, keyCode: 124))
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 2, length: 0))
+        XCTAssertEqual(counter.count, 0)
+    }
+
+    func testReturnStillPressesTheSheetsDefaultButton() {
+        let button = NSButton(title: "Done", target: counter, action: #selector(Counter.fire(_:)))
+        button.keyEquivalent = "\r"
+        button.frame = NSRect(x: 10, y: 10, width: 80, height: 30)
+        window.contentView?.addSubview(button)
+        let pressed = counter.count
+
+        ShortcutGuard.isModalOpen = true
+        NSApp.sendEvent(keyDown("\r", keyCode: 36))
+        XCTAssertEqual(counter.count, pressed + 1, "the window's own Return button")
+        XCTAssertEqual(goLive.count, 0, "not the menu's Go Live")
+    }
+
+    func testWindowBehindASheetGetsNothing() {
+        let behind = KeyView(frame: NSRect(x: 0, y: 0, width: 50, height: 50))
+        window.contentView?.addSubview(behind)
+        XCTAssertTrue(window.makeFirstResponder(behind))
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+        window.beginSheet(sheet)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertNotNil(window.attachedSheet)
+
+        ShortcutGuard.isModalOpen = true
+        XCTAssertNil(ShortcutGuard.handle(keyDown(rightArrow, keyCode: 124), window: window))
+        XCTAssertEqual(behind.keys, [], "the service list behind the sheet gets nothing")
+        XCTAssertEqual(counter.count, 0)
+        XCTAssertNotNil(ShortcutGuard.handle(keyDown(".", keyCode: 47, modifiers: .command), window: window),
+                       "Cmd-. (Black Out) is not guarded and goes on to the menu")
     }
 
     func testRoutingRule() {

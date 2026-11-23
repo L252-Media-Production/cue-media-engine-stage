@@ -64,6 +64,23 @@ struct OutputSetupDraft: Equatable {
         return state.connectors.filter { $0.available && $0.accepts(type) && !taken.contains($0.id) }
     }
 
+    /// What clicking a connector tile in the signal overview does.
+    enum TileAction: Equatable {
+        /// The tile has a screen: select it.
+        case select(Screen.ID)
+        /// A free tile the selected screen may use: assign it (an edit, as the picker makes).
+        case assign(Connector.ID)
+        /// Unavailable, wrong direction for the selected screen, or nothing selected.
+        case none
+    }
+
+    /// Same rule as the picker: a free tile is clickable exactly when it is in `connectorChoices` of the selection.
+    func tileAction(for connector: Connector, selected: Screen.ID?, in state: StageState) -> TileAction {
+        if let screen = screen(on: connector.id, in: state) { return .select(screen.screenID) }
+        guard let selected, connectorChoices(for: selected, in: state).contains(connector) else { return .none }
+        return .assign(connector.id)
+    }
+
     /// The screen the draft puts on `connector`, if any.
     func screen(on connector: Connector.ID, in state: StageState) -> ScreenState? {
         guard let id = effectiveAssignments(in: state).first(where: { $0.connectorID == connector })?.screenID else { return nil }

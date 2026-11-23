@@ -107,7 +107,7 @@ struct OutputSetupSheet: View {
         HStack(spacing: 0) {
             screenList.frame(width: 220)
             Divider()
-            SignalOverview(state: state, draft: draft, selection: selection)
+            SignalOverview(state: state, draft: $draft, selection: selection)
                 .frame(maxWidth: .infinity)
             Divider()
             settings.frame(width: 300)
@@ -162,7 +162,7 @@ struct OutputSetupSheet: View {
 /// warnings sit on top as a banner.
 private struct SignalOverview: View {
     let state: StageState
-    let draft: OutputSetupDraft
+    @Binding var draft: OutputSetupDraft
     @Binding var selection: Screen.ID?
     @Environment(\.theme) private var theme
 
@@ -216,13 +216,22 @@ private struct SignalOverview: View {
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: ThemeTokens.spacingS)], spacing: ThemeTokens.spacingS) {
                 ForEach(connectors) { connector in
+                    let screen = draft.screen(on: connector.id, in: state)
+                    let action = draft.tileAction(for: connector, selected: selection, in: state)
                     ConnectorTile(
                         connector: connector,
-                        screen: draft.screen(on: connector.id, in: state),
-                        onCanvas: draft.screen(on: connector.id, in: state).flatMap { draft.setup($0.screenID, in: state)?.onCanvas } ?? false,
-                        selected: draft.screen(on: connector.id, in: state)?.screenID == selection
+                        screen: screen,
+                        onCanvas: screen.flatMap { draft.setup($0.screenID, in: state)?.onCanvas } ?? false,
+                        selected: screen != nil && screen?.screenID == selection,
+                        action: action,
+                        selectedName: selection.map(state.screenName)
                     ) {
-                        if let screen = draft.screen(on: connector.id, in: state) { selection = screen.screenID }
+                        switch action {
+                        case let .select(id): selection = id
+                        // The same working-copy path as the picker; Apply sends it.
+                        case let .assign(id): if let selection { draft.assign(id, to: selection, in: state) }
+                        case .none: break
+                        }
                     }
                 }
             }
@@ -235,11 +244,18 @@ private struct ConnectorTile: View {
     let screen: ScreenState?
     let onCanvas: Bool
     let selected: Bool
-    let select: () -> Void
+    let action: OutputSetupDraft.TileAction
+    let selectedName: String?
+    let perform: () -> Void
     @Environment(\.theme) private var theme
+    @State private var hovering = false
+
+    /// Free and usable by the selected screen.
+    private var isFreeTarget: Bool { if case .assign = action { true } else { false } }
+    private var isInert: Bool { action == .none }
 
     var body: some View {
-        Button(action: select) {
+        Button(action: perform) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: ThemeTokens.spacingXS) {
                     Image(systemName: connector.kind.isInput ? "arrow.down.to.line" : "arrow.up.right")
@@ -253,8 +269,10 @@ private struct ConnectorTile: View {
                         Text("Unavailable").foregroundStyle(theme.danger)
                     } else if let screen {
                         Text(screen.name)
+                    } else if isFreeTarget {
+                        Text(hovering ? "Assign \(selectedName ?? "")" : "Free").foregroundStyle(hovering ? theme.accent : theme.textPrimary)
                     } else {
-                        Text("Free").foregroundStyle(theme.textSecondary)
+                        Text(connector.kind.isInput ? "Free input" : "Free output").foregroundStyle(theme.textSecondary)
                     }
                 }
                 .font(.callout)
@@ -262,17 +280,41 @@ private struct ConnectorTile: View {
             }
             .padding(ThemeTokens.spacingS)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(screen == nil ? theme.surface : theme.surfaceRaised, in: RoundedRectangle(cornerRadius: ThemeTokens.radius))
+            .background(background, in: RoundedRectangle(cornerRadius: ThemeTokens.radius))
             .overlay(
                 RoundedRectangle(cornerRadius: ThemeTokens.radius)
-                    .stroke(selected ? theme.accent : theme.border,
-                            style: StrokeStyle(lineWidth: selected ? 2 : 1, dash: screen == nil ? [4, 3] : []))
+                    .stroke(borderColor, style: StrokeStyle(lineWidth: selected || (isFreeTarget && hovering) ? 2 : 1, dash: screen == nil ? [4, 3] : []))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(screen == nil)
+        .disabled(isInert)
+        // Unavailable and wrong-direction tiles are faded; free tiles keep normal contrast and a dashed outline.
+        .opacity(isInert ? 0.45 : 1)
+        .onHover { hovering = $0 && !isInert }
+        .help(help)
         .accessibilityLabel("\(connector.label), \(screen?.name ?? (connector.available ? "free" : "unavailable"))")
+    }
+}
+
+extension ConnectorTile {
+    fileprivate var background: Color {
+        if screen != nil { return theme.surfaceRaised }
+        return isFreeTarget && hovering ? theme.accent.opacity(0.12) : theme.surface
+    }
+
+    fileprivate var borderColor: Color {
+        if selected { return theme.accent }
+        if isFreeTarget { return hovering ? theme.accent : theme.textSecondary }
+        return theme.border
+    }
+
+    fileprivate var help: String {
+        switch action {
+        case .select: "Select \(screen?.name ?? "this screen")"
+        case .assign: "Assign \(connector.label) to \(selectedName ?? "the selected screen") (Apply sends it)"
+        case .none: connector.available ? "Not usable by the selected screen" : "\(connector.label) is not available"
+        }
     }
 }
 

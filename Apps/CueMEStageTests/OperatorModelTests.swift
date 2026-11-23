@@ -113,9 +113,48 @@ final class OperatorModelTests: XCTestCase {
     }
 
     func testThemeFallsBackToDark() {
-        XCTAssertEqual(AppTheme.resolve("light"), .light)
+        XCTAssertEqual(AppTheme.resolve("auto"), .auto)
+        XCTAssertEqual(AppTheme.resolve("light"), .light, "a saved value from before Auto still works")
         XCTAssertEqual(AppTheme.resolve("dark"), .dark)
         XCTAssertEqual(AppTheme.resolve("sepia"), .dark)
+        XCTAssertEqual(AppTheme.resolve(""), .dark)
+        XCTAssertEqual(AppTheme.allCases.map(\.title), ["Auto", "Dark", "Light"], "menu order")
+    }
+
+    func testThemeColourSchemes() {
+        XCTAssertNil(AppTheme.auto.colorScheme, "Auto forces nothing, so the system appearance applies")
+        XCTAssertEqual(AppTheme.dark.colorScheme, .dark)
+        XCTAssertEqual(AppTheme.light.colorScheme, .light)
+    }
+
+    func testFreshInstallIsDark() {
+        XCTAssertEqual(AppTheme.fallback, .dark, "the @AppStorage default of every theme reader")
+    }
+
+    // MARK: Modal sheets
+
+    func testLiveEntriesAreOffWhileASheetIsOpen() async {
+        let s = await state([.go(itemID: amazing.id, slideIndex: 0), .playAudio(mediaID: walkInID)])
+        let open = ServiceMenuModel(state: s, selection: amazing.id, isModalOpen: true)
+        XCTAssertNil(open.goLiveCommand, "Go Live off")
+        XCTAssertFalse(open.canNext, "Next off")
+        XCTAssertFalse(open.canPrevious, "Previous off")
+        // Emergency entries stay on.
+        XCTAssertEqual(open.blackoutCommand, .blackout(true))
+        XCTAssertEqual(open.audioToggle.command, .pauseAudio)
+        XCTAssertTrue(open.hasTrack, "Stop and Fade Out")
+
+        let closed = ServiceMenuModel(state: s, selection: amazing.id, isModalOpen: false)
+        XCTAssertNotNil(closed.goLiveCommand)
+        XCTAssertTrue(closed.canNext)
+        XCTAssertTrue(closed.canPrevious)
+    }
+
+    func testModalFlagFollowsTheSheet() {
+        let ui = OperatorUIState()
+        XCTAssertFalse(ui.isModalOpen)
+        ui.showOutputSetup = true
+        XCTAssertTrue(ui.isModalOpen)
     }
 
     // MARK: Shortcut table

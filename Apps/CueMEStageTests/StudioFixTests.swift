@@ -174,7 +174,10 @@ final class StudioFixTests: TempFolderTestCase {
     // MARK: 6. No NEXT in the operator view
 
     private func host(_ store: StageStore, ui: OperatorUIState, size: NSSize) -> (NSWindow, NSHostingView<AnyView>) {
-        let view = AnyView(OperatorView(store: store, ui: ui, studios: controller).modifier(Themed()).frame(width: size.width, height: size.height))
+        // A scratch defaults suite for the panel sizes, so the render uses the defaults whatever this Mac has stored.
+        let layout = UserDefaults(suiteName: "cueme.tests.layout.\(UUID().uuidString)")!
+        let view = AnyView(OperatorView(store: store, ui: ui, studios: controller, layoutDefaults: layout)
+            .modifier(Themed()).frame(width: size.width, height: size.height))
         let hosting = NSHostingView(rootView: view)
         hosting.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)

@@ -57,7 +57,8 @@ struct RightColumn: View {
                 case .monitor:
                     ColumnMonitor(state: state, screen: screen)
                 case .clear:
-                    ClearBlock(model: ClearRowModel(state: state), send: send)
+                    // Above its neighbours, so its hover label is drawn over Previous / Next when it flips below.
+                    ClearBlock(model: ClearRowModel(state: state), send: send).zIndex(1)
                 case .previousNext:
                     HStack(spacing: ThemeTokens.spacingS) {
                         // Also on ← / → (Service menu).
@@ -209,10 +210,19 @@ extension ThemeTokens {
 
 // MARK: Clear block
 
-/// Two rows: CLEAR with the scope chip, then six equal icon buttons filling the width (4 pt apart, 32 pt tall).
+/// Two rows: CLEAR with the scope chip, then six equal icon buttons filling the width (4 pt apart, 32 pt tall). Each
+/// button has its own hover label (`HoverLabelTimer`, `HoverLabelPlacement`) instead of a native tooltip: drawn over
+/// the column, never moving the layout or taking clicks.
 struct ClearBlock: View {
     let model: ClearRowModel
     let send: (Command) -> Void
+    @State private var hovered: ClearButton?
+    @State private var timer = HoverLabelTimer()
+    @State private var now = Date()
+    @State private var frames: [ClearButton: CGRect] = [:]
+    @State private var labelSize = CGSize.zero
+    @State private var block = CGRect.zero
+    private static let space = "clearBlock"
 
     var body: some View {
         VStack(alignment: .leading, spacing: ClearBlockLayout.rowSpacing) {
@@ -223,10 +233,62 @@ struct ClearBlock: View {
             }
             HStack(spacing: ClearBlockLayout.buttonSpacing) {
                 ForEach(ClearButton.allCases) { button in
-                    ClearIconButton(model: model, button: button) { model.commands(button).forEach(send) }
+                    ClearIconButton(model: model, button: button) {
+                        timer.press()
+                        model.commands(button).forEach(send)
+                    }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { frames[button] = $0 }
+                    .onHover { inside in hover(button, inside) }
                 }
             }
         }
+        .coordinateSpace(.named(Self.space))
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { block = $0 }
+        .overlay(alignment: .topLeading) {
+            if let button = hovered, timer.isVisible(at: now), let frame = frames[button] {
+                HoverLabel(text: model.help(button))
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { labelSize = $0 }
+                    .position(HoverLabelPlacement.center(
+                        button: frame, label: labelSize, column: CGRect(x: 0, y: 0, width: block.width, height: block.height),
+                        roomAbove: block.minY + frame.minY
+                    ))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true) // the button's own label says the same
+            }
+        }
+    }
+
+    private func hover(_ button: ClearButton, _ inside: Bool) {
+        if inside {
+            hovered = button
+            timer.enter(at: Date())
+            Task {
+                try? await Task.sleep(for: .milliseconds(Int(HoverLabelTimer.delay * 1000) + 10))
+                now = Date()
+            }
+        } else if hovered == button {
+            hovered = nil
+            timer.leave()
+        }
+    }
+}
+
+/// The hover label: 11 pt on --panel with a --line border, radius 5, a soft shadow.
+struct HoverLabel: View {
+    let text: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(theme.textPrimary)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 5))
+            .overlay(RoundedRectangle(cornerRadius: 5).stroke(theme.border, lineWidth: 1))
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
     }
 }
 
@@ -254,7 +316,7 @@ struct ClearIconButton: View {
         .buttonStyle(.plain)
         .disabled(!model.isEnabled(button))
         .opacity(model.isEnabled(button) ? 1 : 0.4)
-        .help(model.help(button))
+        .accessibilityHint(model.help(button))
         .accessibilityLabel(model.accessibilityLabel(button))
         .accessibilityValue(model.accessibilityValue(button))
     }

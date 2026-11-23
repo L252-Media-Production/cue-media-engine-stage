@@ -226,11 +226,14 @@ struct ClearRowModel {
     var audioActive: Bool { state.audio.liveTrack != nil && state.audio.transport != .stopped }
     var messageActive: Bool { !state.visibleMessages.isEmpty || state.outputScreens.contains { !$0.messages.isEmpty } }
 
-    /// Lit: the layer is on air. All is lit when Slide, Audio or Message is. Media and Black are never lit (Black has
-    /// its own amber on-state, `isBlack`).
+    /// Any of Slide, Audio, Message on air: All can be pressed.
+    var anyActive: Bool { slideActive || audioActive || messageActive }
+
+    /// Lit: the layer is on air. All, Media and Black are never lit (All is a plain button, usable while anything is
+    /// on air; Black has its own amber on-state, `isBlack`).
     func isLit(_ button: ClearButton) -> Bool {
         switch button {
-        case .all: slideActive || audioActive || messageActive
+        case .all: false
         case .slide: slideActive
         case .audio: audioActive
         case .message: messageActive
@@ -238,36 +241,43 @@ struct ClearRowModel {
         }
     }
 
-    /// What a press sends, in order: nothing for an unlit button. All clears audio too (the board's All), and `.all`
-    /// leaves audio alone, so it is `.all` then `.audio`. Black toggles the global blackout, as Service > Black Out
-    /// and Cmd-. do.
+    /// What a press sends, in order: nothing for an unlit button (or All with nothing on air). All clears audio too
+    /// (the board's All), and `.all` leaves audio alone, so it is `.all` then the audio fade when a track is on. Clear
+    /// Audio fades the track out over `ClearAudio.fadeSeconds`, then it stops. Black toggles the global blackout, as
+    /// Service > Black Out and Cmd-. do.
     func commands(_ button: ClearButton) -> [Command] {
         switch button {
         case .black: return [.blackout(!state.blackout)]
         case .media: return []
+        case .all: return anyActive ? [.clear(.all)] + ClearAudio.commands(state) : []
         default: break
         }
         guard isLit(button) else { return [] }
         switch button {
-        case .all: return [.clear(.all), .clear(.audio)]
         case .slide: return [.clear(.slide)]
-        case .audio: return [.clear(.audio)]
+        case .audio: return ClearAudio.commands(state)
         case .message: return [.clear(.messages)]
-        case .media, .black: return []
+        case .media, .black, .all: return []
         }
     }
 
-    func isEnabled(_ button: ClearButton) -> Bool { button != .media }
+    func isEnabled(_ button: ClearButton) -> Bool {
+        switch button {
+        case .media: false
+        case .all: anyActive
+        default: true
+        }
+    }
 
     /// Black is the one toggle: filled amber while on.
     var isBlack: Bool { state.blackout }
 
     func help(_ button: ClearButton) -> String {
         switch button {
-        case .all: "Clear all: slide, messages and audio on all screens"
+        case .all: "Clear all: slide, messages and audio"
         case .slide: "Clear slide on all screens"
         case .media: Self.mediaHelp
-        case .audio: "Clear audio (stop the track)"
+        case .audio: "Clear audio (fade out over 2 s)"
         case .message: "Clear message: hide all messages"
         case .black: state.blackout ? "Blackout is on. Click to end it (Cmd-.)" : "Black out all screens (Cmd-.)"
         }
@@ -285,7 +295,11 @@ struct ClearRowModel {
     }
 
     func accessibilityValue(_ button: ClearButton) -> String {
-        button == .black ? (isBlack ? "on" : "off") : (isLit(button) ? "active" : "empty")
+        switch button {
+        case .black: isBlack ? "on" : "off"
+        case .all: anyActive ? "active" : "empty"
+        default: isLit(button) ? "active" : "empty"
+        }
     }
 
     /// How a button is drawn, as theme roles (so both themes follow and the tests can check it).
@@ -296,6 +310,59 @@ struct ClearRowModel {
         }
         return isLit(button) ? ClearButtonLook(fill: .liveTint, border: .border, icon: .live)
             : ClearButtonLook(fill: .surfaceRaised, border: .border, icon: .textSecondary)
+    }
+}
+
+/// Clear Audio (the Audio button, the audio part of All, Service > Clear > Audio): the existing fade command over 2 s,
+/// after which the engine stops the track. Stop Playback stays an instant stop; Fade Out keeps its own 3 s.
+enum ClearAudio {
+    static let fadeSeconds: Double = 2
+
+    /// Nothing when no track is on (a fade would be refused).
+    static func commands(_ state: StageState) -> [Command] {
+        state.audio.liveTrack != nil && state.audio.transport != .stopped ? [.fadeAudio(seconds: fadeSeconds)] : []
+    }
+}
+
+/// When a Clear button's hover label shows: 300 ms after the pointer arrives; gone when it leaves or the button is
+/// pressed (until the pointer comes back). Pure, with the time passed in, so it is tested on a fake clock.
+struct HoverLabelTimer: Equatable {
+    static let delay: TimeInterval = 0.3
+
+    private(set) var enteredAt: Date?
+    private(set) var pressed = false
+
+    mutating func enter(at time: Date) {
+        enteredAt = time
+        pressed = false
+    }
+
+    mutating func leave() {
+        enteredAt = nil
+        pressed = false
+    }
+
+    mutating func press() { pressed = true }
+
+    func isVisible(at time: Date) -> Bool {
+        guard let enteredAt, !pressed else { return false }
+        return time.timeIntervalSince(enteredAt) >= Self.delay - 0.000_001 // a microsecond of slack for floating-point rounding
+    }
+}
+
+/// Where a hover label goes: centred on its button, slid sideways to stay inside the column, above the button, or
+/// below it when there is no room above inside the window.
+enum HoverLabelPlacement {
+    static let gap: CGFloat = 4
+
+    /// The label's centre, in the coordinates of `button` and `column`. `roomAbove` is the distance from the button's
+    /// top to the top of the window.
+    static func center(button: CGRect, label: CGSize, column: CGRect, roomAbove: CGFloat) -> CGPoint {
+        let half = label.width / 2
+        let x = min(max(button.midX, column.minX + half), column.maxX - half)
+        let above = roomAbove >= label.height + gap
+        let y = above ? button.minY - gap - label.height / 2 : button.maxY + gap + label.height / 2
+        return CGPoint(x: x, y: y)
     }
 }
 

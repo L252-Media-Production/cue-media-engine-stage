@@ -16,19 +16,12 @@ struct CueMEStageApp: App {
         // Before any view reads ThemeTokens (which also registers on first use, so the order is safe either way).
         LaunchTiming.measure("BundledFonts.registerOnce") { BundledFonts.registerOnce() }
         LaunchTiming.measure("ShortcutGuard.install") { ShortcutGuard.install() }
-        // Tooltips show at once (the Clear block's icon-only buttons rely on them). A registered default: a value the
-        // user set wins, and nothing is written.
-        UserDefaults.standard.register(defaults: [Self.toolTipDelayKey: Self.toolTipDelay])
         // Before the first window exists, so a saved Dark never flashes light; then on every change of the setting.
         LaunchTiming.measure("ThemeAppearance") {
             ThemeAppearance.applyStored()
             ThemeAppearance.startFollowingDefaults()
         }
     }
-
-    static let toolTipDelayKey = "NSInitialToolTipDelay"
-    /// Milliseconds; the shortest AppKit honours.
-    static let toolTipDelay = 1
 
     var body: some Scene {
         WindowGroup("CueME Stage") {

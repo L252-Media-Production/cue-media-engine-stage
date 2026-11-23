@@ -173,12 +173,12 @@ final class OperatorModelTests: XCTestCase {
         let model = ClearRowModel(state: await state([.go(itemID: amazing.id, slideIndex: 0), .playAudio(mediaID: walkInID),
                                                       .showMessage(lib.messages[0].id, screens: [])]))
         XCTAssertEqual(ClearButton.allCases.map(\.rawValue), ["All", "Slide", "Media", "Audio", "Message", "Black"], "board order")
-        XCTAssertEqual(model.commands(.all), [.clear(.all), .clear(.audio)], "All also clears audio, .all first")
+        XCTAssertEqual(model.commands(.all), [.clear(.all), .fadeAudio(seconds: 2)], "All also clears audio (a 2 s fade), .all first")
         XCTAssertEqual(model.commands(.slide), [.clear(.slide)])
-        XCTAssertEqual(model.commands(.audio), [.clear(.audio)])
+        XCTAssertEqual(model.commands(.audio), [.fadeAudio(seconds: 2)])
         XCTAssertEqual(model.commands(.message), [.clear(.messages)])
         XCTAssertEqual(model.commands(.media), [], "no media layer in v0.1")
-        XCTAssertEqual(ClearButton.allCases.filter { !model.isEnabled($0) }, [.media])
+        XCTAssertEqual(ClearButton.allCases.filter { !model.isEnabled($0) }, [.media], "All is enabled while anything is on air")
         XCTAssertEqual(model.help(.media), "Media clear is not available in v0.1")
     }
 
@@ -207,7 +207,10 @@ final class OperatorModelTests: XCTestCase {
         s = await client.currentState
         XCTAssertNil(s.primaryLive, "slide cleared")
         XCTAssertTrue(s.visibleMessages.isEmpty, "messages hidden")
-        XCTAssertNil(s.audio.liveTrack, "audio cleared")
+        XCTAssertEqual(s.audio.transport, .fading, "audio fading out")
+        await client.tick(seconds: 2)
+        s = await client.currentState
+        XCTAssertNil(s.audio.liveTrack, "audio cleared after the fade")
     }
 
     func testClearScopeIsAllScreensOnly() async {

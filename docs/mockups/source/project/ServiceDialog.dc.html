@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Collection and service dialogs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{text-decoration:none}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:var(--fg)">
+<div style="position:absolute; inset:0"><dc-import name="Main" bar="off" theme="{{theme}}" colx="open" hint-size="1440px,900px"></dc-import></div>
+<div style="position:absolute; inset:0; background:rgba(0,0,0,.5)"></div>
+<div style="position:absolute; top:150px; left:50%; margin-left:-230px; width:460px; box-sizing:border-box; display:flex; flex-direction:column; border-radius:12px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 24px 60px rgba(0,0,0,.55)">
+<div style="padding:14px 18px; border-bottom:1px solid var(--line); font-size:15px; font-weight:700">{{ title }}</div>
+<div style="padding:16px 18px; display:flex; flex-direction:column; gap:14px">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">NAME</span>
+<div style="height:32px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--accent)">{{ nameText }}<span style="display:inline-block; width:1px; height:16px; margin-left:1px; background:var(--accent)"></span></div></div>
+
+<sc-if value="{{ isCollection }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">LOOK</span>
+<div style="height:32px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Default look</span><span style="color:var(--dim)">▾</span></div></div>
+</sc-if>
+
+<sc-if value="{{ isService }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">DATE</span>
+<div style="height:32px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Sun, Nov 29, 2026</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">START FROM</span>
+<div style="display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:var(--panel)"><sc-for list="{{starts}}" as="s" hint-placeholder-count="3"><div onClick="{{ s.pick }}" style="{{ s.style }}"><span style="{{ s.dot }}"></span><span style="flex:1; font-weight:600">{{ s.name }}</span><span style="color:var(--dim); font-size:12px">{{ s.meta }}</span></div></sc-for></div></div>
+</sc-if>
+</div>
+<div style="padding:12px 18px; border-top:1px solid var(--line); display:flex; align-items:center; gap:8px">
+<div style="flex:1"></div>
+<a href="MainServiceMenu.dc.html" style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Cancel</a>
+<a href="MainServiceMenu.dc.html" style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700">{{ goLabel }}</a>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"kind":{"editor":"enum","default":"collection","options":["collection","service"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { hold: 0, start: 1 };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const light = theme === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede;--warn:#b45f06;--live:#c4221a'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29;--warn:#ffb020;--live:#e5483f';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const kind = this.props.kind ?? 'collection';
+    const holds = ['Songs', 'Presentations', 'Announcements', 'Mixed'].map((n, i) => ({ label: n, pick: () => this.setState({ hold: i }), style: 'flex:1; text-align:center; padding:6px 0; cursor:pointer; font-size:12px; background:' + (st.hold === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (st.hold === i ? onAccent : 'var(--fg)') + '; font-weight:' + (st.hold === i ? 700 : 400) }));
+    const starts = [['Blank service', ''], ['Copy of Nov 22 Service', '9 items'], ['Sunday template', '6 items']].map((r, i) => ({
+      name: r[0], meta: r[1], pick: () => this.setState({ start: i }),
+      style: 'display:flex; align-items:center; gap:10px; padding:8px 10px; cursor:pointer; border-bottom:1px solid var(--line); background:' + (st.start === i ? 'var(--sel)' : 'transparent'),
+      dot: 'flex:none; width:12px; height:12px; box-sizing:border-box; border-radius:6px; border:2px solid ' + (st.start === i ? 'var(--accent)' : 'var(--dim)') + '; background:' + (st.start === i ? 'var(--accent)' : 'transparent')
+    }));
+    return {
+      vars, theme, onAccent, label, holds, starts,
+      isCollection: kind === 'collection', isService: kind === 'service',
+      title: kind === 'collection' ? 'New collection' : 'New service',
+      nameText: kind === 'collection' ? 'Kids Songs' : 'Nov 29 Service',
+      goLabel: kind === 'collection' ? 'Create collection' : 'Create service'
+    };
+  }
+}
+</script>
+</body>
+</html>

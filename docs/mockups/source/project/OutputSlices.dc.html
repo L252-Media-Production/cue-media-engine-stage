@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Output Setup slices pane</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1218px; height:770px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; overflow:hidden">
+
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Left: presets + tree -->
+<div style="width:220px; flex:none; box-sizing:border-box; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line); position:relative">
+<div style="padding:10px 10px 6px"><div style="height:26px; padding:0 8px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border:1px solid var(--line); color:var(--dim)"><span>Presets</span><span>▾</span></div></div>
+<div style="padding:0 10px 8px; display:flex; align-items:center"><span onClick="{{ toggleAdd }}" style="height:28px; padding:0 10px; display:flex; align-items:center; gap:4px; cursor:pointer; background:var(--panel); border:1px solid var(--line); font-size:16px; font-weight:700; color:var(--accent)">+<span style="font-size:10px; color:var(--dim)">▾</span></span></div>
+<sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:74px; left:10px; width:190px; z-index:8; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:1px">
+<div style="padding:6px 8px; border-radius:5px; cursor:pointer">Add Screen</div>
+<div style="padding:6px 8px; border-radius:5px; cursor:pointer">Add Slice</div>
+<div style="padding:6px 8px; border-radius:5px; cursor:pointer">Add Virtual Output</div>
+</div>
+</sc-if>
+<div style="flex:1; overflow:hidden; display:flex; flex-direction:column">
+<sc-for list="{{tree}}" as="r" hint-placeholder-count="8">
+<sc-if value="{{ r.isScreen }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="color:var(--dim); font-size:9px; width:10px">▾</span><span style="{{ r.box }}"></span><div style="display:flex; flex-direction:column; min-width:0"><span style="font-size:11px; font-weight:700; letter-spacing:.04em">{{ r.name }}</span><span style="font-size:9px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.dev }}</span></div></div>
+</sc-if>
+<sc-if value="{{ r.isSlice }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="{{ r.box }}"></span><span style="font-size:11px">Slice 1</span></div>
+</sc-if>
+</sc-for>
+</div>
+</div>
+
+<!-- Center -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:10px 12px 0">
+<div style="display:flex; align-items:flex-end; justify-content:space-between; height:34px; flex:none">
+<div style="display:flex; gap:2px"><sc-for list="{{tabs}}" as="t" hint-placeholder-count="2"><div onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</div></sc-for></div>
+<span style="color:var(--dim); font-size:11px; padding-bottom:8px">Composition 6000×1920</span>
+</div>
+<div style="height:36px; flex:none; display:flex; align-items:center; gap:4px; background:var(--chrome); border:1px solid var(--line); padding:0 6px">
+<div style="height:24px; width:76px; padding:0 8px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border:1px solid var(--line)"><span>{{ zoom }}</span><span style="color:var(--dim); font-size:10px">▾</span></div>
+<span style="{{ tbBtn }}">↶</span><span style="{{ tbBtnDim }}">↷</span><span style="{{ tbBtn }}">✥</span><span style="{{ tbBtnOn }}">◈</span><span style="{{ tbBtn }}">▦<span style="font-size:9px; margin-left:2px">▾</span></span>
+<div style="flex:1"></div>
+<sc-if value="{{ isOutput }}" hint-placeholder-val="{{ false }}">
+<span style="height:28px; padding:0 12px; display:flex; align-items:center; gap:6px; color:var(--dim)">+ Edit Points</span>
+<span style="height:28px; padding:0 12px; display:flex; align-items:center; gap:6px; background:var(--accent); color:{{onAccent}}; font-weight:700">⛶ Transform</span>
+</sc-if>
+</div>
+<div style="width:730px; height:646px; flex:none; position:relative; overflow:hidden; background:var(--panel); border:1px solid var(--line); box-sizing:border-box">
+<div style="{{ compStyle }}"></div>
+<sc-for list="{{rects}}" as="r" hint-placeholder-count="4">
+<div onClick="{{ r.pick }}" style="{{ r.style }}">
+<sc-for list="{{ r.strips }}" as="e" hint-placeholder-count="1"><div style="{{ e.style }}"></div></sc-for>
+<div style="display:flex; flex-direction:column; align-items:center; gap:1px; text-shadow:0 1px 3px rgba(0,0,0,.85); pointer-events:none"><span style="{{ r.labelStyle }}">Slice 1</span><span style="font-size:10px; opacity:.85">{{ r.name }}</span></div>
+<sc-for list="{{ r.handles }}" as="h" hint-placeholder-count="8"><span style="{{ h.style }}"><span style="{{ h.inner }}"></span></span></sc-for>
+</div>
+</sc-for>
+</div>
+<div style="height:44px; flex:none; display:flex; align-items:center; justify-content:flex-end; gap:8px">
+<span style="height:26px; padding:0 18px; display:flex; align-items:center; background:var(--panel); border:1px solid var(--line); color:var(--fg); font-size:12px; cursor:pointer">Revert</span>
+<span style="height:26px; padding:0 18px; display:flex; align-items:center; background:var(--accent); color:{{onAccent}}; font-weight:700; font-size:12px; cursor:pointer">Apply</span>
+</div>
+</div>
+
+<!-- Right: slice properties -->
+<div style="width:244px; flex:none; box-sizing:border-box; display:flex; flex-direction:column; background:var(--chrome); border-left:1px solid var(--line); overflow:hidden">
+<div style="height:34px; flex:none; display:flex; align-items:center; padding:0 10px; font-weight:700; background:var(--panel); border-bottom:1px solid var(--line)">Slice 1</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="14">
+<sc-if value="{{ r.isNum }}" hint-placeholder-val="{{ true }}">
+<div style="{{ r.style }}"><span style="width:76px; font-size:12px">{{ r.label }}</span><span style="flex:1; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ r.val }}</span><span onClick="{{ r.minus }}" style="{{ r.btn }}">−</span><span onClick="{{ r.plus }}" style="{{ r.btn }}">+</span></div>
+</sc-if>
+<sc-if value="{{ r.isSrc }}" hint-placeholder-val="{{ false }}">
+<div style="{{ r.style }}"><span style="width:76px; font-size:12px">{{ r.label }}</span><span style="flex:1">{{ r.val }}</span><span style="color:var(--dim); font-size:10px">▾</span></div>
+</sc-if>
+<sc-if value="{{ r.isCheck }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="{{ r.box }}"></span><span style="font-size:12px">{{ r.label }}</span></div>
+</sc-if>
+<sc-if value="{{ r.isHeader }}" hint-placeholder-val="{{ false }}">
+<div style="{{ r.style }}"><span style="font-size:12px">{{ r.label }}</span></div>
+</sc-if>
+<sc-if value="{{ r.isMask }}" hint-placeholder-val="{{ false }}">
+<div style="{{ r.style }}; justify-content:space-around; font-size:16px"><span>♡</span><span>□</span><span>○</span><span>△</span><span>⬡</span><span>✎</span></div>
+</sc-if>
+<sc-if value="{{ r.isFlip }}" hint-placeholder-val="{{ false }}">
+<div style="{{ r.style }}"><span style="width:76px; font-size:12px">{{ r.label }}</span><span style="flex:1; display:flex; gap:10px; font-size:14px; color:var(--accent)"><span>◐</span><span style="color:var(--dim)">◑</span><span style="color:var(--dim)">◒</span><span style="color:var(--dim)">◓</span></span></div>
+</sc-if>
+<sc-if value="{{ r.isBar }}" hint-placeholder-val="{{ false }}">
+<div style="{{ r.style }}"><span style="width:76px; font-size:12px">{{ r.label }}</span><span style="width:26px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ r.val }}</span><span style="{{ r.btn }}">−</span><span style="{{ r.btn }}">+</span><div style="flex:1; height:14px; margin-left:6px; background:var(--panel); border:1px solid var(--line); position:relative"><div style="{{ r.mark }}"></div></div></div>
+</sc-if>
+</sc-for>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"tab":{"editor":"enum","default":"input","options":["input","output"]},"select":{"editor":"enum","default":"pl","options":["pl","tv1","tv2","pr"]},"soft":{"editor":"enum","default":"off","options":["off","on"]},"menu":{"editor":"enum","default":"closed","options":["closed","open"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const p = props || {};
+    const sel = ({ pl: 0, tv1: 1, tv2: 2, pr: 3 })[p.select] || 0;
+    this.state = { tab: p.tab === 'output' ? 1 : 0, sel,
+      geo: [{ l: 0, t: 0, w: 1920, h: 1080, r: 0 }, { l: 1920, t: 0, w: 1080, h: 1920, r: 0 }, { l: 3000, t: 0, w: 1080, h: 1920, r: 0 }, { l: 4080, t: 0, w: 1920, h: 1080, r: 0 }],
+      soft: p.soft === 'on' ? { [sel]: { on: true, L: 0, R: 200, T: 0, B: 0 } } : {}, add: p.menu === 'open' };
+  }
+  renderVals() {
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const vars = light
+      ? '--bg:#e6e6e3;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const st = this.state;
+    const PAL = ['#47c86e', '#4da3ff', '#ffb020', '#d46bff'];
+    const SC = [['PROJECTOR LEFT', 'Projector Left', 'Display 2 · 1920×1080'], ['PORTRAIT TV 1', 'Portrait TV 1', 'Display 4 · 1080×1920'], ['PORTRAIT TV 2', 'Portrait TV 2', 'Display 5 · 1080×1920'], ['PROJECTOR RIGHT', 'Projector Right', 'Display 3 · 1920×1080']];
+    const CW = 6000, CH = 1920;
+    const mc = (s2, ox, oy) => 'background-image:linear-gradient(180deg,rgba(255,255,255,.85) 0 3%,transparent 3% 97%,rgba(255,255,255,.85) 97% 100%),radial-gradient(ellipse 8% 25% at 50% 50%,#ffc857 0 94%,rgba(255,200,87,0) 100%),repeating-linear-gradient(90deg,rgba(255,255,255,.2) 0 1px,transparent 1px ' + (960 * s2) + 'px),linear-gradient(135deg,#1c3a5e,#3a1c5e 55%,#0d1b2e); background-size:' + (CW * s2) + 'px ' + (CH * s2) + 'px; background-position:' + (-ox * s2) + 'px ' + (-oy * s2) + 'px; background-repeat:no-repeat; background-origin:border-box;';
+    const sel = st.sel; const g = st.geo[sel];
+    const soft = st.soft[sel] || { on: false, L: 0, R: 0, T: 0, B: 0 };
+    const out = st.tab === 1;
+    const VW = 730, VH = 646;
+    const boxOf = (on, col) => 'width:12px; height:12px; box-sizing:border-box; flex:none; border:1px solid ' + (col || 'var(--dim)') + '; background:' + (on ? (col || 'var(--dim)') : 'transparent') + '; box-shadow:inset 0 0 0 2px var(--chrome)';
+    const tree = [];
+    SC.forEach((c, i) => {
+      const on = i === sel;
+      tree.push({ isScreen: true, isSlice: false, name: c[0], dev: c[2], pick: () => this.setState({ sel: i }), box: boxOf(false), style: 'display:flex; align-items:center; gap:6px; padding:7px 10px; cursor:pointer; background:var(--panel); border-bottom:1px solid var(--line)' });
+      tree.push({ isScreen: false, isSlice: true, pick: () => this.setState({ sel: i }), box: boxOf(true, on ? onAccent : 'var(--dim)'), style: 'display:flex; align-items:center; gap:8px; padding:5px 10px 5px 26px; cursor:pointer; border-bottom:1px solid var(--line); background:' + (on ? 'var(--accent)' : 'var(--chrome)') + '; color:' + (on ? onAccent : 'var(--fg)') });
+    });
+    const tabs = ['Input Selection', 'Output Transformation'].map((n, i) => ({ label: n, pick: () => this.setState({ tab: i }),
+      style: 'padding:0 22px; height:28px; display:flex; align-items:center; cursor:pointer; font-size:12px; background:' + (st.tab === i ? 'var(--chrome)' : 'var(--panel)') + '; color:' + (st.tab === i ? 'var(--fg)' : 'var(--dim)') + '; border:1px solid var(--line); border-bottom:0' }));
+    const tb = 'width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--fg)';
+    // geometry
+    const hand = (cx, cy, rot) => {
+      const pts = [[0, 0, 1], [0.5, 0, 0], [1, 0, 1], [0, 0.5, 0], [1, 0.5, 0], [0, 1, 1], [0.5, 1, 0], [1, 1, 1]];
+      return pts.map((q) => q[2]
+        ? { style: 'position:absolute; box-sizing:border-box; width:24px; height:24px; border-radius:12px; border:2px solid var(--accent); opacity:.85; display:flex; align-items:center; justify-content:center; left:calc(' + q[0] * 100 + '% - 12px); top:calc(' + q[1] * 100 + '% - 12px)', inner: 'width:9px; height:9px; box-sizing:border-box; border:1.5px solid var(--accent); background:var(--panel)' }
+        : { style: 'position:absolute; box-sizing:border-box; width:10px; height:10px; border:1.5px solid var(--accent); background:var(--panel); left:calc(' + q[0] * 100 + '% - 5px); top:calc(' + q[1] * 100 + '% - 5px)', inner: 'display:none' });
+    };
+    const strips = (s2) => {
+      const a = [];
+      if (!soft.on) return a;
+      const bg = (d) => 'linear-gradient(' + d + ',rgba(255,255,255,.55),rgba(255,255,255,0))';
+      if (soft.L) a.push({ style: 'position:absolute; left:0; top:0; bottom:0; width:' + soft.L * s2 + 'px; background:' + bg('90deg') });
+      if (soft.R) a.push({ style: 'position:absolute; right:0; top:0; bottom:0; width:' + soft.R * s2 + 'px; background:' + bg('270deg') });
+      if (soft.T) a.push({ style: 'position:absolute; left:0; right:0; top:0; height:' + soft.T * s2 + 'px; background:' + bg('180deg') });
+      if (soft.B) a.push({ style: 'position:absolute; left:0; right:0; bottom:0; height:' + soft.B * s2 + 'px; background:' + bg('0deg') });
+      return a;
+    };
+    let compStyle = 'display:none'; let rects = []; let zoom = '';
+    if (!out) {
+      const s2 = (VW - 16) / CW; const cl = (VW - CW * s2) / 2; const ct = (VH - CH * s2) / 2; zoom = Math.round(s2 * 100) + '%';
+      compStyle = 'position:absolute; left:' + cl + 'px; top:' + ct + 'px; width:' + CW * s2 + 'px; height:' + CH * s2 + 'px; box-sizing:border-box; border:1px solid var(--line); ' + mc(s2, 0, 0);
+      rects = st.geo.map((q, i) => { const on = i === sel;
+        return { name: SC[i][1], pick: () => this.setState({ sel: i }), strips: on ? strips(s2) : [], handles: on ? hand() : [],
+          labelStyle: 'font-size:12px; font-weight:600; color:' + (on ? 'var(--accent)' : '#fff'),
+          style: 'position:absolute; box-sizing:border-box; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff; overflow:visible; left:' + (cl + q.l * s2) + 'px; top:' + (ct + q.t * s2) + 'px; width:' + q.w * s2 + 'px; height:' + q.h * s2 + 'px; transform:rotate(' + q.r + 'deg); border:' + (on ? '1px solid var(--accent)' : '1px dashed ' + PAL[i]) + '; z-index:' + (on ? 3 : 2) };
+      });
+    } else {
+      const s2 = Math.min((VW - 60) / g.w, (VH - 60) / g.h); zoom = Math.round(s2 * 100) + '%';
+      const W = g.w * s2, H = g.h * s2;
+      rects = [{ name: SC[sel][1], pick: () => {}, strips: strips(s2), handles: hand(), labelStyle: 'font-size:12px; font-weight:600; color:var(--accent)',
+        style: 'position:absolute; box-sizing:border-box; display:flex; align-items:center; justify-content:center; color:#fff; left:' + (VW - W) / 2 + 'px; top:' + (VH - H) / 2 + 'px; width:' + W + 'px; height:' + H + 'px; border:1px solid var(--accent); ' + mc(s2, g.l, g.t) }];
+    }
+    // right panel rows
+    const rowS = 'display:flex; align-items:center; height:24px; flex:none; padding:0 8px; gap:6px; border-bottom:1px solid var(--line); background:var(--chrome)';
+    const btn = 'width:18px; height:18px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--fg); background:var(--panel); border:1px solid var(--line); font-size:12px';
+    const set = (k, v) => { const ng = st.geo.slice(); ng[sel] = { ...g, [k]: v }; this.setState({ geo: ng }); };
+    const num = (label, val, minus, plus) => ({ isNum: true, label, val: String(val), minus, plus, style: rowS, btn });
+    const setSoft = (k, v) => this.setState({ soft: { ...st.soft, [sel]: { ...soft, [k]: v } } });
+    const rows = [];
+    rows.push({ isSrc: true, label: 'Input Source', val: 'Master + ' + SC[sel][1], style: rowS });
+    rows.push(num('X', g.l + g.w / 2, () => set('l', g.l - 10), () => set('l', g.l + 10)));
+    rows.push(num('Y', g.t + g.h / 2, () => set('t', g.t - 10), () => set('t', g.t + 10)));
+    rows.push(num('Left', g.l, () => set('l', g.l - 10), () => set('l', g.l + 10)));
+    rows.push(num('Top', g.t, () => set('t', g.t - 10), () => set('t', g.t + 10)));
+    rows.push(num('Width', g.w, () => set('w', Math.max(10, g.w - 10)), () => set('w', g.w + 10)));
+    rows.push(num('Height', g.h, () => set('h', Math.max(10, g.h - 10)), () => set('h', g.h + 10)));
+    rows.push(num('Rotation', g.r, () => set('r', g.r - 1), () => set('r', g.r + 1)));
+    if (out) {
+      rows.push({ isFlip: true, label: 'Flip', style: rowS });
+      rows.push({ isCheck: true, label: 'Is Key', box: boxOf(false), pick: () => {}, style: rowS });
+      rows.push({ isCheck: true, label: 'Black BG', box: boxOf(false), pick: () => {}, style: rowS });
+      [['Brightness', 'var(--fg)'], ['Contrast', 'var(--fg)'], ['Red', '#e5483f'], ['Green', '#47c86e'], ['Blue', '#4da3ff']].forEach((c) => rows.push({ isBar: true, label: c[0], val: '0', style: rowS, btn, mark: 'position:absolute; top:-1px; bottom:-1px; left:50%; width:3px; background:' + c[1] }));
+    }
+    rows.push({ isCheck: true, label: 'Soft Edge', box: boxOf(!!soft.on, 'var(--accent)'), pick: () => setSoft('on', !soft.on), style: rowS + '; cursor:pointer; background:var(--panel)' });
+    if (soft.on) {
+      [['Left', 'L'], ['Right', 'R'], ['Top', 'T'], ['Bottom', 'B']].forEach((e) => rows.push(num(e[0], soft[e[1]] + ' px', () => setSoft(e[1], Math.max(0, soft[e[1]] - 20)), () => setSoft(e[1], soft[e[1]] + 20))));
+      [['Gamma', '2.20'], ['Power', '1.00'], ['Luminance', '0.50']].forEach((e) => rows.push(num(e[0], e[1], () => {}, () => {})));
+    }
+    if (!out) {
+      rows.push({ isHeader: true, label: 'Input Mask', style: rowS + '; background:var(--panel)' });
+      rows.push({ isMask: true, style: rowS + '; height:34px' });
+    }
+    return { vars, onAccent, tree, tabs, rects, compStyle, zoom, rows, isOutput: out,
+      tbBtn: tb, tbBtnDim: tb + '; opacity:.35', tbBtnOn: tb + '; background:var(--accent); color:' + onAccent,
+      addOpen: st.add, toggleAdd: () => this.setState({ add: !st.add }) };
+  }
+}
+</script>
+</body>
+</html>

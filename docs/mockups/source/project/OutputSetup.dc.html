@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Output setup sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:var(--fg)">
+
+<!-- Operator view behind the sheet -->
+<div style="position:absolute; inset:0">
+<dc-import name="Main" bar="off" theme="{{theme}}" hint-size="1440px,900px"></dc-import>
+</div>
+<div style="position:absolute; inset:0; background:rgba(0,0,0,.5)"></div>
+
+<!-- Sheet -->
+<div style="position:absolute; top:38px; left:110px; width:1220px; height:820px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); border:1px solid var(--line); border-top:0; border-radius:0 0 12px 12px; box-shadow:0 20px 60px rgba(0,0,0,.55); overflow:hidden">
+
+<div style="height:48px; flex:none; display:flex; align-items:center; gap:12px; padding:0 16px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="font-weight:700; font-size:15px">Output Setup</div>
+<div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--panel); border:1px solid var(--line)">
+<sc-if value="{{ isScreens }}" hint-placeholder-val="{{ true }}"><span style="height:28px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; text-decoration:none">Screens</span><a href="OutputSetupSlices.dc.html" style="height:28px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; color:var(--dim); opacity:.7; text-decoration:none">Slices</a></sc-if>
+<sc-if value="{{ isSlices }}" hint-placeholder-val="{{ false }}"><a href="OutputSetup.dc.html" style="height:28px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; color:var(--fg); text-decoration:none">Screens</a><span style="height:28px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700; text-decoration:none">Slices</span></sc-if>
+</div>
+<div style="color:var(--dim); font-size:12px">Outputs keep running while this sheet is open</div>
+<div style="flex:1"></div>
+<button style="height:28px; padding:0 14px; border-radius:6px; border:0; background:var(--accent); color:{{onAccent}}; font-weight:700">Done</button>
+</div>
+
+<sc-if value="{{ isScreens }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1; min-height:0; display:flex">
+
+<!-- Screens list -->
+<div style="width:250px; flex:none; display:flex; flex-direction:column; background:var(--chrome); border-right:1px solid var(--line)">
+<div style="padding:12px 14px 4px"><span style="{{label}}">SCREENS</span></div>
+<div style="flex:1; overflow:hidden; padding:0 8px; display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="10">
+<sc-if value="{{ s.isHeader }}" hint-placeholder-val="{{ false }}"><div style="padding:10px 8px 4px; display:flex; justify-content:space-between; align-items:center; {{label}}"><span>{{ s.name }}</span><sc-if value="{{ s.hasAdd }}" hint-placeholder-val="{{ false }}"><span onClick="{{ s.add }}" style="color:var(--accent); cursor:pointer; letter-spacing:0">+ Add input</span></sc-if></div></sc-if>
+<sc-if value="{{ s.isRow }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ s.pick }}" style="{{ s.style }}">
+<span style="flex:1; font-weight:{{ s.weight }}">{{ s.name }}</span>
+<span style="color:var(--dim); font-size:10px; font-family:'JetBrains Mono',ui-monospace,monospace">{{ s.meta }}</span>
+<span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>
+</div>
+</sc-if>
+</sc-for>
+</div>
+<div style="padding:10px 12px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px">
+<div style="display:flex; gap:8px">
+<button style="flex:1; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+ New screen</button>
+<button onClick="{{ openType }}" style="flex:1; height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">+ New type…</button>
+</div>
+<div style="color:var(--dim); font-size:11px; line-height:1.4">A screen type decides what its screens show. Make as many types and screens as you need.</div>
+</div>
+</div>
+
+<!-- Overview: connectors + NDI (read only) -->
+<div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:14px 18px; gap:12px; overflow:hidden">
+<div style="display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:8px">
+<span style="font-weight:600">Signal overview</span>
+<a href="OutputSetupSlices.dc.html" style="color:var(--accent); font-weight:600; text-decoration:none">Slices ›</a>
+</div>
+
+<sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{cards}}" as="card" hint-placeholder-count="2">
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); padding:10px 12px; display:flex; flex-direction:column; gap:8px">
+<div style="display:flex; justify-content:space-between"><span style="font-weight:600">{{ card.name }}</span><span style="color:var(--dim); font-size:12px">{{ card.slot }}</span></div>
+<div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px">
+<sc-for list="{{ card.tiles }}" as="t" hint-placeholder-count="4">
+<div onClick="{{ t.pick }}" style="{{ t.style }}">
+<div style="display:flex; justify-content:space-between; align-items:center"><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:600; font-size:12px">{{ t.id }}</span><span style="font-size:11px; color:var(--dim)">{{ t.dir }}</span></div>
+<div style="font-weight:{{ t.weight }}; color:{{ t.color }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.assign }}</div>
+<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim)"><span style="width:7px; height:7px; border-radius:4px; background:{{ t.dot }}"></span>{{ t.status }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="border-radius:10px; background:var(--chrome); border:1px solid var(--line); padding:10px 12px; display:flex; flex-direction:column; gap:8px">
+<div style="display:flex; justify-content:space-between"><span style="font-weight:600">NDI</span><span style="display:flex; align-items:center; gap:6px; color:var(--dim); font-size:12px"><span style="width:8px; height:8px; border-radius:4px; background:var(--ok)"></span>Discovery server l252-pi · connected · set in Preferences</span></div>
+<div style="{{label}}">SENDING</div>
+<sc-for list="{{ndiOut}}" as="n" hint-placeholder-count="2">
+<div onClick="{{ n.pick }}" style="{{ n.style }}"><span style="flex:1; font-weight:600">{{ n.name }}</span><span style="color:var(--dim)">{{ n.screen }}</span><span style="color:var(--dim); font-size:12px; width:90px; text-align:right">{{ n.status }}</span></div>
+</sc-for>
+<div style="{{label}}">RECEIVING</div>
+<sc-for list="{{ndiIn}}" as="n" hint-placeholder-count="1">
+<div onClick="{{ n.pick }}" style="{{ n.style }}"><span style="flex:1; font-weight:600">{{ n.name }}</span><span style="color:var(--dim)">{{ n.screen }}</span><span style="color:var(--dim); font-size:12px; width:90px; text-align:right">{{ n.status }}</span></div>
+</sc-for>
+</div>
+
+</sc-if>
+
+
+
+</div>
+
+<!-- Selected screen -->
+<div style="width:350px; flex:none; display:flex; flex-direction:column; gap:10px; padding:14px; background:var(--chrome); border-left:1px solid var(--line); overflow:hidden">
+<div style="{{label}}">SCREEN SETTINGS</div>
+
+<div style="display:flex; gap:10px; align-items:flex-end">
+<div style="{{ previewStyle }}">
+<sc-if value="{{ isAudLT }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background-color:#1c1c1c; background-image:linear-gradient(45deg,#2a2a2a 25%,transparent 25%,transparent 75%,#2a2a2a 75%),linear-gradient(45deg,#2a2a2a 25%,transparent 25%,transparent 75%,#2a2a2a 75%); background-size:16px 16px; background-position:0 0,8px 8px"><div style="position:absolute; left:10px; bottom:8px; color:#fff; font-size:12px; line-height:1.25; font-weight:600; white-space:pre-line">Lyric line one
+Lyric line two</div></div></sc-if>
+<sc-if value="{{ isAudFull }}" hint-placeholder-val="{{ true }}"><div style="position:absolute; inset:0; background:linear-gradient(135deg,#1c3a5e,#0d1b2e); display:flex; align-items:center; justify-content:center; color:#fff; text-align:center; line-height:1.4; font-size:12px; white-space:pre-line">Lyric line one
+Lyric line two</div></sc-if>
+<sc-if value="{{ isStage }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; padding:8px; box-sizing:border-box; color:#fff; display:flex; flex-direction:column; justify-content:space-between"><div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; color:#9ab"><span>Song 2</span><span style="color:#47c86e; font-size:14px; font-weight:600">04:12</span></div><div style="text-align:center; font-size:12px; font-weight:600">Lyric line one</div><div style="font-size:10px; color:#9ab">Next: Lyric line three</div></div></sc-if>
+<sc-if value="{{ isAnn }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background:linear-gradient(135deg,#3a2a5e,#1a1230); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#fff; text-align:center"><span style="font-size:13px; font-weight:700">[Announcement title]</span><span style="font-size:10px; color:#c9b8ee">Date · time · place</span></div></sc-if>
+<sc-if value="{{ isSpk }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0"><svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="bk2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c3a5e"></stop><stop offset="1" stop-color="#0b1626"></stop></linearGradient>
+<radialGradient id="spot2" cx="0.5" cy="0.35" r="0.5"><stop offset="0" stop-color="#ffe9b0" stop-opacity=".55"></stop><stop offset="1" stop-color="#ffe9b0" stop-opacity="0"></stop></radialGradient>
+<g id="scene2"><rect width="480" height="270" fill="url(#bk2)"></rect><rect y="228" width="480" height="42" fill="#0a0f18"></rect><rect x="28" y="70" width="96" height="60" rx="3" fill="#24456f"></rect><rect x="372" y="60" width="84" height="150" rx="3" fill="#2d2250"></rect><ellipse cx="240" cy="110" rx="130" ry="150" fill="url(#spot2)"></ellipse><rect x="196" y="176" width="88" height="94" rx="4" fill="#3b2a1c"></rect><path d="M200 176 C 200 146 214 134 240 134 C 266 134 280 146 280 176 Z" fill="#1d2a3c"></path><rect x="231" y="122" width="18" height="16" fill="#c99872"></rect><ellipse cx="240" cy="104" rx="20" ry="24" fill="#d8a982"></ellipse><path d="M219 100 C 220 78 260 78 261 100 C 254 90 226 90 219 100 Z" fill="#2a1d14"></path><rect x="236" y="146" width="8" height="30" fill="#e8e8e8"></rect></g>
+</defs></svg>
+<svg width="100%" height="100%" viewBox="164 0 152 270" aria-label="Vertical display as seen at FOH"><use href="#scene2"></use></svg></div></sc-if>
+<sc-if value="{{ isIn }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; inset:0; background:repeating-linear-gradient(90deg,#c8c8c8 0 12%,#c8c800 12% 24%,#00c8c8 24% 36%,#00c800 36% 48%,#c800c8 48% 60%,#c80000 60% 72%,#0000c8 72% 84%,#111 84% 100%); opacity:.85"></div>
+<sc-if value="{{ isCrop }}" hint-placeholder-val="{{ false }}"><div style="{{ cropBox }}"></div></sc-if></sc-if>
+</div>
+<div style="flex:1; display:flex; flex-direction:column; gap:6px">
+<button style="height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); font-size:12px">Test pattern</button>
+<button style="height:28px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); font-size:12px">Identify</button>
+</div>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Name</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">{{ screenName }}</div></div>
+<div style="display:flex; gap:8px">
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Type</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ typeName }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="flex:1; position:relative; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Format</span><div onClick="{{ toggleFmt }}" style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><span>1080p60</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ fmtOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:50px; right:0; width:300px; z-index:8; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{fmtRows}}" as="f" hint-placeholder-count="6">
+<div onClick="{{ f.pick }}" style="{{ f.style }}"><div style="display:flex; justify-content:space-between"><span>{{ f.label }}</span><span>{{ f.check }}</span></div><div style="font-size:11px; color:var(--dim)">{{ f.note }}</div></div>
+</sc-for>
+<div style="margin:4px 0 2px; padding:6px 8px; font-size:11px; color:var(--dim); border-top:1px solid var(--line)">Greyed formats can’t be carried by every destination on this screen.</div>
+</div>
+</sc-if>
+</div>
+</div>
+
+<sc-if value="{{ isLook }}" hint-placeholder-val="{{ true }}">
+<div style="position:relative; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Look</span>
+<div style="display:flex; gap:8px">
+<div onClick="{{ toggleLook }}" style="flex:1; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><span>{{ lookName }}</span><span style="color:var(--dim)">▾</span></div>
+<a href="MainLooks.dc.html" style="display:flex; align-items:center; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; border:1px solid var(--accent); color:var(--accent); font-weight:600; text-decoration:none">Looks ↗</a>
+</div>
+<span style="{{ lookNoteStyle }}">{{ lookNote }}</span>
+<sc-if value="{{ lookOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:50px; left:0; width:300px; z-index:8; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{lookRows}}" as="l" hint-placeholder-count="3"><div onClick="{{ l.pick }}" style="{{ l.style }}"><div style="display:flex; justify-content:space-between"><span>{{ l.label }}</span><span>{{ l.check }}</span></div><div style="font-size:11px; color:var(--dim)">{{ l.note }}</div></div></sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLook }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:6px"><span style="color:var(--dim); font-size:12px">Composition</span>
+<a href="Visuals.dc.html" style="height:28px; padding:0 10px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); text-decoration:none; color:var(--fg)"><span>{{ screenName }}</span><span style="color:var(--accent); font-weight:600">Open in Visuals ›</span></a>
+<div style="display:flex; align-items:center; gap:10px"><span onClick="{{ toggleCanvas }}" style="{{ canvasTrack }}"><span style="{{ canvasKnob }}"></span></span><span>On canvas</span></div>
+<sc-if value="{{ isSrcSlice }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px"><sc-for list="{{sliceFields}}" as="g" hint-placeholder-count="4"><div style="height:28px; padding:0 8px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span style="color:var(--dim); font-size:11px">{{ g.k }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px">{{ g.v }}</span></div></sc-for></div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isContent }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Content</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)">
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="2"><div onClick="{{ m.pick }}" style="{{ m.style }}">{{ m.label }}</div></sc-for>
+</div></div>
+<sc-if value="{{ isPlaylistMode }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Playlist</span>
+<div style="display:flex; gap:8px; align-items:center">
+<div style="flex:1; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ playlistName }}</span><span style="color:var(--dim)">▾</span></div>
+<span style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim)">Loop<span style="width:30px; height:16px; border-radius:8px; background:var(--accent); position:relative"><span style="position:absolute; top:2px; left:16px; width:12px; height:12px; border-radius:6px; background:{{ onAccent }}"></span></span></span>
+</div>
+<span style="color:var(--dim); font-size:11px">Plays on its own, independent of the operator’s show.</span></div>
+</sc-if>
+<sc-if value="{{ isFollowMode }}" hint-placeholder-val="{{ true }}"><span style="color:var(--dim); font-size:11px">Slides, media and IMAG layer from the main show.</span></sc-if>
+</sc-if>
+<sc-if value="{{ isSpk }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Content</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><div style="flex:1; text-align:center; padding:5px 0; background:var(--accent); color:{{ onAccent }}; font-weight:700">Shows an input</div></div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Input</span>
+<div style="display:flex; gap:8px"><div style="flex:1; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>IMAG · 9:16 portrait crop</span><span style="color:var(--dim)">▾</span></div><button onClick="{{ goImag }}" style="height:28px; padding:0 10px; border-radius:6px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600">Crop ↗</button></div>
+<span style="color:var(--dim); font-size:11px; line-height:1.4">The crop is set on the input. Any screen can show IMAG, each with its own rotation.</span></div>
+</sc-if>
+<sc-if value="{{ isStage }}" hint-placeholder-val="{{ false }}"><div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Stage layout</span><div style="display:flex; gap:8px"><div style="flex:1; height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ layoutName }}</span><span style="color:var(--dim)">▾</span></div><a href="StageEditor.dc.html" style="display:flex; align-items:center; height:28px; padding:0 10px; box-sizing:border-box; border-radius:6px; border:1px solid var(--accent); color:var(--accent); font-weight:600; text-decoration:none">Stage Editor ↗</a></div></div></sc-if>
+<sc-if value="{{ isOut }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ toggleAudio }}" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer">
+<div style="flex:1"><div style="font-weight:600">Route audio</div><div style="color:var(--dim); font-size:11px">Send audio with this screen (SDI embedded, NDI audio)</div></div>
+<span style="{{ audioTrack }}"><span style="{{ audioKnob }}"></span></span>
+</div>
+</sc-if>
+
+<sc-if value="{{ isOut }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Rotation</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)">
+<sc-for list="{{rotations}}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for>
+</div><span style="color:var(--dim); font-size:11px; line-height:1.4">{{ rotNote }}</span></div>
+
+<div style="position:relative; display:flex; flex-direction:column; gap:6px">
+<div style="display:flex; justify-content:space-between; align-items:center"><span style="{{label}}">DESTINATIONS</span><span onClick="{{ toggleAdd }}" style="color:var(--accent); font-weight:600; cursor:pointer">+ Add ▾</span></div>
+<sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:22px; right:0; width:210px; z-index:5; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4); display:flex; flex-direction:column; gap:1px">
+<div onClick="{{ openSdi }}" style="padding:6px 8px; border-radius:5px; cursor:pointer">SDI</div>
+<div onClick="{{ openNdi }}" style="padding:6px 8px; border-radius:5px; cursor:pointer">NDI</div>
+<div onClick="{{ openDisp }}" style="padding:6px 8px; border-radius:5px; cursor:pointer">External Display</div>
+</div>
+</sc-if>
+<sc-for list="{{dests}}" as="d" hint-placeholder-count="2">
+<div style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:var(--panel); border:1px solid var(--line)">
+<span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--sel); color:var(--accent)">{{ d.t }}</span>
+<span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ d.target }}</span>
+<span style="color:var(--dim)" aria-label="Remove destination">×</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isIn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Input source</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)">
+<sc-for list="{{srcTypes}}" as="r" hint-placeholder-count="2"><div style="{{ r.style }}">{{ r.label }}</div></sc-for>
+</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">{{ srcLabel }}</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>{{ srcTarget }}</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="position:relative; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Use as</span>
+<div onClick="{{ toggleUse }}" style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><span>{{ useName }}</span><span style="color:var(--dim)">▾</span></div>
+<sc-if value="{{ useOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; top:50px; left:0; right:0; z-index:9; padding:6px; border-radius:8px; background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:1px">
+<sc-for list="{{useRows}}" as="u" hint-placeholder-count="4"><div onClick="{{ u.pick }}" style="{{ u.style }}"><div style="display:flex; justify-content:space-between"><span>{{ u.label }}</span><span>{{ u.check }}</span></div><div style="font-size:11px; color:var(--dim)">{{ u.note }}</div></div></sc-for>
+</div>
+</sc-if>
+<span style="color:var(--dim); font-size:11px; line-height:1.4">{{ useNote }}</span></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Rotation</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)">
+<sc-for list="{{rotations}}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for>
+</div><span style="color:var(--dim); font-size:11px; line-height:1.4">Turns the source itself, for a camera mounted on its side.</span></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Crop</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)">
+<sc-for list="{{cropModes}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for>
+</div>
+<sc-if value="{{ isCrop }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:8px; margin-top:6px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line)">
+<sc-for list="{{cropSliders}}" as="c" hint-placeholder-count="3">
+<div style="display:flex; align-items:center; gap:8px"><span style="width:62px; color:var(--dim); font-size:12px">{{ c.label }}</span><div style="flex:1; height:4px; border-radius:2px; background:var(--line); position:relative"><div style="{{ c.fill }}"></div><div style="{{ c.knob }}"></div></div><span style="width:40px; text-align:right; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px">{{ c.value }}</span></div>
+</sc-for>
+<span style="color:var(--dim); font-size:11px; line-height:1.4">{{ cropNote }}</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ isSlices }}" hint-placeholder-val="{{ false }}">
+<dc-import name="OutputSlices" theme="{{theme}}" tab="{{stab}}" select="{{ssel}}" soft="{{ssoft}}" menu="{{smenu}}" hint-size="1218px,770px"></dc-import>
+</sc-if>
+</div>
+
+<!-- Dialogs -->
+<sc-if value="{{ dlgOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.4); display:flex; align-items:flex-start; justify-content:center; padding-top:150px; box-sizing:border-box">
+<div style="width:560px; border-radius:12px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 24px 70px rgba(0,0,0,.6); display:flex; flex-direction:column; overflow:hidden">
+<div style="padding:14px 18px; border-bottom:1px solid var(--line); font-size:15px; font-weight:700">{{ dlgTitle }}</div>
+<div style="padding:16px 18px; display:flex; flex-direction:column; gap:12px">
+
+<sc-if value="{{ isDlgType }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Type name</span><div style="height:30px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">[e.g. Lobby displays]</div></div>
+<div style="display:flex; flex-direction:column; gap:6px"><span style="color:var(--dim); font-size:12px">What screens of this type show</span>
+<sc-for list="{{typeOpts}}" as="o" hint-placeholder-count="3"><div onClick="{{ o.pick }}" style="{{ o.style }}"><div style="font-weight:600">{{ o.title }}</div><div style="font-size:12px; color:var(--dim)">{{ o.desc }}</div></div></sc-for>
+</div>
+<div style="display:flex; gap:10px">
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Default format</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>1080p60</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Route audio by default</span><div style="height:28px; display:flex; align-items:center"><span style="width:34px; height:18px; border-radius:9px; background:var(--line); position:relative"><span style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:7px; background:var(--dim)"></span></span><span style="margin-left:8px; color:var(--dim); font-size:12px">Off</span></div></div>
+</div>
+<div style="display:flex; flex-direction:column; gap:6px"><span style="color:var(--dim); font-size:12px">Usual destinations</span>
+<div style="display:flex; gap:6px"><span style="padding:4px 12px; border-radius:14px; border:1px solid var(--line); color:var(--dim); font-size:12px">SDI</span><span style="padding:4px 12px; border-radius:14px; background:var(--sel); border:1px solid var(--accent); color:var(--accent); font-size:12px; font-weight:600">NDI</span><span style="padding:4px 12px; border-radius:14px; border:1px solid var(--line); color:var(--dim); font-size:12px">External Display</span></div></div>
+<div style="color:var(--dim); font-size:12px">These are starting values. Every screen can override them.</div>
+</sc-if>
+
+<sc-if value="{{ isDlgSdi }}" hint-placeholder-val="{{ false }}">
+<div style="color:var(--dim); font-size:12px; line-height:1.4">Pick a free connector. It becomes an output for <b style="color:var(--fg)">{{ screenName }}</b>. Connectors that are in use are shown for reference.</div>
+<sc-for list="{{sdiCards}}" as="c" hint-placeholder-count="2">
+<div style="display:flex; flex-direction:column; gap:4px"><div style="display:flex; justify-content:space-between"><span style="{{label}}">{{ c.name }}</span><span style="color:var(--dim); font-size:11px">{{ c.max }}</span></div>
+<sc-for list="{{ c.rows }}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px; height:16px; border-radius:8px; box-sizing:border-box; border:2px solid {{ r.ring }}; background:{{ r.fill }}"></span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:600; width:50px">{{ r.id }}</span><span style="flex:1; color:var(--dim)">{{ r.status }}</span><span style="font-size:11px; color:var(--dim)">{{ r.note }}</span></div></sc-for>
+</div>
+</sc-for>
+<div style="color:var(--dim); font-size:12px">Each connector is either an input or an output. The maximum format depends on the card that connector is on.</div>
+</sc-if>
+
+<sc-if value="{{ isDlgNdi }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Stream name</span><div style="height:30px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line)">CueME Stage – {{ screenName }}</div><span style="color:var(--dim); font-size:11px">Receivers see this as MACHINE (CueME Stage – {{ screenName }}).</span></div>
+<div style="display:flex; gap:10px">
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Group</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>public</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Who can receive</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Anyone on the network</span><span style="color:var(--dim)">▾</span></div></div>
+</div>
+<div style="color:var(--dim); font-size:12px">Audio follows this screen’s Route audio setting. Format follows the screen format.</div>
+</sc-if>
+
+<sc-if value="{{ isDlgInput }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Name</span><div style="height:30px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); color:var(--dim)">[e.g. Pulpit camera]</div></div>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Source</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{inTabs}}" as="r" hint-placeholder-count="2"><div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.label }}</div></sc-for></div></div>
+<sc-if value="{{ inIsSdi }}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{inCards}}" as="c" hint-placeholder-count="2">
+<div style="display:flex; flex-direction:column; gap:4px"><div style="display:flex; justify-content:space-between"><span style="{{label}}">{{ c.name }}</span><span style="color:var(--dim); font-size:11px">{{ c.max }}</span></div>
+<sc-for list="{{ c.rows }}" as="r" hint-placeholder-count="4"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px; height:16px; border-radius:8px; box-sizing:border-box; border:2px solid {{ r.ring }}; background:{{ r.fill }}"></span><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:600; width:50px">{{ r.id }}</span><span style="flex:1; color:var(--dim)">{{ r.status }}</span><span style="font-size:11px; color:var(--dim)">{{ r.note }}</span></div></sc-for>
+</div>
+</sc-for>
+</sc-if>
+<sc-if value="{{ inIsNdi }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">FOUND ON THE NETWORK · DISCOVERY SERVER l252-pi</span>
+<sc-for list="{{inNdi}}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="{{ r.style }}"><span style="width:16px; height:16px; border-radius:8px; box-sizing:border-box; border:2px solid {{ r.ring }}; background:{{ r.fill }}"></span><span style="flex:1; font-weight:600">{{ r.name }}</span><span style="font-size:11px; color:var(--dim)">{{ r.note }}</span></div></sc-for>
+</div>
+</sc-if>
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Use as</span><div style="height:28px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; border-radius:6px; background:var(--panel); border:1px solid var(--line)"><span>Screen source only</span><span style="color:var(--dim)">▾</span></div></div>
+<div style="color:var(--dim); font-size:12px; line-height:1.4">The format is detected from the signal. You can change what the input is used for any time.</div>
+</sc-if>
+
+<sc-if value="{{ isDlgDisp }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; flex-direction:column; gap:3px"><span style="color:var(--dim); font-size:12px">Output as</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><div style="flex:1; text-align:center; padding:5px 0; background:var(--accent); color:{{ onAccent }}; font-weight:700">Fullscreen on a display</div><div style="flex:1; text-align:center; padding:5px 0; background:var(--panel)">Window</div></div></div>
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">DISPLAYS</span>
+<sc-for list="{{dispRows}}" as="r" hint-placeholder-count="3"><div style="{{ r.style }}"><span style="width:16px; height:16px; border-radius:8px; box-sizing:border-box; border:2px solid {{ r.ring }}; background:{{ r.fill }}"></span><span style="flex:1"><span style="font-weight:600">{{ r.name }}</span> <span style="color:var(--dim)">{{ r.size }}</span></span><span style="font-size:11px; color:var(--dim)">{{ r.note }}</span></div></sc-for>
+</div>
+<div style="color:var(--dim); font-size:12px; line-height:1.4">Each extra display costs GPU and memory bandwidth. SDI stays the primary path for the show.</div>
+</sc-if>
+
+</div>
+<div style="padding:12px 18px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:8px">
+<button onClick="{{ closeDlg }}" style="height:30px; padding:0 16px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Cancel</button>
+<button onClick="{{ closeDlg }}" style="height:30px; padding:0 16px; border-radius:6px; border:0; background:var(--accent); color:{{ onAccent }}; font-weight:700">{{ dlgPrimary }}</button>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"view":{"editor":"enum","default":"none","options":["none","newType","sdi","ndi","display","format","input"]},"select":{"editor":"enum","default":"0","options":["0","1","2","3","4","5","6","8","9","10"]},"rig":{"editor":"enum","default":"default","options":["default","quad"]},"tab":{"editor":"enum","default":"overview","options":["overview","canvas"]},"source":{"editor":"enum","default":"default","options":["default","layers"]},"blend":{"editor":"enum","default":"off","options":["off","on"]},"addmenu":{"editor":"enum","default":"closed","options":["closed","open"]},"pane":{"editor":"enum","default":"screens","options":["screens","slices"]},"stab":{"editor":"enum","default":"input","options":["input","output"]},"ssel":{"editor":"enum","default":"pl","options":["pl","tv1","tv2","pr"]},"ssoft":{"editor":"enum","default":"off","options":["off","on"]},"smenu":{"editor":"enum","default":"closed","options":["closed","open"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const v = (props && props.view) || 'none';
+    this.state = { dlg: v === 'none' ? null : v, shows: 2, sdiPick: 'B2', inSrc: 'SDI', inPick: 'B2', ndiPick: 'N2', use: { 4: 0, 5: 0 }, useOpen: false, dispPick: 'D2', sel: Number((props && props.select) || 0), rot: { 6: 1 }, crop: { 4: 1 }, add: false, mode: { 0: 0, 3: 1 }, audio: { 0: true, 1: false, 2: false, 3: false }, look: { 0: 0, 3: 0, 7: 1 }, lkOpen: false, ctab: (props && props.tab === 'canvas') ? 1 : 0, cmode: 1, src: (props && props.rig === 'quad') ? { 0: 1, 9: 1, 10: 1, 8: 1, 7: 3 } : { 0: 1, 3: 1, 7: 3, ...((props && props.source === 'layers') ? { 3: 2 } : {}) }, srcOpen: false, addOpen: !!(props && props.addmenu === 'open'), blend: (props && props.blend === 'on') ? ((props && props.rig === 'quad') ? { 0: { R: 200 }, 8: { L: 200 } } : { 0: { R: 200 }, 3: { L: 200 } }) : {}, lay: { 0: true, 1: true, 2: true, 3: true } };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const light = theme === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--live:#c4231c;--ok:#17803c;--warn:#a85a00;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--live:#e5483f;--ok:#47c86e;--warn:#ffb020;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const quad = this.props.rig === 'quad';
+    let defs = [
+      { i: 0, name: 'Screen 1', type: 'Audience', kind: 'aud', badge: 'SDI+NDI', dests: [{ t: 'SDI', target: 'Duo 2 A · SDI 1' }, { t: 'NDI', target: 'CueME Stage – Screen 1' }] },
+      { i: 1, name: 'Stage Screen 1', type: 'Stage', kind: 'stage', badge: 'SDI', layout: 'Lyrics + timer', dests: [{ t: 'SDI', target: 'Duo 2 A · SDI 2' }] },
+      { i: 2, name: 'Stage Screen 2', type: 'Stage', kind: 'stage', badge: 'SDI', layout: 'Next + clock', dests: [{ t: 'SDI', target: 'Duo 2 A · SDI 3' }] },
+      { i: 7, name: 'Stream Lower Third', type: 'Audience', kind: 'aud', badge: 'NDI · α', dests: [{ t: 'NDI', target: 'CueME Stage – Stream LT' }] },
+      { i: 3, name: 'Lobby TV', type: 'Announcements', kind: 'ann', badge: 'NDI', dests: [{ t: 'NDI', target: 'CueME Stage – Lobby TV' }] },
+      { i: 4, name: 'IMAG', type: 'Input', kind: 'in', badge: 'SDI', src: 'SDI', target: 'Duo 2 A · SDI 4' },
+      { i: 6, name: 'Speaker Tight', type: 'Speaker displays', kind: 'spk', badge: 'SDI', dests: [{ t: 'SDI', target: 'Duo 2 B · SDI 1' }] },
+      { i: 5, name: 'Floor Cam', type: 'Input', kind: 'in', badge: 'NDI', src: 'NDI', target: 'FLOOR-CAM (l252-pi)' },
+    ];
+    if (quad) {
+      defs = defs.map((d) => d.i === 0 ? { ...d, name: 'Projector Left', badge: 'Display', dests: [{ t: 'Display', target: 'Display 2 · 1920 × 1080' }] } : d);
+      const extra = [
+        { i: 9, name: 'Portrait TV 1', type: 'Audience', kind: 'aud', badge: 'Display', dests: [{ t: 'Display', target: 'Display 4 · 1080 × 1920' }] },
+        { i: 10, name: 'Portrait TV 2', type: 'Audience', kind: 'aud', badge: 'Display', dests: [{ t: 'Display', target: 'Display 5 · 1080 × 1920' }] },
+        { i: 8, name: 'Projector Right', type: 'Audience', kind: 'aud', badge: 'Display', dests: [{ t: 'Display', target: 'Display 3 · 1920 × 1080' }] },
+      ];
+      defs.splice(1, 0, ...extra);
+    }
+    const groups = [['AUDIENCE', 'aud'], ['STAGE', 'stage'], ['ANNOUNCEMENTS', 'ann'], ['SPEAKER DISPLAYS', 'spk'], ['INPUTS', 'in']];
+    const screens = [];
+    groups.forEach((g) => {
+      screens.push({ isHeader: true, isRow: false, name: g[0], hasAdd: g[1] === 'in', add: () => this.setState({ dlg: 'input', add: false }) });
+      defs.filter((d) => d.kind === g[1]).forEach((d) => screens.push({
+        isHeader: false, isRow: true, name: d.name, meta: d.badge,
+        weight: d.i === st.sel ? 700 : 500,
+        pick: () => this.setState({ sel: d.i, add: false }),
+        style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (d.i === st.sel ? 'var(--sel)' : 'transparent')
+      }));
+    });
+    const cur = defs.filter((d) => d.i === st.sel)[0];
+    const tileBase = 'border-radius:8px; padding:8px 10px; display:flex; flex-direction:column; gap:4px; background:var(--bg); cursor:pointer; border:2px solid ';
+    const mkTile = (id, dir, assign, idx, status) => ({
+      id, dir, assign, status,
+      weight: idx >= 0 ? 600 : 400,
+      color: idx >= 0 ? 'var(--fg)' : 'var(--dim)',
+      dot: idx >= 0 ? 'var(--ok)' : 'var(--line)',
+      pick: () => { if (idx >= 0) this.setState({ sel: idx, add: false }); },
+      style: tileBase + (idx === st.sel ? 'var(--accent)' : 'var(--line)') + '; opacity:' + (idx >= 0 ? 1 : 0.65)
+    });
+    const cards = [
+      { name: 'DeckLink Duo 2 · A', slot: 'Echo III slot 1 · up to 1080p60', tiles: [(quad ? mkTile('SDI 1', 'Out', 'Unassigned', -1, 'Idle') : mkTile('SDI 1', 'Out', 'Screen 1', 0, '1080p60')), mkTile('SDI 2', 'Out', 'Stage Screen 1', 1, '1080p60'), mkTile('SDI 3', 'Out', 'Stage Screen 2', 2, '1080p60'), mkTile('SDI 4', 'In', 'IMAG', 4, 'Locked 1080p60')] },
+      { name: 'DeckLink Duo 2 · B', slot: 'Echo III slot 2 · up to 1080p60', tiles: [mkTile('SDI 1', 'Out', 'Speaker Tight', 6, '1080p60 · rotated 90°'), mkTile('SDI 2', 'Out', 'Unassigned', -1, 'Idle'), mkTile('SDI 3', 'Out', 'Unassigned', -1, 'Idle'), mkTile('SDI 4', 'Out', 'Unassigned', -1, 'Idle')] },
+    ];
+    const rowS = (idx) => 'display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:6px; cursor:pointer; background:' + (idx === st.sel ? 'var(--sel)' : 'var(--bg)');
+    const ndiOut = [
+      ...(quad ? [] : [{ name: 'CueME Stage – Screen 1', screen: 'Screen 1', status: 'Program feed', i: 0 }]),
+      { name: 'CueME Stage – Stream LT', screen: 'Stream Lower Third', status: 'Alpha', i: 7 },
+      { name: 'CueME Stage – Lobby TV', screen: 'Lobby TV', status: '1 receiver', i: 3 },
+    ].map((n) => ({ ...n, pick: () => this.setState({ sel: n.i, add: false }), style: rowS(n.i) }));
+    const ndiIn = [
+      { name: 'FLOOR-CAM (l252-pi)', screen: 'Floor Cam', status: '1080p60', i: 5 },
+    ].map((n) => ({ ...n, pick: () => this.setState({ sel: n.i, add: false }), style: rowS(n.i) }));
+    const rotLabels = ['0°', '90°', '180°', '270°'];
+    const rotCur = (st.rot && st.rot[st.sel]) || 0;
+    const rotations = rotLabels.map((n, i) => ({
+      label: n,
+      pick: () => this.setState({ rot: { ...st.rot, [st.sel]: i } }),
+      style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; background:' + (i === rotCur ? 'var(--accent)' : 'var(--panel)') + '; color:' + (i === rotCur ? onAccent : 'var(--fg)') + '; font-weight:' + (i === rotCur ? 700 : 400)
+    }));
+    const cropIdx = (st.crop && st.crop[st.sel]) || 0;
+    const cropModes = ['Full frame', '9:16 portrait', 'Custom'].map((n, i) => ({
+      label: n,
+      pick: () => this.setState({ crop: { ...st.crop, [st.sel]: i } }),
+      style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; background:' + (i === cropIdx ? 'var(--accent)' : 'var(--panel)') + '; color:' + (i === cropIdx ? onAccent : 'var(--fg)') + '; font-weight:' + (i === cropIdx ? 700 : 400)
+    }));
+    const sl = (label, pct, value) => ({ label, value, fill: 'position:absolute; left:0; top:0; height:4px; border-radius:2px; background:var(--accent); width:' + pct + '%', knob: 'position:absolute; top:-5px; width:14px; height:14px; margin-left:-7px; border-radius:7px; background:var(--fg); left:' + pct + '%' });
+    const cropSliders = [sl('Center X', 50, '50%'), sl('Center Y', 38, '38%'), sl('Zoom', cropIdx === 1 ? 20 : 45, cropIdx === 1 ? '120%' : '160%')];
+    const cropBox = cropIdx === 1
+      ? 'position:absolute; top:0; height:112px; left:68px; width:63px; box-sizing:border-box; border:2px solid var(--accent); box-shadow:0 0 0 400px rgba(0,0,0,.6)'
+      : 'position:absolute; top:22px; height:68px; left:60px; width:96px; box-sizing:border-box; border:2px solid var(--accent); box-shadow:0 0 0 400px rgba(0,0,0,.6)';
+    const srcTypes = ['SDI', 'NDI'].map((n) => ({
+      label: n,
+      style: 'flex:1; text-align:center; padding:5px 0; background:' + (cur.src === n ? 'var(--accent)' : 'var(--panel)') + '; color:' + (cur.src === n ? onAccent : 'var(--fg)') + '; font-weight:' + (cur.src === n ? 700 : 400)
+    }));
+    const mode = st.mode[st.sel] || 0;
+    const modes = ['Follows the show', 'Plays a playlist'].map((n, i) => ({
+      label: n,
+      pick: () => this.setState({ mode: { ...st.mode, [st.sel]: i } }),
+      style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; background:' + (i === mode ? 'var(--accent)' : 'var(--panel)') + '; color:' + (i === mode ? onAccent : 'var(--fg)') + '; font-weight:' + (i === mode ? 700 : 400)
+    }));
+    const rad = (on) => ({ ring: on ? 'var(--accent)' : 'var(--dim)', fill: on ? 'var(--accent)' : 'transparent' });
+    const useDefs = [['Screen source only', 'Only screens that pick it show it. It never enters the main show.'], ['Live layer (cut to fullscreen)', 'The operator cuts to it over the slides.'], ['Picture-in-picture', 'Sits in a corner over the slides.'], ['Background layer', 'Plays behind the slide text.']];
+    const useCur = (st.use && st.use[st.sel]) || 0;
+    const useRows = useDefs.map((u, i) => ({
+      label: u[0], note: u[1], check: i === useCur ? '✓' : '',
+      pick: () => this.setState({ use: { ...st.use, [st.sel]: i }, useOpen: false }),
+      style: 'padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === useCur ? 'var(--sel)' : 'transparent')
+    }));
+    const inTabs = ['SDI', 'NDI'].map((n) => ({
+      label: n, pick: () => this.setState({ inSrc: n }),
+      style: 'flex:1; text-align:center; padding:5px 0; cursor:pointer; background:' + (st.inSrc === n ? 'var(--accent)' : 'var(--panel)') + '; color:' + (st.inSrc === n ? onAccent : 'var(--fg)') + '; font-weight:' + (st.inSrc === n ? 700 : 400)
+    }));
+    const inRowStyle = (on, free) => 'display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:6px; background:' + (on ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid var(--line); opacity:' + (free ? 1 : 0.55) + '; cursor:' + (free ? 'pointer' : 'default');
+    const inCards = [
+      { name: 'DeckLink Duo 2 · A', rows: [['A1', 'SDI 1', 'In use', 'Screen 1 (out)', false], ['A2', 'SDI 2', 'In use', 'Stage Screen 1 (out)', false], ['A3', 'SDI 3', 'In use', 'Stage Screen 2 (out)', false], ['A4', 'SDI 4', 'In use', 'IMAG (in)', false]] },
+      { name: 'DeckLink Duo 2 · B', rows: [['B1', 'SDI 1', 'In use', 'Speaker Tight (out)', false], ['B2', 'SDI 2', 'Available', '', true], ['B3', 'SDI 3', 'Available', '', true], ['B4', 'SDI 4', 'Available', '', true]] },
+    ].map((c) => ({ name: c.name, max: 'Up to 1080p60', rows: c.rows.map((r) => {
+      const on = r[0] === st.inPick; const rd = rad(on);
+      return { id: r[1], status: r[2], note: r[3], ring: r[4] ? rd.ring : 'var(--line)', fill: r[4] ? rd.fill : 'transparent', pick: () => { if (r[4]) this.setState({ inPick: r[0] }); }, style: inRowStyle(on, r[4]) };
+    }) }));
+    const inNdi = [['N1', 'FLOOR-CAM (l252-pi)', 'In use · Floor Cam', false], ['N2', 'PTZ-LEFT (l252-pi)', '1080p30', true], ['N3', 'OBS-STREAM (MAC-MINI)', '1080p60', true]].map((r) => {
+      const on = r[0] === st.ndiPick; const rd = rad(on);
+      return { name: r[1], note: r[2], ring: r[3] ? rd.ring : 'var(--line)', fill: r[3] ? rd.fill : 'transparent', pick: () => { if (r[3]) this.setState({ ndiPick: r[0] }); }, style: inRowStyle(on, r[3]) };
+    });
+    const lookDefs = [['Full screen', 'Opaque · all content'], ['Lower third', 'Transparent · songs and scripture'], ['Bilingual', 'Opaque · two languages']];
+    const lookCur = (st.look && st.look[st.sel]) || 0;
+    const lookRows = lookDefs.map((l, i) => ({
+      label: l[0], note: l[1], check: i === lookCur ? '✓' : '',
+      pick: () => this.setState({ look: { ...st.look, [st.sel]: i }, lkOpen: false }),
+      style: 'padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === lookCur ? 'var(--sel)' : 'transparent')
+    }));
+    const centerTabs = ['Signal overview', 'Canvas'].map((n, i) => ({ label: n, pick: () => this.setState({ ctab: i }),
+      style: 'padding:8px 16px; cursor:pointer; font-weight:600; border-bottom:2px solid ' + (i === st.ctab ? 'var(--accent)' : 'transparent') + '; color:' + (i === st.ctab ? 'var(--fg)' : 'var(--dim)') }));
+    const srcDefs = [['Composition', 'Full frame, every layer'], ['Canvas slice', 'A region of the canvas'], ['Selected layers', 'Pick the layers to show'], ['Slides only', 'No background layers']];
+    const srcCur = (st.src && st.src[st.sel] !== undefined) ? st.src[st.sel] : 0;
+    const srcRows = srcDefs.map((l, i) => ({ label: l[0], note: l[1], check: i === srcCur ? '✓' : '',
+      pick: () => this.setState({ src: { ...st.src, [st.sel]: i }, srcOpen: false }),
+      style: 'padding:6px 8px; border-radius:5px; cursor:pointer; background:' + (i === srcCur ? 'var(--sel)' : 'transparent') }));
+    const LAYN = ['Overlay', 'Slides', 'Motion', 'Background'];
+    const layerChips = LAYN.map((n, i) => ({ label: n, pick: () => { if (i !== 1) this.setState({ lay: { ...st.lay, [i]: !st.lay[i] } }); },
+      style: 'padding:3px 10px; border-radius:12px; font-size:12px; cursor:' + (i === 1 ? 'default' : 'pointer') + '; border:1px solid ' + (st.lay[i] ? 'var(--accent)' : 'var(--line)') + '; background:' + (st.lay[i] ? 'var(--sel)' : 'transparent') + '; color:' + (st.lay[i] ? 'var(--accent)' : 'var(--dim)') }));
+    const outsAud = defs.filter((d) => d.kind === 'aud' || d.kind === 'ann');
+    const sliceOuts = outsAud.filter((d) => ((st.src && st.src[d.i]) || 0) === 1);
+    const GEO = quad ? { 0: { w: 1920, h: 1080, y: 0 }, 8: { w: 1920, h: 1080, y: 0 }, 9: { w: 1080, h: 1920, y: 0 }, 10: { w: 1080, h: 1920, y: 0 } } : {};
+    const geoOf = (d) => GEO[d.i] || { w: 1920, h: 1080, y: 0 };
+    const sameRow = (a, b) => !!a && !!b && geoOf(a).h === geoOf(b).h && geoOf(a).y === geoOf(b).y;
+    const bl = (d) => (st.blend && st.blend[d.i]) || {};
+    const ovAt = (k) => (k >= 0 && k < sliceOuts.length - 1 && sameRow(sliceOuts[k], sliceOuts[k + 1])) ? (bl(sliceOuts[k]).R || 0) : 0;
+    const sliceX = (d) => { const k = sliceOuts.indexOf(d); let x = 0; for (let m = 0; m < k; m++) x += geoOf(sliceOuts[m]).w - ovAt(m); return x; };
+    const compW = sliceOuts.length ? Math.max(...sliceOuts.map((d) => sliceX(d) + geoOf(d).w)) : 3840;
+    const compH = sliceOuts.length ? Math.max(...sliceOuts.map((d) => geoOf(d).y + geoOf(d).h)) : 1080;
+    const regionOf = (d) => { const c = (st.src && st.src[d.i]) || 0; const g = geoOf(d); return c === 0 ? '0, 0 · 1920 × 1080' : c === 1 ? sliceX(d) + ', ' + g.y + ' · ' + g.w + ' × ' + g.h : c === 2 ? (LAYN.filter((n, i) => st.lay[i]).length) + ' of 4 layers' : 'Slides'; };
+    const cw = 584; const F = cw / compW;
+    const selD = sliceOuts.indexOf(cur) >= 0 ? cur : sliceOuts[0];
+    const selK = sliceOuts.indexOf(selD);
+    const showPat = quad;
+    const seamX = compW / 2;
+    const pat = (s2, ox, oy) => 'background-image:linear-gradient(180deg,#fff 0 3%,transparent 3% 97%,#fff 97% 100%),radial-gradient(ellipse ' + (480 / compW * 100) + '% ' + (480 / compH * 100) + '% at ' + (seamX / compW * 100) + '% 50%,#ffc857 0 94%,rgba(255,200,87,0) 100%),repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 1px,transparent 1px ' + (960 * s2) + 'px),linear-gradient(90deg,#1d3557 0%,#457b9d 33%,#6a4c93 66%,#e76f51 100%); background-size:' + (compW * s2) + 'px ' + (compH * s2) + 'px; background-position:' + (-ox * s2) + 'px ' + (-oy * s2) + 'px; background-repeat:no-repeat; background-origin:border-box;';
+    const PAL = ['#47c86e', '#4da3ff', '#ffb020', '#d46bff'];
+    const colOf = (d) => quad ? PAL[sliceOuts.indexOf(d) % 4] : (d.i === 0 ? '#47c86e' : '#4da3ff');
+    const hs = (l, t) => 'position:absolute; width:7px; height:7px; background:#fff; left:' + l + '; top:' + t;
+    const handles = [['-4px', '-4px'], ['calc(50% - 3px)', '-4px'], ['calc(100% - 3px)', '-4px'], ['-4px', 'calc(50% - 3px)'], ['calc(100% - 3px)', 'calc(50% - 3px)'], ['-4px', 'calc(100% - 3px)'], ['calc(50% - 3px)', 'calc(100% - 3px)'], ['calc(100% - 3px)', 'calc(100% - 3px)']].map((p) => ({ style: hs(p[0], p[1]) }));
+    const sliceRects = sliceOuts.map((d) => { const g = geoOf(d);
+      return { name: d.name, region: g.w * F < 150 ? '' : sliceX(d) + ', ' + g.y + ' · ' + g.w + ' × ' + g.h, pick: () => this.setState({ sel: d.i }), selected: d === selD, handles,
+      style: 'position:absolute; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; color:#fff; left:' + sliceX(d) * F + 'px; top:' + g.y * F + 'px; width:' + g.w * F + 'px; height:' + g.h * F + 'px; border:2px solid ' + (d === selD ? '#fff' : colOf(d)) + ';' + (quad ? pat(F, sliceX(d), g.y) : ' background:' + (d.i === 0 ? 'rgba(71,200,110,.28)' : 'rgba(77,163,255,.28)')) }; });
+    const blendZones = sliceOuts.map((d, k) => k < sliceOuts.length - 1 && ovAt(k) > 0 ? { style: 'position:absolute; top:' + geoOf(d).y * F + 'px; height:' + geoOf(d).h * F + 'px; left:' + sliceX(sliceOuts[k + 1]) * F + 'px; width:' + ovAt(k) * F + 'px; background:linear-gradient(90deg, rgba(255,255,255,.05), rgba(255,255,255,.5), rgba(255,255,255,.05)); pointer-events:none' } : null).filter((z) => z);
+    const patDim = 'position:absolute; left:0; top:0; right:0; bottom:0; opacity:.28; ' + pat(F, 0, 0);
+    const ts = 0.07;
+    const thumbs = sliceOuts.map((d) => { const g = geoOf(d);
+      return { name: d.name, res: g.w + ' × ' + g.h, pick: () => this.setState({ sel: d.i }),
+        style: 'flex:none; box-sizing:border-box; cursor:pointer; border-radius:2px; width:' + Math.round(g.w * ts) + 'px; height:' + Math.round(g.h * ts) + 'px; border:2px solid ' + (d === selD ? '#fff' : colOf(d)) + ';' + pat(ts, sliceX(d), g.y) }; });
+    const sliceTable = sliceOuts.map((d, k) => { const b = bl(d); const g = geoOf(d); const sum = (b.L || 0) + (b.R || 0) + (b.T || 0) + (b.B || 0);
+      return { name: d.name, x: sliceX(d), y: g.y, w: g.w, h: g.h, blend: sum > 0 ? 'On' : 'Off', blendColor: sum > 0 ? 'var(--accent)' : 'var(--dim)', pick: () => this.setState({ sel: d.i }),
+        remove: () => this.setState({ src: { ...st.src, [d.i]: 0 } }),
+        style: 'display:flex; align-items:center; padding:7px 12px; cursor:pointer; border-bottom:1px solid var(--line); background:' + (d === selD ? 'var(--sel)' : 'transparent') }; });
+    const addRows = outsAud.filter((d) => ((st.src && st.src[d.i]) || 0) !== 1).map((d) => ({ name: d.name, pick: () => this.setState({ src: { ...st.src, [d.i]: 1 }, addOpen: false }) }));
+    const setEdge = (d, edge, w) => {
+      const nb = { ...(st.blend || {}) };
+      const k = sliceOuts.indexOf(d);
+      nb[d.i] = { ...(nb[d.i] || {}), [edge]: w };
+      if (edge === 'R' && sliceOuts[k + 1]) nb[sliceOuts[k + 1].i] = { ...(nb[sliceOuts[k + 1].i] || {}), L: w };
+      if (edge === 'L' && sliceOuts[k - 1]) nb[sliceOuts[k - 1].i] = { ...(nb[sliceOuts[k - 1].i] || {}), R: w };
+      this.setState({ blend: nb });
+    };
+    const edgeDefs = [['L', 'Left', selK > 0 && sameRow(selD, sliceOuts[selK - 1])], ['R', 'Right', selK >= 0 && selK < sliceOuts.length - 1 && sameRow(selD, sliceOuts[selK + 1])], ['T', 'Top', true], ['B', 'Bottom', true]];
+    const edgeRows = selD ? edgeDefs.map((e) => { const w = bl(selD)[e[0]] || 0; const ok = e[2];
+      return { name: e[1], width: ok ? w + ' px' : '—', opacity: ok ? 1 : 0.4,
+        toggle: () => { if (ok) setEdge(selD, e[0], w > 0 ? 0 : 200); }, up: () => { if (ok && w > 0) setEdge(selD, e[0], w + 20); }, down: () => { if (ok && w > 0) setEdge(selD, e[0], Math.max(0, w - 20)); },
+        track: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; cursor:pointer; background:' + (w > 0 ? 'var(--accent)' : 'var(--line)'),
+        knob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (w > 0 ? onAccent : 'var(--dim)') + '; left:' + (w > 0 ? 18 : 2) + 'px' }; }) : [];
+    const cmodeSeg = ['Simple', 'Canvas'].map((n, i) => ({ label: n, pick: () => this.setState({ cmode: i }),
+      style: 'padding:5px 16px; cursor:pointer; font-size:12px; background:' + (st.cmode === i ? 'var(--accent)' : 'var(--panel)') + '; color:' + (st.cmode === i ? onAccent : 'var(--fg)') + '; font-weight:' + (st.cmode === i ? 700 : 400) }));
+    const curSliceIdx = sliceOuts.indexOf(cur);
+    const sliceFields = curSliceIdx >= 0 ? [{ k: 'X', v: sliceX(cur) }, { k: 'Y', v: geoOf(cur).y }, { k: 'W', v: geoOf(cur).w }, { k: 'H', v: geoOf(cur).h }] : [{ k: 'X', v: 0 }, { k: 'Y', v: 0 }, { k: 'W', v: 1920 }, { k: 'H', v: 1080 }];
+    const lookAlpha = lookCur === 1;
+    const audioOn = !!st.audio[st.sel];
+    const dlg = st.dlg;
+    const modalKinds = { newType: 1, sdi: 1, ndi: 1, display: 1, input: 1 };
+    const optBase = 'padding:8px 10px; border-radius:8px; cursor:pointer; background:var(--panel); border:2px solid ';
+    const typeOpts = [
+      { title: 'Follows the show', desc: 'Slides, media and IMAG from the main show, like an audience screen.' },
+      { title: 'Stage layout', desc: 'Text for performers: lyrics, timer, messages, next slide.' },
+      { title: 'Plays a playlist', desc: 'Runs its own playlist on a loop, independent of the operator.' },
+    ].map((o, i) => ({ ...o, pick: () => this.setState({ shows: i }), style: optBase + (i === st.shows ? 'var(--accent)' : 'var(--line)') }));
+    const sdiDefs = [
+      { name: 'DeckLink Duo 2 · A', rows: [['A1', 'SDI 1', 'In use', 'Screen 1 (out)', false], ['A2', 'SDI 2', 'In use', 'Stage Screen 1 (out)', false], ['A3', 'SDI 3', 'In use', 'Stage Screen 2 (out)', false], ['A4', 'SDI 4', 'In use', 'IMAG (in)', false]] },
+      { name: 'DeckLink Duo 2 · B', rows: [['B1', 'SDI 1', 'In use', 'Speaker Tight (out)', false], ['B2', 'SDI 2', 'Available', '', true], ['B3', 'SDI 3', 'Available', '', true], ['B4', 'SDI 4', 'Available', '', true]] },
+    ];
+    const sdiCards = sdiDefs.map((c) => ({
+      name: c.name, max: 'Up to 1080p60',
+      rows: c.rows.map((r) => {
+        const on = r[0] === st.sdiPick;
+        const rd = rad(on);
+        return { id: r[1], status: r[2], note: r[3], ring: r[4] ? rd.ring : 'var(--line)', fill: r[4] ? rd.fill : 'transparent',
+          pick: () => { if (r[4]) this.setState({ sdiPick: r[0] }); },
+          style: 'display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:6px; background:' + (on ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid var(--line); opacity:' + (r[4] ? 1 : 0.55) + '; cursor:' + (r[4] ? 'pointer' : 'default') };
+      })
+    }));
+    const dispRows = [
+      ['D1', 'Built-in display', '', 'Operator view', false],
+      ['D2', 'Display 2', '1920×1080', 'Available', true],
+      ['D3', 'Display 3', '3840×2160', 'Available', true],
+    ].map((r) => {
+      const on = r[0] === st.dispPick;
+      const rd = rad(on);
+      return { name: r[1], size: r[2], note: r[3], ring: r[4] ? rd.ring : 'var(--line)', fill: r[4] ? rd.fill : 'transparent',
+        style: 'display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:6px; background:' + (on ? 'var(--sel)' : 'var(--panel)') + '; border:1px solid var(--line); opacity:' + (r[4] ? 1 : 0.55) };
+    });
+    const fmtDefs = [
+      ['1080p60', '', true], ['1080p59.94', '', true], ['1080p50', '', true], ['1080p30', '', true], ['720p60', '', true],
+      ['2160p30', 'Over this connector’s card limit (1080p60)', false], ['2160p60', 'Over this connector’s card limit (1080p60)', false],
+    ];
+    const fmtRows = fmtDefs.map((f, i) => ({
+      label: f[0], note: f[1], check: i === 0 ? '✓' : '',
+      pick: () => this.setState({ dlg: null }),
+      style: 'padding:6px 8px; border-radius:5px; cursor:' + (f[2] ? 'pointer' : 'default') + '; opacity:' + (f[2] ? 1 : 0.5) + '; background:' + (i === 0 ? 'var(--sel)' : 'transparent')
+    }));
+    const titles = { newType: 'New screen type', sdi: 'Add SDI output', ndi: 'Add NDI output', display: 'Add External Display', input: 'Add input' };
+    const primaries = { newType: 'Create type', sdi: 'Add SDI output', ndi: 'Add NDI output', display: 'Add display output', input: 'Add input' };
+    return {
+      dlgOpen: !!modalKinds[dlg], dlgTitle: titles[dlg] || '', dlgPrimary: primaries[dlg] || '',
+      isDlgType: dlg === 'newType', isDlgSdi: dlg === 'sdi', isDlgNdi: dlg === 'ndi', isDlgDisp: dlg === 'display', isDlgInput: dlg === 'input', inIsSdi: st.inSrc === 'SDI', inIsNdi: st.inSrc === 'NDI', inTabs, inCards, inNdi, useName: useRows[useCur].label, useRows, useNote: useRows[useCur].note, useOpen: !!st.useOpen, toggleUse: () => this.setState({ useOpen: !st.useOpen }),
+      fmtOpen: dlg === 'format', typeOpts, sdiCards, dispRows, fmtRows,
+      openType: () => this.setState({ dlg: 'newType' }),
+      openSdi: () => this.setState({ dlg: 'sdi', add: false }),
+      openNdi: () => this.setState({ dlg: 'ndi', add: false }),
+      openDisp: () => this.setState({ dlg: 'display', add: false }),
+      closeDlg: () => this.setState({ dlg: null }),
+      toggleFmt: () => this.setState({ dlg: dlg === 'format' ? null : 'format' }),
+      modes, isContent: cur.kind === 'aud' || cur.kind === 'ann',
+      isPlaylistMode: mode === 1, isFollowMode: mode === 0,
+      playlistName: cur.kind === 'ann' ? 'Lobby loop · 6 items' : 'Nov 22 Service · 8 items',
+      toggleAudio: () => this.setState({ audio: { ...st.audio, [st.sel]: !audioOn } }),
+      audioTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; background:' + (audioOn ? 'var(--accent)' : 'var(--line)'),
+      audioKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (audioOn ? onAccent : 'var(--dim)') + '; left:' + (audioOn ? 18 : 2) + 'px',
+      theme, vars, label, onAccent, cropModes, cropSliders, cropBox, isCrop: cropIdx > 0, cropNote: cropIdx === 1 ? 'Takes a vertical slice of the source. Send this input to a screen rotated 90° or 270° for a portrait display.' : 'Draw any region of the source. Output is scaled to fit the screen.', rotNote: (rotCur === 1 || rotCur === 3) ? 'Portrait 1080×1920. NDI and External Display send it upright. SDI is landscape only, so it is rotated inside a 1920×1080 frame for a rotated monitor.' : rotCur === 2 ? 'Upside down. Useful for ceiling-mounted displays.' : 'Standard landscape. Rotate for a vertical display, such as a tight shot of the speaker.', screens, cards, ndiOut, ndiIn, rotations, srcTypes,
+      isAud: cur.kind === 'aud', isAudLT: cur.kind === 'aud' && lookAlpha, isAudFull: cur.kind === 'aud' && !lookAlpha,
+      isScreens: this.props.pane !== 'slices', isSlices: this.props.pane === 'slices', stab: this.props.stab || 'input', ssel: this.props.ssel || 'pl', ssoft: this.props.ssoft || 'off', smenu: this.props.smenu || 'closed', centerTabs, isOverview: st.ctab === 0, isCanvas: st.ctab === 1, isCanvasMode: st.cmode === 1, cmodeSeg, compRes: st.cmode === 1 ? compW + ' × ' + compH : '1920 × 1080', cw, ch: compH * F, gridStep: 960 * F, showPat, patDim, thumbs, sliceRects, sliceTable, blendZones, addRows, edgeRows, hasSel: !!selD, selSliceName: selD ? selD.name.toUpperCase() : '', slAddOpen: !!st.addOpen, slToggleAdd: () => this.setState({ addOpen: !st.addOpen }), isSimpleMode: st.cmode !== 1,
+      toggleCanvas: () => this.setState({ src: { ...st.src, [st.sel]: srcCur === 1 ? 0 : 1 } }), canvasTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; cursor:pointer; background:' + (srcCur === 1 ? 'var(--accent)' : 'var(--line)'), canvasKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (srcCur === 1 ? onAccent : 'var(--dim)') + '; left:' + (srcCur === 1 ? 18 : 2) + 'px',
+      srcName: srcDefs[srcCur][0], srcRows, srcOpen: !!st.srcOpen, toggleSrc: () => this.setState({ srcOpen: !st.srcOpen, lkOpen: false }), isSrcLayers: srcCur === 2, isSrcSlice: srcCur === 1, layerChips, sliceFields,
+      isLook: cur.kind === 'aud' || cur.kind === 'ann', lookName: lookDefs[lookCur][0], lookRows, lookOpen: !!st.lkOpen, toggleLook: () => this.setState({ lkOpen: !st.lkOpen, srcOpen: false }),
+      lookNote: lookAlpha ? 'Transparent. NDI sends alpha so vMix and OBS can key it. Songs and scripture only. Presentations and messages are not sent.' : 'Songs, scripture and messages use this look’s templates.',
+      lookNoteStyle: 'font-size:11px; line-height:1.4; color:' + (lookAlpha ? 'var(--accent)' : 'var(--dim)'), isStage: cur.kind === 'stage', isAnn: cur.kind === 'ann', isSpk: cur.kind === 'spk', previewStyle: 'flex:none; border-radius:6px; border:1px solid var(--line); overflow:hidden; background:#000; position:relative; ' + (cur.kind === 'spk' ? 'width:90px; height:160px' : 'width:200px; height:112px'), goImag: () => this.setState({ sel: 4, add: false }), isIn: cur.kind === 'in',
+      isOut: cur.kind !== 'in',
+      screenName: cur.name, typeName: cur.type,
+      layoutName: cur.layout || '',
+      dests: cur.dests || [],
+      srcLabel: cur.src === 'NDI' ? 'NDI source' : 'Connector',
+      srcTarget: cur.target || '',
+      addOpen: st.add,
+      toggleAdd: () => this.setState({ add: !st.add })
+    };
+  }
+}
+</script>
+</body>
+</html>

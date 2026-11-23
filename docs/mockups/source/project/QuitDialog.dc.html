@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quit and restart dialogs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:var(--fg)">
+<div style="position:absolute; inset:0"><dc-import name="Main" bar="off" theme="{{theme}}" hint-size="1440px,900px"></dc-import></div>
+<div style="position:absolute; inset:0; background:rgba(0,0,0,.5)"></div>
+<div style="position:absolute; top:260px; left:50%; margin-left:-210px; width:420px; box-sizing:border-box; padding:22px 22px 18px; display:flex; flex-direction:column; gap:14px; border-radius:12px; background:var(--chrome); border:1px solid var(--line); box-shadow:0 24px 60px rgba(0,0,0,.55)">
+<div style="display:flex; gap:14px">
+<svg width="44" height="44" viewBox="0 0 100 100" role="img" aria-label="CueME Stage" style="flex:none"><rect width="100" height="100" rx="22" fill="#2b2b2b"/><rect x="30" y="20" width="16" height="16" fill="none" stroke="#f5f5f5" stroke-width="4"/><rect x="54" y="18" width="20" height="20" fill="#47c86e"/></svg>
+<div style="display:flex; flex-direction:column; gap:6px"><span style="font-size:15px; font-weight:700">{{ title }}</span><span style="color:var(--dim); line-height:1.4">{{ body }}</span></div>
+</div>
+<div style="display:flex; justify-content:flex-end; gap:8px">
+<span style="height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); font-weight:600">Cancel</span>
+<span style="{{ goStyle }}">{{ goLabel }}</span>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","default":"quit","options":["quit","restart"]},"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const light = theme === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede;--warn:#b45f06;--live:#c4221a'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29;--warn:#ffb020;--live:#e5483f';
+    const kind = this.props.kind ?? 'quit';
+    const T = {
+      quit: ['Quit CueME Stage?', 'Nov 22 Service is live. Quitting stops the engine too, so the displays and audio will stop.', 'Quit', true],
+      restart: ['Restart the engine?', 'The displays go black and audio stops for a few seconds while the engine restarts.', 'Restart Engine', true]
+    }[kind];
+    const danger = T[3];
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const goStyle = 'height:30px; padding:0 16px; display:flex; align-items:center; box-sizing:border-box; border-radius:6px; font-weight:700; color:' + (danger ? '#ffffff' : onAccent) + '; background:' + (danger ? 'var(--live)' : 'var(--accent)');
+    return { vars, theme, title: T[0], body: T[1], goLabel: T[2], goStyle };
+  }
+}
+</script>
+</body>
+</html>

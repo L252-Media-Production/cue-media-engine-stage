@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Timer editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font-family:inherit}
+a{text-decoration:none}
+</style>
+</helmet>
+<div style="{{vars}}; position:relative; width:1440px; height:900px; overflow:hidden; border-radius:10px; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif; font-size:13px; color:var(--fg)">
+
+<div style="position:absolute; inset:0"><dc-import name="Main" bar="off" theme="{{theme}}" tab="timer" hint-size="1440px,900px"></dc-import></div>
+<div style="position:absolute; inset:0; background:rgba(0,0,0,.5)"></div>
+
+<!-- Sheet -->
+<div style="position:absolute; top:38px; left:430px; width:580px; box-sizing:border-box; display:flex; flex-direction:column; background:var(--bg); border:1px solid var(--line); border-top:0; border-radius:0 0 12px 12px; box-shadow:0 20px 60px rgba(0,0,0,.6)">
+<div style="height:48px; flex:none; display:flex; align-items:center; gap:12px; padding:0 16px; background:var(--chrome); border-bottom:1px solid var(--line)">
+<div style="font-weight:700; font-size:15px">{{ title }}</div>
+<div style="flex:1"></div>
+<a href="MainTimers.dc.html" style="height:28px; padding:0 14px; box-sizing:border-box; display:flex; align-items:center; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg)">Cancel</a>
+<a href="MainTimers.dc.html" style="height:28px; padding:0 14px; box-sizing:border-box; display:flex; align-items:center; border-radius:6px; background:var(--accent); color:{{onAccent}}; font-weight:700">Save</a>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:16px; padding:16px">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">NAME</span>
+<div style="height:32px; box-sizing:border-box; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--panel); border:1px solid var(--accent)">{{ name }}<span style="display:inline-block; width:1px; height:16px; margin-left:1px; background:var(--accent)"></span></div>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">TYPE</span>
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line)"><sc-for list="{{typeSeg}}" as="a" hint-placeholder-count="3"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+</div>
+
+<div style="display:flex; align-items:flex-end; gap:16px">
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">{{ fieldLabel }}</span>
+<div style="display:flex; align-items:center; gap:6px">
+<sc-for list="{{fields}}" as="f" hint-placeholder-count="3">
+<div style="display:flex; flex-direction:column; align-items:center; gap:3px">
+<div onClick="{{ f.up }}" style="width:56px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer">▴</div>
+<div style="{{ f.box }}">{{ f.value }}</div>
+<div onClick="{{ f.down }}" style="width:56px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer">▾</div>
+</div>
+<sc-if value="{{ f.colon }}" hint-placeholder-val="{{ false }}"><span style="font-size:24px; font-weight:600; color:var(--dim); margin-bottom:24px">:</span></sc-if>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ hasMeridiem }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line); margin-bottom:26px"><sc-for list="{{meridiemSeg}}" as="a" hint-placeholder-count="2"><div onClick="{{ a.pick }}" style="{{ a.style }}">{{ a.label }}</div></sc-for></div>
+</sc-if>
+</div>
+
+<sc-if value="{{ canOverrun }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ toggleOvr }}" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); cursor:pointer"><div style="flex:1; font-weight:600">Overrun</div><span style="color:var(--dim); font-size:12px">{{ ovrNote }}</span><span style="{{ ovrTrack }}"><span style="{{ ovrKnob }}"></span></span></div>
+</sc-if>
+
+<div style="display:flex; flex-direction:column; gap:4px"><span style="{{label}}">PREVIEW</span>
+<div style="height:96px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:#000; border:1px solid var(--line)"><span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:56px; font-weight:600; color:#47c86e">{{ pvTime }}</span></div>
+</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"dark","options":["dark","light"]},"type":{"editor":"enum","default":"down","options":["down","to","up"]},"item":{"editor":"enum","default":"new","options":["new","0","1","2","3"]}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const D = [
+      { name: 'Countdown', type: 0, m: 5, s: 0, ovr: true },
+      { name: 'Service clock', type: 2, ovr: false },
+      { name: 'Pre-service', type: 1, h: 10, mm: 30, pm: false, ovr: true },
+      { name: 'Prayer', type: 0, m: 10, s: 0, ovr: false }
+    ];
+    const it = props && props.item !== undefined && props.item !== 'new' ? D[parseInt(String(props.item), 10)] : null;
+    this.isEdit = !!it;
+    this.state = { name: 'Announcements', type: ({ down: 0, to: 1, up: 2 })[props && props.type] || 0, m: 5, s: 0, h: 10, mm: 30, pm: false, ovr: false, ...(it || {}) };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const light = theme === 'light';
+    const vars = light
+      ? '--bg:#f3f3f1;--chrome:#e8e8e5;--panel:#ffffff;--line:#cfcfca;--fg:#1a1a1a;--dim:#555555;--accent:#17803c;--sel:#d6eede'
+      : '--bg:#161616;--chrome:#202020;--panel:#2b2b2b;--line:#3a3a3a;--fg:#f5f5f5;--dim:#a8a8a8;--accent:#47c86e;--sel:#1f3a29';
+    const onAccent = light ? '#ffffff' : '#0d0d0d';
+    const label = "font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--dim)";
+    const st = this.state;
+    const seg = (on) => 'flex:1; text-align:center; padding:6px 0; cursor:pointer; font-size:12px; background:' + (on ? 'var(--accent)' : 'var(--panel)') + '; color:' + (on ? onAccent : 'var(--fg)') + '; font-weight:' + (on ? 700 : 400);
+    const p2 = (n) => (n < 10 ? '0' : '') + n;
+    const box = 'width:56px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-family:\'JetBrains Mono\',ui-monospace,monospace; font-size:24px; font-weight:600';
+    const wrap = (v, d, lo, hi) => { const r = v + d; return r > hi ? lo : r < lo ? hi : r; };
+    const isTo = st.type === 1;
+    const isUp = st.type === 2;
+    let fields;
+    if (isTo) {
+      fields = [
+        { value: String(st.h), up: () => this.setState({ h: wrap(st.h, 1, 1, 12) }), down: () => this.setState({ h: wrap(st.h, -1, 1, 12) }), colon: true, box },
+        { value: p2(st.mm), up: () => this.setState({ mm: wrap(st.mm, 5, 0, 55) }), down: () => this.setState({ mm: wrap(st.mm, -5, 0, 55) }), colon: false, box }
+      ];
+    } else {
+      fields = [
+        { value: p2(isUp ? 0 : st.m), up: () => this.setState({ m: wrap(st.m, 1, 0, 99) }), down: () => this.setState({ m: wrap(st.m, -1, 0, 99) }), colon: true, box },
+        { value: p2(isUp ? 0 : st.s), up: () => this.setState({ s: wrap(st.s, 5, 0, 55) }), down: () => this.setState({ s: wrap(st.s, -5, 0, 55) }), colon: false, box }
+      ];
+    }
+    const pvTime = isTo ? p2(12) + ':' + p2(45) : isUp ? '00:00' : p2(st.m) + ':' + p2(st.s);
+    return {
+      vars, theme, onAccent, label, fields, name: st.name, title: this.isEdit ? 'Edit timer' : 'New timer',
+      typeSeg: ['Count down from', 'Count down to time', 'Count up'].map((n, i) => ({ label: n, pick: () => this.setState({ type: i }), style: seg(st.type === i) })),
+      fieldLabel: isTo ? 'TIME OF DAY' : isUp ? 'STARTS AT' : 'MINUTES : SECONDS',
+      hasMeridiem: isTo, meridiemSeg: ['AM', 'PM'].map((n, i) => ({ label: n, pick: () => this.setState({ pm: i === 1 }), style: seg((i === 1) === st.pm).replace('flex:1;', 'width:48px;') })),
+      canOverrun: !isUp, toggleOvr: () => this.setState({ ovr: !st.ovr }),
+      ovrNote: st.ovr ? 'Counts past zero as a negative time' : 'Stops at 00:00',
+      ovrTrack: 'width:34px; height:18px; border-radius:9px; position:relative; flex:none; background:' + (st.ovr ? 'var(--accent)' : 'var(--line)'),
+      ovrKnob: 'position:absolute; top:2px; width:14px; height:14px; border-radius:7px; background:' + (st.ovr ? onAccent : 'var(--dim)') + '; left:' + (st.ovr ? 18 : 2) + 'px',
+      pvTime: isTo ? st.h + ':' + p2(st.mm) + (st.pm ? ' PM' : ' AM') : pvTime
+    };
+  }
+}
+</script>
+</body>
+</html>

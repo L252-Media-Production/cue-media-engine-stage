@@ -20,7 +20,8 @@ final class StudioStore {
 
         static func standard(appVersion: String) -> Environment {
             let machine = MachinePaths.standard
-            return Environment(machine: machine, identity: .loadOrCreate(machine), appVersion: appVersion)
+            let identity = LaunchTiming.measure("MachineIdentity.loadOrCreate") { MachineIdentity.loadOrCreate(machine) }
+            return Environment(machine: machine, identity: identity, appVersion: appVersion)
         }
 
         var locking: StudioLocking {

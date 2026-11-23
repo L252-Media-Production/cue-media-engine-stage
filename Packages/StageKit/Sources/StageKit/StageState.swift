@@ -125,12 +125,15 @@ public struct OutputStatus: Codable, Sendable, Hashable, Identifiable {
     public var name: String
     public var health: Health
     public var droppedFrames: Int
+    /// The engine connector this output is (machine data); nil for an output not tied to one.
+    public var connectorID: Connector.ID?
 
-    public init(outputID: Output.ID, name: String, health: Health = .ok, droppedFrames: Int = 0) {
+    public init(outputID: Output.ID, name: String, health: Health = .ok, droppedFrames: Int = 0, connectorID: Connector.ID? = nil) {
         self.outputID = outputID
         self.name = name
         self.health = health
         self.droppedFrames = droppedFrames
+        self.connectorID = connectorID
     }
 }
 

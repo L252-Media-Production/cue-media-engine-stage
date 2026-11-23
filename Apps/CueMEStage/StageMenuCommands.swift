@@ -23,7 +23,11 @@ struct StageMenuCommands: Commands {
                 .keyboardShortcut(Shortcuts.openStudio)
                 .disabled(!file.canOpen)
             Menu("Open Recent") {
-                ForEach(studios.recents.urls, id: \.self) { url in
+                let others = studios.recentMenuURLs
+                if others.isEmpty {
+                    Button("No Other Studios") {}.disabled(true)
+                }
+                ForEach(others, id: \.self) { url in
                     Button(url.deletingPathExtension().lastPathComponent) { studios.open(url) }
                 }
                 Divider()

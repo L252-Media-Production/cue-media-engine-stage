@@ -54,11 +54,26 @@ protocol StudioDialogs {
 
 /// Alerts built in one place so tests can check their buttons. The first button is the default (Return).
 ///
-/// NSAlert gives any button titled "Cancel" the Escape key, even the first one, so where Cancel must be the default
-/// its key is set to Return explicitly (Escape then does nothing in that alert).
+/// NSAlert gives any button titled "Cancel" the Escape key, even the first one, and a button has one key only. Where
+/// Cancel must be the default its key is set to Return, and `runCancellable` makes Escape press it too.
 enum StudioAlerts {
     private static func makeCancelDefault(_ alert: NSAlert) {
         alert.buttons.first?.keyEquivalent = "\r"
+    }
+
+    /// Runs an alert whose first button is Cancel: Return (its key) and Escape both press Cancel. Escape is caught
+    /// by a local key monitor for this alert's window only, for as long as it runs.
+    static func runCancellable(_ alert: NSAlert, run: (NSAlert) -> NSApplication.ModalResponse = { $0.runModal() }) -> NSApplication.ModalResponse {
+        alert.layout()
+        let window = alert.window
+        let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === window, event.keyCode == 53, // Escape
+                  event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else { return event }
+            alert.buttons.first?.performClick(nil)
+            return nil
+        }
+        defer { if let monitor { NSEvent.removeMonitor(monitor) } }
+        return run(alert)
     }
 
     static func switchWarning(live: String, action: String) -> NSAlert {
@@ -123,11 +138,11 @@ enum ModalRunner {
 @MainActor
 struct AppKitStudioDialogs: StudioDialogs {
     func confirmSwitch(live: String, action: String) -> Bool {
-        ModalRunner.run { StudioAlerts.switchWarning(live: live, action: action).runModal() == .alertSecondButtonReturn }
+        ModalRunner.run { StudioAlerts.runCancellable(StudioAlerts.switchWarning(live: live, action: action)) == .alertSecondButtonReturn }
     }
 
     func lockChoice(message: String) -> LockChoice {
-        switch ModalRunner.run({ StudioAlerts.lockWarning(message).runModal() }) {
+        switch ModalRunner.run({ StudioAlerts.runCancellable(StudioAlerts.lockWarning(message)) }) {
         case .alertSecondButtonReturn: .openAnyway
         case .alertThirdButtonReturn: .openCopy
         default: .cancel

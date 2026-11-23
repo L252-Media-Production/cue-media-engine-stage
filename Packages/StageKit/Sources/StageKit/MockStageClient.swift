@@ -77,6 +77,10 @@ public actor MockStageClient: StageClient {
 
     private let connectors: [Connector]
     private let studioSource: StudioSource?
+    /// Health and dropped frames per connector, kept while screens move between connectors.
+    private var connectorHealth: [Connector.ID: (health: OutputStatus.Health, dropped: Int)] = [:]
+    /// A stable `OutputStatus.outputID` per connector for the life of the mock.
+    private var outputIDs: [Connector.ID: UUID] = [:]
 
     /// `assignments` nil = `defaultAssignments`.
     public init(library: Library = .sample, connectors: [Connector] = MockStageClient.sampleConnectors, assignments: [OutputAssignment]? = nil,
@@ -84,8 +88,42 @@ public actor MockStageClient: StageClient {
         self.library = library
         self.connectors = connectors
         self.studioSource = studioSource
-        self.state = Self.makeState(library: library, connectors: connectors,
-                                    assignments: assignments ?? Self.defaultAssignments(screens: library.screens, connectors: connectors))
+        var state = Self.makeState(library: library, connectors: connectors,
+                                   assignments: assignments ?? Self.defaultAssignments(screens: library.screens, connectors: connectors))
+        var ids: [Connector.ID: UUID] = [:]
+        state.outputs = Self.outputs(of: state, ids: &ids, health: [:])
+        self.state = state
+        self.outputIDs = ids
+    }
+
+    private func refreshOutputs() {
+        state.outputs = Self.outputs(of: state, ids: &outputIDs, health: connectorHealth)
+    }
+
+    /// The status-bar outputs: one per output connector a screen is assigned to, in screen order. Machine data
+    /// (connectors and this machine's assignments), never the show's. No assignments, no outputs.
+    private static func outputs(of state: StageState, ids: inout [Connector.ID: UUID],
+                                health: [Connector.ID: (health: OutputStatus.Health, dropped: Int)]) -> [OutputStatus] {
+        var seen: Set<Connector.ID> = []
+        return state.assignments.compactMap { assignment in
+            guard let id = assignment.connectorID, let connector = state.connector(id), !connector.kind.isInput,
+                  seen.insert(id).inserted else { return nil }
+            let outputID = ids[id] ?? UUID()
+            ids[id] = outputID
+            let kept = health[id]
+            return OutputStatus(outputID: outputID, name: chipName(connector),
+                                health: connector.available ? kept?.health ?? .ok : .offline,
+                                droppedFrames: kept?.dropped ?? 0, connectorID: id)
+        }
+    }
+
+    /// "SDI 1 (A)" for a connector on a card ("DeckLink Duo 2 (A)"), the label alone otherwise.
+    static func chipName(_ connector: Connector) -> String {
+        guard let card = connector.cardName else { return connector.label }
+        if let open = card.lastIndex(of: "("), let close = card.lastIndex(of: ")"), open < close {
+            return "\(connector.label) (\(card[card.index(after: open)..<close]))"
+        }
+        return "\(connector.label) (\(card))"
     }
 
     /// A fresh snapshot for a library: nothing live, nothing playing.
@@ -95,7 +133,6 @@ public actor MockStageClient: StageClient {
             slides: slides(of: library),
             screens: library.screens.map { ScreenState(screenID: $0.id, name: $0.name) },
             messages: library.messages,
-            outputs: library.outputs.map { OutputStatus(outputID: $0.id, name: $0.name) },
             looks: library.looks,
             connectors: connectors,
             assignments: library.screens.map { screen in
@@ -130,11 +167,10 @@ public actor MockStageClient: StageClient {
     private func load(_ library: Library, assignments: [OutputAssignment], studio: StudioInfo?) {
         if let track = state.audio.liveTrack { emit(.audioEnded(mediaID: track)) }
         let counters = state.audio.counters
-        let outputs = state.outputs
         self.library = library
         state = Self.makeState(library: library, connectors: state.connectors, assignments: assignments, studio: studio)
         state.audio.counters = counters
-        if state.outputs.isEmpty { state.outputs = outputs }
+        refreshOutputs()
         cursor = nil
         spentOnce = []
         skipped = []
@@ -210,6 +246,9 @@ public actor MockStageClient: StageClient {
         guard let i = state.outputs.firstIndex(where: { $0.outputID == outputID }) else { return }
         state.outputs[i].health = health
         if let droppedFrames { state.outputs[i].droppedFrames = droppedFrames }
+        if let connector = state.outputs[i].connectorID {
+            connectorHealth[connector] = (health, state.outputs[i].droppedFrames)
+        }
         emit(.outputHealthChanged(state.outputs[i]))
         publish()
     }
@@ -218,6 +257,7 @@ public actor MockStageClient: StageClient {
     public func simulateConnector(_ id: Connector.ID, available: Bool) {
         guard let i = state.connectors.firstIndex(where: { $0.id == id }) else { return }
         state.connectors[i].available = available
+        refreshOutputs()
         publish()
     }
 
@@ -361,6 +401,7 @@ public actor MockStageClient: StageClient {
                 }
             }
             state.assignments[a].connectorID = connectorID
+            refreshOutputs()
 
         case let .setScreenSetup(screenID, setup):
             guard state.screenSetups[screenID] != nil else { return reject(command, "unknown screen") }

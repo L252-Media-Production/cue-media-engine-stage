@@ -41,7 +41,7 @@ struct StudioLocking {
     }
 
     func ourLock(now: Date) -> StudioLock {
-        StudioLock(machineID: identity.id, machineName: identity.name, pid: pid, openedAt: now, appVersion: appVersion)
+        StudioLock(machineID: identity.id, machineName: MachineIdentity.safeName(identity.name), pid: pid, openedAt: now, appVersion: appVersion)
     }
 
     /// Writes our lock (replacing whatever was there: call it only for free, ours, stale, or after Open Anyway).
@@ -81,4 +81,10 @@ struct RecentStudios {
     }
 
     func clear() { defaults.removeObject(forKey: Self.key) }
+
+    /// File > Open Recent: the recent Studios except the one open now (a menu entry that does nothing is noise).
+    func menuURLs(excluding open: URL?) -> [URL] {
+        let current = open.map(StudioController.samePathKey)
+        return urls.filter { StudioController.samePathKey($0) != current }
+    }
 }

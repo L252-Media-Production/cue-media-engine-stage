@@ -1,5 +1,6 @@
 import Foundation
 import StageKit
+import SystemConfiguration
 
 /// The machine folder: ~/Library/Application Support/CueMEStage/Machine/. Holds what belongs to this Mac, not to a
 /// show: its identity, which connector drives which screen, the media folders and the hash cache. Shared by all
@@ -27,18 +28,69 @@ struct MachinePaths {
     }
 }
 
-/// This install: a UUID made once and kept in machine.json, and the Mac's name.
+/// This install: a UUID and the Mac's name, made once and kept in machine.json.
+///
+/// The name goes into lock.json inside Studios, so it is the computer name ("Mac Studio"), or the host name without
+/// its domain; never a fully qualified host name. Nothing here touches DNS: no `Host.current()` and no
+/// `ProcessInfo.hostName` (which took 2.7 s cold on the test Mac). A stored name is used as is, so a launch reads one
+/// small file and asks nothing.
 struct MachineIdentity: Equatable, Sendable {
     var id: UUID
     var name: String
 
-    private struct File: Codable { var id: UUID }
+    private struct File: Codable { var id: UUID; var name: String? }
 
-    static func loadOrCreate(_ paths: MachinePaths, name: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName) -> MachineIdentity {
-        if let file = paths.load(File.self, from: paths.identity) { return MachineIdentity(id: file.id, name: name) }
-        let id = UUID()
-        try? paths.save(File(id: id), to: paths.identity)
-        return MachineIdentity(id: id, name: name)
+    /// Where a new name comes from. Closures, so nothing is looked up unless a name has to be made.
+    struct NameSource {
+        var computerName: () -> String?
+        var hostName: () -> String?
+
+        static let system = NameSource(computerName: MachineIdentity.systemComputerName, hostName: MachineIdentity.posixHostName)
+    }
+
+    static func loadOrCreate(_ paths: MachinePaths, names: NameSource = .system) -> MachineIdentity {
+        let file = paths.load(File.self, from: paths.identity)
+        if let file, let stored = file.name, !stored.isEmpty {
+            let name = safeName(stored)
+            if name != stored { try? paths.save(File(id: file.id, name: name), to: paths.identity) } // an older qualified name
+            return MachineIdentity(id: file.id, name: name)
+        }
+        let identity = MachineIdentity(id: file?.id ?? UUID(), name: makeName(names))
+        try? paths.save(File(id: identity.id, name: identity.name), to: paths.identity)
+        return identity
+    }
+
+    /// The computer name; else the host name without its domain; else "This Mac". Either way never a qualified host
+    /// name (some Macs have their computer name set to one).
+    static func makeName(_ names: NameSource) -> String {
+        if let computer = names.computerName()?.trimmingCharacters(in: .whitespaces), !computer.isEmpty { return safeName(computer) }
+        if let host = names.hostName().map(shortHostName), !host.isEmpty { return host }
+        return "This Mac"
+    }
+
+    /// A name that looks like a host name (dots, no spaces) loses its domain: "jc-mbp.example.com" -> "jc-mbp".
+    /// A real computer name with dots and spaces ("J.C.'s Mac") is kept.
+    static func safeName(_ name: String) -> String {
+        guard name.contains("."), !name.contains(" ") else { return name }
+        let short = shortHostName(name)
+        return short.isEmpty ? name : short
+    }
+
+    /// "jc-mbp.example.com" -> "jc-mbp"; also drops a trailing ".local".
+    static func shortHostName(_ host: String) -> String {
+        String(host.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true).first ?? "")
+    }
+
+    /// The name set in System Settings > General > Sharing (configd; no DNS).
+    static func systemComputerName() -> String? {
+        SCDynamicStoreCopyComputerName(nil, nil) as String?
+    }
+
+    /// gethostname(3): the kernel's host name, a local call (no DNS).
+    static func posixHostName() -> String? {
+        var buffer = [CChar](repeating: 0, count: 256)
+        guard gethostname(&buffer, buffer.count) == 0 else { return nil }
+        return String(cString: buffer)
     }
 }
 

@@ -47,6 +47,13 @@ final class StudioController {
 
     var title: String { studios.studio?.name ?? "No Studio" }
     var recents: RecentStudios { RecentStudios(defaults: defaults) }
+    /// Open Recent without the Studio that is open.
+    var recentMenuURLs: [URL] { recents.menuURLs(excluding: studios.url) }
+
+    /// One key per package whatever path reaches it ("/a/./b.stg", "/a/b.stg/", a symlinked folder).
+    nonisolated static func samePathKey(_ url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path
+    }
     private var machine: MachinePaths { studios.environment.machine }
     private var outputs: MachineOutputs { MachineOutputs(paths: machine) }
     /// The current notice to show, save failures first.
@@ -95,7 +102,10 @@ final class StudioController {
     /// Opens a Studio: the switching warning when something is live, then the lock check. True when it opened.
     @discardableResult
     func open(_ url: URL, checkLive: Bool = true) -> Bool {
-        if studios.url?.standardizedFileURL == url.standardizedFileURL { return true }
+        if let current = studios.url, Self.samePathKey(current) == Self.samePathKey(url) {
+            notice = "“\(studios.studio?.name ?? current.deletingPathExtension().lastPathComponent)” is already open."
+            return true
+        }
         if checkLive, !confirmLeaving("Switch Studio") { return false }
         let pending: StudioStore.PendingOpen
         do { pending = try studios.prepareOpen(url) } catch {

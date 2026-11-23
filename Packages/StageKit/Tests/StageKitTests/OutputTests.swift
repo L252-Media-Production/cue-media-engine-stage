@@ -191,4 +191,26 @@ final class MockOutputTests: XCTestCase {
             .commandRejected(.hideTestPattern, reason: "no test pattern running"),
         ])
     }
+
+    func testOutputChipsFollowAssignmentsAndKeepHealth() async {
+        let client = MockStageClient(library: lib)
+        var state = await client.currentState
+        let stageChip = state.outputs[1]
+        XCTAssertEqual(stageChip.connectorID, "decklink-A-2")
+        await client.simulateOutput(stageChip.outputID, health: .degraded, droppedFrames: 3)
+
+        await client.send(.assignScreen(right.id, connector: nil))
+        await client.send(.assignScreen(left.id, connector: "ndi-out-1"))
+        state = await client.currentState
+        XCTAssertEqual(state.outputs.map(\.name), ["NDI CueME Main", "SDI 2 (A)"])
+        XCTAssertEqual(state.outputs[1].health, .degraded, "health stays with the connector")
+        XCTAssertEqual(state.outputs[1].outputID, stageChip.outputID)
+
+        await client.simulateConnector("decklink-A-2", available: false)
+        state = await client.currentState
+        XCTAssertEqual(state.outputs[1].health, .offline)
+
+        let unassigned = await MockStageClient(library: lib, assignments: []).currentState
+        XCTAssertEqual(unassigned.outputs, [], "no assignments, no chips")
+    }
 }

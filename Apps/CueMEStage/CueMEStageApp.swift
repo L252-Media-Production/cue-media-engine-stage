@@ -7,12 +7,16 @@ struct CueMEStageApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var app
 
     init() {
+        LaunchTiming.mark("App.init start")
+        defer { LaunchTiming.mark("App.init end") }
         // Before any view reads ThemeTokens (which also registers on first use, so the order is safe either way).
-        BundledFonts.registerOnce()
-        ShortcutGuard.install()
+        LaunchTiming.measure("BundledFonts.registerOnce") { BundledFonts.registerOnce() }
+        LaunchTiming.measure("ShortcutGuard.install") { ShortcutGuard.install() }
         // Before the first window exists, so a saved Dark never flashes light; then on every change of the setting.
-        ThemeAppearance.applyStored()
-        ThemeAppearance.startFollowingDefaults()
+        LaunchTiming.measure("ThemeAppearance") {
+            ThemeAppearance.applyStored()
+            ThemeAppearance.startFollowingDefaults()
+        }
     }
 
     var body: some Scene {
@@ -23,6 +27,7 @@ struct CueMEStageApp: App {
             OperatorView(store: app.store, ui: app.ui, studios: app.studios)
                 .modifier(Themed())
                 .frame(minWidth: 1100, minHeight: 720)
+                .onAppear { LaunchTiming.markFirstWindow() }
         }
         .commands {
             StageMenuCommands(store: app.store, ui: app.ui, studios: app.studios)
@@ -45,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
 
     override init() {
+        LaunchTiming.mark("AppDelegate.init start")
+        defer { LaunchTiming.mark("AppDelegate.init end") }
         // TODO(ipc): swap the mock for the StageEngine IPC client once it exists. Nothing else changes.
         let catalog = StudioCatalog()
         let store = StageStore.mock(library: .empty, studios: catalog)
@@ -57,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             environment = StudioStore.Environment(machine: machine, identity: MachineIdentity(id: UUID(), name: "Test host"), appVersion: version)
             documents = temp
         } else {
-            environment = .standard(appVersion: version)
+            environment = LaunchTiming.measure("StudioStore.Environment.standard") { .standard(appVersion: version) }
             documents = StudioLocations.defaultFolder
         }
         self.store = store
@@ -71,11 +78,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         launched = true
         guard !Self.isTestHost else { return }
+        LaunchTiming.mark("did finish launching")
         // A Studio double-clicked to launch the app opens instead of the last one.
         if let studio = pending.first(where: { $0.pathExtension == StudioFormat.packageExtension }) {
             if !studios.open(studio, checkLive: false) { studios.launch() }
         } else {
-            studios.launch()
+            LaunchTiming.measure("StudioController.launch") { studios.launch() }
         }
         let rest = pending.filter { $0.pathExtension != StudioFormat.packageExtension }
         pending = []

@@ -1,7 +1,7 @@
 import SwiftUI
 import StageKit
 
-/// The operator (run) view: service on the left, current and next monitors and the slide grid in the centre,
+/// The operator (run) view: service on the left, the output monitors and the slide grid in the centre,
 /// transport under them, the bottom tabs (Audio, Activities, ...) and the status bar. Reads `StageState` only;
 /// every control sends a `Command` through the store.
 struct OperatorView: View {
@@ -33,17 +33,13 @@ struct OperatorView: View {
                 }
                 .frame(width: 240)
                 Divider()
-                VStack(spacing: 0) {
-                    MonitorRow(state: state)
-                    Divider()
-                    SlideGrid(state: state, item: state.item(selection)) { item, index in
-                        store.send(.go(itemID: item.id, slideIndex: index))
+                GeometryReader { column in
+                    VStack(spacing: 0) {
+                        MonitorRow(state: state, monitorWidth: MonitorLayout.monitorWidth(
+                            rowWidth: column.size.width, columnHeight: column.size.height, count: state.outputScreens.count))
+                        Divider()
+                        centre
                     }
-                    Divider()
-                    TransportBar(blackout: state.blackout, send: store.send)
-                    Divider()
-                    BottomPanel(state: state, send: store.send)
-                        .frame(height: 210)
                 }
             }
             Divider()
@@ -68,6 +64,19 @@ struct OperatorView: View {
         }
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
+    }
+
+    /// The slide grid, transport and bottom tabs under the monitors.
+    @ViewBuilder private var centre: some View {
+
+        SlideGrid(state: state, item: state.item(selection)) { item, index in
+            store.send(.go(itemID: item.id, slideIndex: index))
+        }
+        Divider()
+        TransportBar(blackout: state.blackout, send: store.send)
+        Divider()
+        BottomPanel(state: state, send: store.send)
+            .frame(height: 210)
     }
 }
 
@@ -152,22 +161,70 @@ private struct ServiceRow: View {
 
 // MARK: Monitors (current and next)
 
+/// The monitors of the operator view: one per output screen, nothing else (no "Next").
+enum MonitorRowTitles {
+    static func titles(_ state: StageState) -> [String] { state.outputScreens.map(\.name) }
+}
+
+/// One monitor per output screen (what each output shows now). The next slide is not shown here: it is engine
+/// state for stage displays and control surfaces, not for the operator view.
 private struct MonitorRow: View {
     let state: StageState
+    let monitorWidth: CGFloat
+    @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(alignment: .top, spacing: ThemeTokens.spacingM) {
-            let testPattern = TestPatternMenuModel(state: state)
-            ForEach(state.outputScreens) { screen in
-                ScreenMonitor(
-                    screen: screen, itemTitle: state.item(screen.live?.itemID)?.title, blackout: state.blackout,
-                    testPattern: testPattern.pattern(on: screen.screenID)
-                )
+        let screens = state.outputScreens
+        if screens.isEmpty {
+            Text(state.studio == nil ? "No Studio open" : "This Studio has no output screens")
+                .font(.callout)
+                .foregroundStyle(theme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 60)
+        } else {
+            HStack(alignment: .top, spacing: MonitorLayout.spacing) {
+                let testPattern = TestPatternMenuModel(state: state)
+                ForEach(screens) { screen in
+                    ScreenMonitor(
+                        screen: screen, itemTitle: state.item(screen.live?.itemID)?.title, blackout: state.blackout,
+                        testPattern: testPattern.pattern(on: screen.screenID)
+                    )
+                    .frame(width: monitorWidth)
+                }
             }
-            NextCard(next: state.nextSlide, itemTitle: state.item(state.nextSlide?.itemID)?.title)
+            .padding(MonitorLayout.padding)
+            // The height its width implies, so the stack below cannot squeeze the 16:9 pictures narrower than their
+            // monitors (which left gaps between them).
+            .frame(height: MonitorLayout.rowHeight(monitorWidth: monitorWidth))
+            .frame(maxWidth: .infinity) // centred when the height cap leaves room at the sides
         }
-        .padding(ThemeTokens.spacingM)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Sizes the operator monitors. They share the row's width equally at 16:9, so the row is filled, but the row may
+/// only grow until the slide grid under it would be shorter than `minGridHeight`. Only an unusually wide, short window
+/// (or a single output screen) hits that cap; the monitors then stay 16:9 and are centred.
+struct MonitorLayout {
+    static let padding: CGFloat = ThemeTokens.spacingM
+    static let spacing: CGFloat = ThemeTokens.spacingM
+    /// Title row above each picture, with its spacing.
+    static let titleHeight: CGFloat = 20
+    static let aspect: CGFloat = 16 / 9
+    /// Under the monitors: the transport bar, the bottom tabs (210) and the dividers.
+    static let reservedBelow: CGFloat = 255
+    /// The slide grid keeps at least this much (one row of cards).
+    static let minGridHeight: CGFloat = 160
+
+    static func rowHeight(monitorWidth: CGFloat) -> CGFloat {
+        monitorWidth / aspect + titleHeight + 2 * padding
+    }
+
+    static func monitorWidth(rowWidth: CGFloat, columnHeight: CGFloat, count: Int) -> CGFloat {
+        guard count > 0 else { return 0 }
+        let usable = rowWidth - 2 * padding - spacing * CGFloat(count - 1)
+        let fill = usable / CGFloat(count)
+        let maxRowHeight = columnHeight - reservedBelow - minGridHeight
+        let maxPictureHeight = maxRowHeight - titleHeight - 2 * padding
+        return max(80, min(fill, maxPictureHeight * aspect))
     }
 }
 
@@ -208,29 +265,6 @@ private struct ScreenMonitor: View {
     }
 }
 
-private struct NextCard: View {
-    let next: LiveSlide?
-    let itemTitle: String?
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        MonitorFrame(
-            title: "Next",
-            caption: next.map { [itemTitle, $0.label].compactMap { $0 }.joined(separator: " · ") },
-            accent: next == nil ? nil : theme.preview
-        ) {
-            if let next {
-                SlideText(lines: next.lines, size: 13)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
-                    .opacity(0.85)
-            } else {
-                NothingLive(text: "End of service")
-            }
-        }
-    }
-}
-
 /// A 16:9 monitor with a title row above it.
 private struct MonitorFrame<Content: View>: View {
     let title: String
@@ -265,7 +299,6 @@ private struct MonitorFrame<Content: View>: View {
                         .stroke(accent ?? theme.border, lineWidth: 2)
                 )
         }
-        .frame(maxWidth: 280)
     }
 }
 
@@ -338,12 +371,11 @@ private struct SlideGrid: View {
 
     private func grid(item: Item, slides: [Slide]) -> some View {
         let live = state.primaryLive?.itemID == item.id ? state.primaryLive?.slideIndex : nil
-        let next = state.nextSlide?.itemID == item.id ? state.nextSlide?.slideIndex : nil
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVGrid(columns: columns, spacing: ThemeTokens.spacingM) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
-                        SlideCard(number: index + 1, slide: slide, isLive: index == live, isNext: index == next) {
+                        SlideCard(number: index + 1, slide: slide, isLive: index == live) {
                             go(item, index)
                         }
                         .id(slide.id)
@@ -377,12 +409,11 @@ private struct SlideGrid: View {
     }
 }
 
-/// One slide. LIVE: solid red border and a filled chip. NEXT: green border and an outlined chip.
+/// One slide. LIVE: solid red border and a filled chip. (No "next" marking: the operator view shows what is live.)
 private struct SlideCard: View {
     let number: Int
     let slide: Slide
     let isLive: Bool
-    let isNext: Bool
     let action: () -> Void
     @Environment(\.theme) private var theme
     @State private var hovering = false
@@ -400,8 +431,6 @@ private struct SlideCard: View {
                     Spacer(minLength: 0)
                     if isLive {
                         Chip(text: "LIVE", color: theme.live, filled: true)
-                    } else if isNext {
-                        Chip(text: "NEXT", color: theme.preview, filled: false)
                     }
                 }
                 .padding(.horizontal, ThemeTokens.spacingS)
@@ -424,12 +453,11 @@ private struct SlideCard: View {
         .onHover { hovering = $0 }
         .help("Take \(slide.label) live")
         .accessibilityLabel("Slide \(number), \(slide.label)")
-        .accessibilityValue(isLive ? "Live" : isNext ? "Next" : "")
+        .accessibilityValue(isLive ? "Live" : "")
     }
 
     private var borderColor: Color {
         if isLive { return theme.live }
-        if isNext { return theme.preview }
         return hovering ? theme.textSecondary : theme.border
     }
 }
@@ -627,6 +655,11 @@ private struct StatusBar: View {
                 .buttonStyle(.plain)
                 .help("\(description). Click to turn it off")
                 .accessibilityLabel("Test pattern running: \(description)")
+            }
+            // Output chips are machine data: the connectors this Mac drives for the open Studio.
+            if state.outputs.isEmpty, state.studio != nil, !state.outputScreens.isEmpty {
+                StatusChip(text: "Outputs: unassigned", color: nil)
+                    .help("No screen of this Studio is assigned to a connector on this Mac (Output > Output Setup…)")
             }
             ForEach(state.outputs) { output in
                 HStack(spacing: ThemeTokens.spacingXS) {

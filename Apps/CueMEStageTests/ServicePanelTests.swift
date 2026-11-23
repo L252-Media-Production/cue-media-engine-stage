@@ -91,38 +91,60 @@ final class ServicePanelTests: XCTestCase {
 
     // MARK: Collections and search
 
-    func testCollectionsAreTheStudiosSongsAndMedia() {
+    func testCollectionsAreTheStudiosSongs() {
         var model = CollectionsModel(studio: studio)
-        XCTAssertEqual(model.rows, [
-            .collection(id: "songs", title: "Songs", count: studio.songs.count, isExpanded: false),
-            .collection(id: "media", title: "Media", count: studio.media.count, isExpanded: false),
-        ])
+        XCTAssertEqual(model.rows, [.collection(id: "songs", title: "Songs", count: studio.songs.count, isExpanded: false)])
         model.expanded = model.toggling("songs")
-        XCTAssertEqual(model.rows.count, 2 + studio.songs.count, "expanded in place")
+        XCTAssertEqual(model.rows.count, 1 + studio.songs.count, "expanded in place")
         XCTAssertEqual(model.rows[1], .entry(.init(title: studio.songs[0].title, icon: "music.note")))
         model.expanded = model.toggling("songs")
-        XCTAssertEqual(model.rows.count, 2, "collapsed again")
+        XCTAssertEqual(model.rows.count, 1, "collapsed again")
         XCTAssertTrue(CollectionsModel(studio: nil).rows.isEmpty, "no Studio, no collections")
+        var empty = studio
+        empty.songs = []
+        XCTAssertTrue(CollectionsModel(studio: empty).rows.isEmpty, "no empty collection is shown")
     }
 
-    func testSearchFiltersTheCollections() throws {
+    /// Media files are not a collection (they belong in the Media and Audio bins), but a media item still shows as a
+    /// row in the service.
+    func testMediaIsNotACollectionButStaysInTheService() async throws {
+        XCTAssertFalse(studio.media.isEmpty, "the sample Studio has media")
+        let model = CollectionsModel(studio: studio)
+        XCTAssertFalse(model.collections.contains { $0.id == "media" || $0.title == "Media" }, "no Media collection")
+        let mediaNames = Set(studio.media.map(\.name))
+        XCTAssertFalse(model.collections.flatMap(\.entries).contains { mediaNames.contains($0.title) }, "no media file in any collection")
+
+        let list = ServiceListModel(state: await state(), studio: studio, relink: nil)
+        let row = try XCTUnwrap(list.rows.first { $0.id == walkIn.id }, "the media item is still a service row")
+        XCTAssertEqual(row.title, walkIn.title)
+        XCTAssertEqual(row.icon, ServiceListModel.icon(try XCTUnwrap(studio.media.first).kind))
+    }
+
+    func testSearchFiltersSongsOnly() throws {
         let song = try XCTUnwrap(studio.songs.first)
         let word = String(song.title.split(separator: " ").last ?? "")
         var model = CollectionsModel(studio: studio, query: word.uppercased())
         let matching = studio.songs.filter { $0.title.localizedCaseInsensitiveContains(word) }
         XCTAssertEqual(model.rows.first, .collection(id: "songs", title: "Songs", count: matching.count, isExpanded: true),
                        "case-insensitive, opened, counted to the matches")
-        XCTAssertEqual(model.rows.dropFirst().prefix(matching.count).map { row -> String in
+        XCTAssertEqual(model.rows.dropFirst().map { row -> String in
             if case let .entry(e) = row { e.title } else { "" }
         }, matching.map(\.title))
 
-        model.query = "media"
-        XCTAssertEqual(model.rows.first, .collection(id: "media", title: "Media", count: studio.media.count, isExpanded: true),
+        model.query = "songs"
+        XCTAssertEqual(model.rows.first, .collection(id: "songs", title: "Songs", count: studio.songs.count, isExpanded: true),
                        "a collection name match shows all of it")
+        for media in studio.media {
+            model.query = media.name
+            XCTAssertFalse(model.rows.contains { if case let .entry(e) = $0 { e.title == media.name } else { false } },
+                           "\(media.name): media is not searched")
+        }
+        model.query = "media"
+        XCTAssertTrue(model.rows.isEmpty, "no Media collection to match")
         model.query = "zzz-no-match"
         XCTAssertTrue(model.rows.isEmpty)
         model.query = "   "
-        XCTAssertEqual(model.rows.count, 2, "blank search = no search")
+        XCTAssertEqual(model.rows.count, 1, "blank search = no search")
     }
 
     // MARK: Service picker and Add

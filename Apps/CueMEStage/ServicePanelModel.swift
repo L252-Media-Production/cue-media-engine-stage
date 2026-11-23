@@ -103,8 +103,11 @@ struct ServiceListModel {
     }
 }
 
-/// The COLLECTIONS block (Main.dc.html L55–L57, L870–L889). The Studio has no collections of its own, so the two
-/// libraries it does have are shown as collections: its songs and its media. Search filters both.
+/// The COLLECTIONS block (Main.dc.html L55–L57, L870–L889). Collections hold only items with slides (songs,
+/// presentations, announcements); media files are not a collection (video and photos go to the Media bin, music to
+/// the Audio bin), though a media item can still be a row in a service. The Studio has no collections of its own, so
+/// the slide-bearing libraries it does have are shown, each only when it has items: today its songs. Search filters
+/// these items only.
 struct CollectionsModel {
     struct Collection: Equatable {
         var id: String
@@ -132,10 +135,7 @@ struct CollectionsModel {
         guard let studio else { return [] }
         return [
             Collection(id: "songs", title: "Songs", entries: studio.songs.map { Entry(title: $0.title, icon: "music.note") }),
-            Collection(id: "media", title: "Media", entries: studio.media.map {
-                Entry(title: $0.name, icon: ServiceListModel.icon($0.kind), meta: $0.duration.map(ServiceListModel.duration))
-            }),
-        ]
+        ].filter { !$0.entries.isEmpty }
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }

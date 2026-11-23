@@ -90,7 +90,7 @@ private struct CollectionsList: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 1) {
                 if rows.isEmpty {
-                    Text(model.studio == nil ? "No Studio open" : "Nothing found")
+                    Text(model.studio == nil ? "No Studio open" : model.query.trimmingCharacters(in: .whitespaces).isEmpty ? "No collections" : "Nothing found")
                         .font(.system(size: 12))
                         .foregroundStyle(theme.textSecondary)
                         .padding(.horizontal, 8)

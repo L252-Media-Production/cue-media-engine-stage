@@ -38,15 +38,6 @@ enum AppTheme: String, CaseIterable {
 
     static func resolve(_ raw: String) -> AppTheme { AppTheme(rawValue: raw) ?? fallback }
 
-    /// The scheme to force, or nil for Auto (nothing forced, so the system appearance applies).
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .auto: nil
-        case .dark: .dark
-        case .light: .light
-        }
-    }
-
     var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
 }
 

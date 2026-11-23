@@ -121,12 +121,6 @@ final class OperatorModelTests: XCTestCase {
         XCTAssertEqual(AppTheme.allCases.map(\.title), ["Auto", "Dark", "Light"], "menu order")
     }
 
-    func testThemeColourSchemes() {
-        XCTAssertNil(AppTheme.auto.colorScheme, "Auto forces nothing, so the system appearance applies")
-        XCTAssertEqual(AppTheme.dark.colorScheme, .dark)
-        XCTAssertEqual(AppTheme.light.colorScheme, .light)
-    }
-
     func testFreshInstallIsDark() {
         XCTAssertEqual(AppTheme.fallback, .dark, "the @AppStorage default of every theme reader")
     }

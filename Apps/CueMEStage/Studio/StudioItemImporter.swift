@@ -84,16 +84,23 @@ extension Studio {
 
     mutating func insert(_ item: StudioItemPayload) {
         switch item {
-        case let .song(v): songs.append(v)
+        case let .song(v): songs.append(adopting(v))
         case let .message(v): messages.append(v)
         case let .timer(v): timers.append(v)
         case let .look(v): looks.append(v)
         }
     }
 
+    /// A song from another Studio keeps its collection only when this Studio has one with that id.
+    func adopting(_ song: Song) -> Song {
+        var song = song
+        if let c = song.collectionID, !collections.contains(where: { $0.id == c }) { song.collectionID = nil }
+        return song
+    }
+
     mutating func replace(_ item: StudioItemPayload) {
         switch item {
-        case let .song(v): if let i = songs.firstIndex(where: { $0.id == v.id }) { songs[i] = v }
+        case let .song(v): if let i = songs.firstIndex(where: { $0.id == v.id }) { songs[i] = adopting(v) }
         case let .message(v): if let i = messages.firstIndex(where: { $0.id == v.id }) { messages[i] = v }
         case let .timer(v): if let i = timers.firstIndex(where: { $0.id == v.id }) { timers[i] = v }
         case let .look(v): if let i = looks.firstIndex(where: { $0.id == v.id }) { looks[i] = v }

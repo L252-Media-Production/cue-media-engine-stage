@@ -16,17 +16,22 @@ public struct Slide: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+/// A song. Every field after `slides` is optional and left out of the JSON while nil, so a song written before they
+/// existed reads and writes back byte for byte (see docs/studio-file-format.md, "Songs").
 public struct Song: Codable, Sendable, Identifiable, Hashable {
     public var id: UUID
     public var title: String
     public var author: String?
     public var slides: [Slide]
+    /// The one collection the song belongs to (`StudioCollection.id`); nil = none.
+    public var collectionID: UUID?
 
-    public init(id: UUID = UUID(), title: String, author: String? = nil, slides: [Slide]) {
+    public init(id: UUID = UUID(), title: String, author: String? = nil, slides: [Slide], collectionID: UUID? = nil) {
         self.id = id
         self.title = title
         self.author = author
         self.slides = slides
+        self.collectionID = collectionID
     }
 }
 

@@ -83,7 +83,7 @@ final class StudioController {
         }
         do {
             try FileManager.default.createDirectory(at: documentsFolder, withIntermediateDirectories: true)
-            let studio = Studio(seededFrom: .sample, name: "Studio", now: studios.environment.now(), appVersion: studios.environment.appVersion)
+            let studio = Studio.sample(name: "Studio", now: studios.environment.now(), appVersion: studios.environment.appVersion)
             try studios.create(studio, at: url)
             didOpen()
         } catch {
@@ -193,6 +193,38 @@ final class StudioController {
         catalog.put(.init(info: StudioInfo(id: studio.id, name: studio.name), library: studio.library(),
                           assignments: savedAssignments ?? []))
         stage.send(.reloadStudio(studio.id))
+    }
+
+    // MARK: Editing show data
+
+    /// Changes the open Studio's show data: autosaved by the store (changed files only, about a second later), then
+    /// the engine gets the new content with `reloadStudio`. Nothing on the outputs changes: the engine keeps what is
+    /// live until something is taken again.
+    func edit(_ change: (inout Studio) -> Void) {
+        guard let before = studios.studio else { return }
+        studios.update(change)
+        if studios.studio != before { reloadEngine() }
+    }
+
+    /// File > New Collection… / "+ New": an empty collection at the end. Returns its id (nil without a Studio or name).
+    @discardableResult
+    func addCollection(named name: String) -> StudioCollection.ID? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard studios.studio != nil, !trimmed.isEmpty else { return nil }
+        let collection = StudioCollection(name: trimmed)
+        edit { $0.collections.append(collection) }
+        return collection.id
+    }
+
+    /// + Add ▾ > Section…: a header in the service on air, above `item` (or at the end when nil).
+    @discardableResult
+    func addSection(named name: String, above item: Item.ID?) -> ServiceSection.ID? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let service = studios.studio?.activeService, !trimmed.isEmpty else { return nil }
+        let anchor = NewSectionModel.anchor(selection: item, in: service)
+        let section = ServiceSection(name: trimmed, firstItemID: anchor)
+        edit { $0.setSections($0.sections(of: service.id) + [section], of: service.id) }
+        return section.id
     }
 
     // MARK: Engine state back into the Studio and the machine
@@ -340,6 +372,26 @@ final class StudioController {
 }
 
 extension Studio {
+    /// The first-launch Studio: the sample show, its songs in a "Worship Songs" collection, and the service in
+    /// sections as on the board (Pre-service, Worship, Closing).
+    static func sample(name: String, now: Date, appVersion: String) -> Studio {
+        var studio = Studio(seededFrom: .sample, name: name, now: now, appVersion: appVersion)
+        let worship = StudioCollection(name: "Worship Songs")
+        studio.collections = [worship]
+        for i in studio.songs.indices { studio.songs[i].collectionID = worship.id }
+        if let service = studio.services.first {
+            func first(_ match: (Item) -> Bool) -> Item.ID? { service.items.first(where: match)?.id }
+            let isMedia: (Item) -> Bool = { if case .media = $0.content { true } else { false } }
+            let songs = service.items.filter { if case .song = $0.content { true } else { false } }
+            studio.setSections([
+                ServiceSection(name: "Pre-service", firstItemID: first(isMedia)),
+                ServiceSection(name: "Worship", firstItemID: songs.first?.id),
+                ServiceSection(name: "Closing", firstItemID: songs.count > 1 ? songs.last?.id : nil),
+            ].filter { $0.firstItemID != nil }, of: service.id)
+        }
+        return studio
+    }
+
     /// A new, empty Studio: one empty service, a Default look, and the standard screens (two audience screens on
     /// the canvas, a stage display, the IMAG input) with new ids.
     static func blank(name: String, now: Date, appVersion: String) -> Studio {

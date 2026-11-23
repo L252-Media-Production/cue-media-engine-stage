@@ -11,11 +11,16 @@ final class OperatorUIState {
     var selection: Item.ID?
     var showOutputSetup = false
     var showRelink = false
+    /// The New collection dialog (a sheet).
+    var showNewCollection = false
+    /// The Section popover under "+ Add ▾".
+    var showAddSection = false
 
-    /// True while any sheet or dialog of the app is open. While it is, Go Live, Next and Previous are off in the menu
-    /// and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added here.
-    /// (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the sheet.)
-    var isModalOpen: Bool { showOutputSetup || showRelink }
+    /// True while any sheet, dialog or popover of the app is open. While it is, Go Live, Next and Previous are off in
+    /// the menu and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added
+    /// here. (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the
+    /// sheet.) Editor windows are not modal: they are separate windows, and `ShortcutGuard` keeps show keys out of them.
+    var isModalOpen: Bool { showOutputSetup || showRelink || showNewCollection || showAddSection }
 }
 
 /// UserDefaults keys used through @AppStorage.
@@ -291,6 +296,8 @@ enum Shortcuts {
     static let openStudio = KeyboardShortcut("o", modifiers: .command)
     /// File > Close Window (the system's Close is removed with the Save group).
     static let closeWindow = KeyboardShortcut("w", modifiers: .command)
+    /// File > New Collection… (MenuBar.dc.html `file`).
+    static let newCollection = KeyboardShortcut("n", modifiers: [.command, .shift])
     /// Cmd-1 ... Cmd-5 in `BottomTab.allCases` order.
     static func tab(_ tab: BottomTab) -> KeyboardShortcut {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
@@ -299,7 +306,7 @@ enum Shortcuts {
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
-         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow] + BottomTab.allCases.map(tab)
+         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow, newCollection] + BottomTab.allCases.map(tab)
     }
 
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
@@ -365,6 +372,7 @@ struct FileMenuModel {
     var canImportItems: Bool { hasStudio && !isModalOpen }
     var canExport: Bool { hasStudio && !isModalOpen }
     var canRelink: Bool { hasStudio && !isModalOpen }
+    var canNewCollection: Bool { hasStudio && !isModalOpen }
     /// Not while a sheet is open: the sheet is the key window, and closing under it is not wanted.
     var canCloseWindow: Bool { !isModalOpen }
     /// Until UI-3b brings the editors.

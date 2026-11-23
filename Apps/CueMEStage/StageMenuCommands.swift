@@ -41,6 +41,9 @@ struct StageMenuCommands: Commands {
             Divider()
             // MenuBar.dc.html `file`: the New group comes first, then Import, then Close Window.
             Button("New Service…") {}.disabled(true)
+            Button("New Collection…") { ui.showNewCollection = true }
+                .keyboardShortcut(Shortcuts.newCollection)
+                .disabled(!file.canNewCollection)
             Divider()
             Button("Import Studio…") { studios.chooseAndImportStudio() }
                 .disabled(!file.canImportStudio)
@@ -141,7 +144,8 @@ struct StageMenuCommands: Commands {
             }
             .disabled(!model.hasMessages)
             Divider()
-            Button("Add Section…") {}.disabled(true)
+            Button("Add Section…") { ui.showAddSection = true }
+                .disabled(studios.studios.studio == nil || store.state.service == nil || ui.isModalOpen)
             Button("Add Activity…") {}.disabled(true)
         }
 

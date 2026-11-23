@@ -33,20 +33,44 @@ struct ServiceRowInfo: Equatable, Identifiable {
     var isLive: Bool
 }
 
-/// The service list: rows under section headings. The Studio model has no sections (a service is a flat list of
-/// items), so every row sits under the board's ITEMS label and no heading is invented.
+/// One block of the service list: a section header (nil for the items above the first section) and its rows.
+struct ServiceListSection: Equatable, Identifiable {
+    /// The section's id; nil for the block above the first header.
+    var sectionID: ServiceSection.ID?
+    /// As stored ("Pre-service"); drawn upper-case in the label style, as the board's PRE-SERVICE.
+    var title: String?
+    var rows: [ServiceRowInfo]
+    var id: String { sectionID?.uuidString ?? "top" }
+}
+
+/// The service list under the board's ITEMS label: the rows in service order, grouped under the service's section
+/// headers (Main.dc.html L72–L74, `head` rows). A header sits above the item it names (`firstItemID`); the items above
+/// the first header have none; a header whose item is gone, or that names none, goes to the end with no rows. A
+/// service without sections is one block with no header, as before.
 struct ServiceListModel {
     let state: StageState
-    /// The open Studio, for media names and lengths; nil in the mock.
+    /// The open Studio, for media names and lengths and the sections; nil in the mock.
     let studio: Studio?
     /// The last relink scan, for "⚠ Missing"; nil until one ran.
     let relink: RelinkReport?
 
     static let itemsLabel = "ITEMS"
 
-    var sections: [(title: String, rows: [ServiceRowInfo])] {
-        let rows = (state.service?.items ?? []).map(row)
-        return rows.isEmpty ? [] : [(Self.itemsLabel, rows)]
+    var sections: [ServiceListSection] {
+        guard let service = state.service else { return [] }
+        let headers = studio?.sections(of: service.id) ?? []
+        let itemIDs = Set(service.items.map(\.id))
+        var blocks: [ServiceListSection] = []
+        var top = ServiceListSection(sectionID: nil, title: nil, rows: [])
+        for item in service.items {
+            let starting = headers.filter { $0.firstItemID == item.id }
+            for header in starting { blocks.append(ServiceListSection(sectionID: header.id, title: header.name, rows: [])) }
+            if blocks.isEmpty { top.rows.append(row(item)) } else { blocks[blocks.count - 1].rows.append(row(item)) }
+        }
+        for header in headers where header.firstItemID.map({ !itemIDs.contains($0) }) ?? true {
+            blocks.append(ServiceListSection(sectionID: header.id, title: header.name, rows: []))
+        }
+        return (top.rows.isEmpty ? [] : [top]) + blocks
     }
 
     var rows: [ServiceRowInfo] { sections.flatMap(\.rows) }
@@ -103,11 +127,13 @@ struct ServiceListModel {
     }
 }
 
-/// The COLLECTIONS block (Main.dc.html L55–L57, L870–L889). Collections hold only items with slides (songs,
-/// presentations, announcements); media files are not a collection (video and photos go to the Media bin, music to
-/// the Audio bin), though a media item can still be a row in a service. The Studio has no collections of its own, so
-/// the slide-bearing libraries it does have are shown, each only when it has items: today its songs. Search filters
-/// these items only.
+/// The COLLECTIONS block (Main.dc.html L55–L57, L870–L889). Collections hold only items with slides (songs now;
+/// presentations and announcements later); media files are never a collection (video and photos go to the Media bin,
+/// music to the Audio bin), though a media item can still be a row in a service.
+///
+/// The Studio's own collections come first, in their order, each with its count (an empty one shows 0). Songs in no
+/// collection are listed after them as "Songs", only when there are any: a Studio without collections shows its
+/// songs as before. Search filters these items only.
 struct CollectionsModel {
     struct Collection: Equatable {
         var id: String
@@ -120,6 +146,8 @@ struct CollectionsModel {
         /// SF Symbol.
         var icon: String
         var meta: String?
+        /// The song, for "Edit…".
+        var songID: Song.ID?
     }
 
     enum Row: Equatable {
@@ -127,15 +155,27 @@ struct CollectionsModel {
         case entry(Entry)
     }
 
+    /// The id of the row holding songs that are in no collection.
+    static let looseSongsID = "songs"
+    static let looseSongsTitle = "Songs"
+
     let studio: Studio?
     var query = ""
     var expanded: Set<String> = []
 
     var collections: [Collection] {
         guard let studio else { return [] }
-        return [
-            Collection(id: "songs", title: "Songs", entries: studio.songs.map { Entry(title: $0.title, icon: "music.note") }),
-        ].filter { !$0.entries.isEmpty }
+        let known = Set(studio.collections.map(\.id))
+        func entries(_ songs: [Song]) -> [Entry] {
+            songs.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+                .map { Entry(title: $0.title, icon: "music.note", songID: $0.id) }
+        }
+        let own = studio.collections.map { collection in
+            Collection(id: collection.id.uuidString, title: collection.name,
+                       entries: entries(studio.songs.filter { $0.collectionID == collection.id }))
+        }
+        let loose = studio.songs.filter { $0.collectionID.map { !known.contains($0) } ?? true }
+        return own + (loose.isEmpty ? [] : [Collection(id: Self.looseSongsID, title: Self.looseSongsTitle, entries: entries(loose))])
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -162,6 +202,34 @@ struct CollectionsModel {
     func toggling(_ id: String) -> Set<String> { expanded.symmetricDifference([id]) }
 }
 
+/// The New collection dialog (ServiceDialog.dc.html, kind "collection"): a name; the Look is drawn but off.
+struct NewCollectionModel {
+    static let title = "New collection"
+    static let createTitle = "Create collection"
+    static let lookTitle = "Default look"
+    static let lookHelp = "Choosing a look for a collection is not available yet"
+
+    var name = ""
+    var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+    var canCreate: Bool { !trimmedName.isEmpty }
+}
+
+/// The Section popover (Main.dc.html L68): a name, Cancel and Add. The header goes above the selected item, or to
+/// the end of the service when nothing in it is selected.
+struct NewSectionModel {
+    static let label = "SECTION NAME"
+
+    var name = ""
+    var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+    var canAdd: Bool { !trimmedName.isEmpty }
+
+    /// The item the new header sits above.
+    static func anchor(selection: Item.ID?, in service: Service?) -> Item.ID? {
+        guard let selection, service?.items.contains(where: { $0.id == selection }) == true else { return nil }
+        return selection
+    }
+}
+
 /// The service picker (Main.dc.html L62, L890–L897): the Studio's services, the one on air checked. Switching needs a
 /// service operation the app does not have yet, so only the current one can be picked.
 struct ServicePickerModel {
@@ -170,7 +238,6 @@ struct ServicePickerModel {
 
     static let switchHelp = "Switching services is not available in v0.1"
     static let newServiceHelp = "New services are not available in v0.1"
-    static let sectionHelp = "Sections are not available in v0.1"
     static let activityHelp = "Activities are not available in v0.1"
 
     var title: String { state.service?.name ?? "No service" }

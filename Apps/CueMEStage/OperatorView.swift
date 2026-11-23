@@ -61,9 +61,10 @@ struct OperatorView: View {
                     // Main.dc.html L44: service and slide grid, the bottom panel under both; the right column beside them.
                     VStack(spacing: 0) {
                         HStack(spacing: 0) {
-                            ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport,
-                                         selection: $ui.selection) { id in
+                            ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport, ui: ui) { id in
                                 store.send(.go(itemID: id, slideIndex: 0))
+                            } addSection: { name, item in
+                                studios.addSection(named: name, above: item)
                             }
                             .frame(width: sizes.service)
                             PanelDivider(axis: .vertical, value: sizes.service, direction: 1, label: "Service panel width") {
@@ -106,6 +107,9 @@ struct OperatorView: View {
         }
         .sheet(isPresented: $ui.showRelink) {
             RelinkSheet(studios: studios).modifier(Themed())
+        }
+        .sheet(isPresented: $ui.showNewCollection) {
+            NewCollectionSheet { name in studios.addCollection(named: name) }.modifier(Themed())
         }
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }

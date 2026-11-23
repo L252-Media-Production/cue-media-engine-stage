@@ -24,6 +24,7 @@ A Studio is a macOS package (a folder the Finder shows as one file) named `<Name
   screens.json       screens by id and name with their layouts; NO connector assignments
   timers.json
   messages.json
+  collections.json   optional: collections of slide-bearing library items (below); written only when there is one
   lock.json          who has the Studio open (see Lock); not show data
   cache/             rebuildable (peaks, transcodes); never read for correctness; may be deleted
 ```
@@ -54,6 +55,43 @@ Rules:
   copied, mailed and checked into git. Anything secret belongs to the machine (and the Keychain), not here.
 - **Output assignments are not show data.** `screens.json` keeps each screen's id, name, type, look, canvas rect and
   rotation; which connector drives it belongs to the machine (see Machine folder).
+
+## Additive fields (format version 1)
+
+Fields added after the first release of format 1. Every one is optional: a reader that does not know it ignores it,
+and a Studio that does not use it has no trace of it, so an older Studio opens unchanged and writes back byte for
+byte until it is edited. No `formatVersion` bump is needed for these.
+
+### Collections (`collections.json`, UI-3b)
+
+```json
+[ { "id" : "…", "name" : "Worship Songs", "lookID" : "…" } ]   // lookID optional, not editable yet
+```
+
+A collection holds only slide-bearing library items (songs now; presentations and announcements later). **Media is
+never a collection**: video and photos belong in the Media bin, music in the Audio bin. A song belongs to at most one
+collection, named by the song (`collectionID`, below). The file is written only while there is at least one
+collection and removed when the last one goes. The operator view lists the collections in file order with their
+counts, then the songs in no collection (or in an unknown one) as "Songs"; a Studio without collections shows all
+its songs as "Songs", as before.
+
+### Service sections (`sections` in `services/<id>.json`, UI-3b)
+
+```json
+{ "id" : "…", "items" : [ … ], "name" : "Sunday 10:00",
+  "sections" : [ { "id" : "…", "name" : "Worship", "firstItemID" : "…" } ] }
+```
+
+A section is a header row in the service's item list. It is **not** an item: `items` (what the engine steps through)
+is unchanged, so adding or removing a section never moves the engine's cursor. A header sits above the item named by
+`firstItemID`; one whose item is gone, or that names none, is drawn at the end of the list. The key is present only
+when the service has sections.
+
+### Song fields (`library/<id>.json`, UI-3b)
+
+| Field | Type | Meaning |
+|---|---|---|
+| `collectionID` | UUID | The collection the song belongs to. |
 
 ## Versions
 

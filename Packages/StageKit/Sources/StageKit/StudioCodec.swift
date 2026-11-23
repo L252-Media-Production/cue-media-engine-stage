@@ -23,6 +23,26 @@ public enum StudioCodec {
     static let screensPath = "screens.json"
     static let timersPath = "timers.json"
     static let messagesPath = "messages.json"
+    static let collectionsPath = "collections.json"
+
+    /// A service file: the `Service` itself plus, only when the service has any, its `sections`. Without sections the
+    /// bytes are exactly what `Service` alone writes, so a Studio from before sections writes back unchanged.
+    private struct ServiceFile: Encodable {
+        let service: Service
+        let sections: [ServiceSection]?
+        enum Keys: String, CodingKey { case sections }
+
+        func encode(to encoder: Encoder) throws {
+            try service.encode(to: encoder)
+            guard let sections, !sections.isEmpty else { return }
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(sections, forKey: .sections)
+        }
+    }
+
+    private struct ServiceSectionsProbe: Decodable {
+        var sections: [ServiceSection]?
+    }
 
     /// Pretty-printed, sorted keys, ISO-8601 dates with milliseconds: stable output that diffs well in git.
     public static func makeEncoder() -> JSONEncoder {
@@ -65,7 +85,7 @@ public enum StudioCodec {
             files["\(libraryFolder)/\(song.id.uuidString).json"] = try encoder.encode(LibraryItemFile(song: song))
         }
         for service in studio.services {
-            files["\(servicesFolder)/\(service.id.uuidString).json"] = try encoder.encode(service)
+            files["\(servicesFolder)/\(service.id.uuidString).json"] = try encoder.encode(ServiceFile(service: service, sections: studio.sections[service.id]))
         }
         files[audioPath] = try encoder.encode(Dictionary(uniqueKeysWithValues: studio.audioSettings.map { ($0.key.uuidString, $0.value) }))
         files[mediaPath] = try encoder.encode(studio.media)
@@ -73,6 +93,7 @@ public enum StudioCodec {
         files[screensPath] = try encoder.encode(studio.screens)
         files[timersPath] = try encoder.encode(studio.timers)
         files[messagesPath] = try encoder.encode(studio.messages)
+        if !studio.collections.isEmpty { files[collectionsPath] = try encoder.encode(studio.collections) }
         return files
     }
 
@@ -126,13 +147,16 @@ public enum StudioCodec {
 
         var songs: [Song] = []
         var services: [Service] = []
+        var sections: [Service.ID: [ServiceSection]] = [:]
         for path in files.keys.sorted() {
             if path.hasPrefix("\(libraryFolder)/"), path.hasSuffix(".json") {
                 let file = try decode(LibraryItemFile.self, path)
                 guard let song = file.song else { throw StudioError.badFile(path: path, reason: "no song") }
                 songs.append(song)
             } else if path.hasPrefix("\(servicesFolder)/"), path.hasSuffix(".json") {
-                services.append(try decode(Service.self, path))
+                let service = try decode(Service.self, path)
+                services.append(service)
+                if let list = try decode(ServiceSectionsProbe.self, path).sections, !list.isEmpty { sections[service.id] = list }
             }
         }
 
@@ -153,14 +177,16 @@ public enum StudioCodec {
             looks: try list([Look].self, looksPath),
             screens: try list([StudioScreen].self, screensPath),
             timers: try list([StageTimer].self, timersPath),
-            messages: try list([Message].self, messagesPath)
+            messages: try list([Message].self, messagesPath),
+            collections: try list([StudioCollection].self, collectionsPath),
+            sections: sections
         ).normalized()
     }
 
     /// True for the paths this codec owns (the files `encode` writes). Anything else in the package (lock.json,
     /// cache/, Finder files) is left alone by a save.
     public static func isShowDataPath(_ path: String) -> Bool {
-        if [manifestPath, audioPath, mediaPath, looksPath, screensPath, timersPath, messagesPath].contains(path) { return true }
+        if [manifestPath, audioPath, mediaPath, looksPath, screensPath, timersPath, messagesPath, collectionsPath].contains(path) { return true }
         let parts = path.split(separator: "/")
         return parts.count == 2 && (parts[0] == libraryFolder || parts[0] == servicesFolder) && path.hasSuffix(".json")
     }

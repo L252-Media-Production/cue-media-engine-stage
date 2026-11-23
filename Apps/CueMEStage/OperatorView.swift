@@ -94,6 +94,11 @@ private struct ServicePanel: View {
             List(state.service?.items ?? [], selection: $selection) { item in
                 ServiceRow(item: item, isLive: isLive(item))
                     .tag(item.id)
+                    // The mockup's selected row is tinted `--sel` (Main.dc.html L927).
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: ThemeTokens.radius)
+                            .fill(selection == item.id ? theme.selection : .clear)
+                    )
             }
             // Double-click. Return is Service > Go Live: the menu's key equivalent takes it before the list sees it,
             // so a press of Return is one Go, never two.
@@ -528,7 +533,7 @@ private struct BottomPanel: View {
                 Spacer()
             }
             .padding(.horizontal, ThemeTokens.spacingS)
-            .background(theme.surfaceRaised)
+            .background(theme.surface) // the tab bar sits on the panel's --chrome (Main.dc.html L168)
 
             switch tab {
             case .audio:
@@ -683,7 +688,7 @@ private struct StatusBar: View {
         .font(ThemeTokens.mono(11))
         .padding(.horizontal, ThemeTokens.spacingM)
         .padding(.vertical, ThemeTokens.spacingXS + 2)
-        .background(theme.surfaceRaised)
+        .background(theme.surface) // --chrome (Main.dc.html L680)
     }
 
     private var audioColor: Color? {

@@ -178,6 +178,7 @@ final class StudioFixTests: TempFolderTestCase {
         hosting.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .darkAqua) // the pixel checks use the dark tokens
         window.contentView = hosting
         window.orderFront(nil)
         RunLoop.main.run(until: Date().addingTimeInterval(0.4))
@@ -200,9 +201,9 @@ final class StudioFixTests: TempFolderTestCase {
         return count
     }
 
-    /// The NEXT monitor and the NEXT badge and outline were drawn in the "preview" green; LIVE is red. A real render
-    /// of the monitors and the slide grid, with a next slide in the state (Verse 2 of the item shown), has no such
-    /// green, and does have the live red.
+    /// The NEXT monitor and the NEXT badge and outline were drawn in the "preview" colour (now the mockup's `--next`
+    /// blue); LIVE is red. A real render of the monitors and the slide grid, with a next slide in the state (Verse 2 of
+    /// the item shown), has no preview colour, and does have the live red. Dark tokens (Theme.swift).
     func testNoNextMarkerOrMonitorWhileNextSlideIsSet() async throws {
         let store = StageStore.mock(library: .sample)
         let song = Library.sample.service.items[1]
@@ -217,10 +218,11 @@ final class StudioFixTests: TempFolderTestCase {
 
         // Centre column (right of the 240 pt service panel), from the top down to the transport bar.
         let area = NSRect(x: 242, y: 0, width: size.width - 242, height: size.height - MonitorLayout.reservedBelow - 30)
-        XCTAssertEqual(try pixels(of: (0x30, 0xD1, 0x58), in: hosting, rect: area), 0, "no next (preview green) marking")
-        XCTAssertGreaterThan(try pixels(of: (0xFF, 0x45, 0x3A), in: hosting, rect: area), 100, "sanity: the live red is drawn")
+        XCTAssertEqual(try pixels(of: (0x4D, 0xA3, 0xFF), in: hosting, rect: area), 0, "no next (preview) marking")
+        XCTAssertEqual(try pixels(of: (0x47, 0xC8, 0x6E), in: hosting, rect: area), 0, "nor in the ok/accent green")
+        XCTAssertGreaterThan(try pixels(of: (0xE5, 0x48, 0x3F), in: hosting, rect: area), 100, "sanity: the live red is drawn")
         let statusBar = NSRect(x: 0, y: size.height - 22, width: 400, height: 22)
-        XCTAssertGreaterThan(try pixels(of: (0x30, 0xD1, 0x58), in: hosting, rect: statusBar), 0,
+        XCTAssertGreaterThan(try pixels(of: (0x47, 0xC8, 0x6E), in: hosting, rect: statusBar), 0,
                              "control: the detector sees that green where it is drawn (the output chips' dots)")
         XCTAssertTrue(MonitorRowTitles.titles(store.state).allSatisfy { $0 != "Next" }, "monitors are the output screens only")
         XCTAssertEqual(MonitorRowTitles.titles(store.state), ["Left", "Stage", "Right"])

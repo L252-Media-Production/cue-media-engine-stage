@@ -74,6 +74,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.l252mp.cuemestage
+        # The mockup's green (Resources/Assets.xcassets/AccentColor, = ThemeTokens.accent) for AppKit-drawn accents:
+        # list selection, focus rings, default buttons. macOS uses it when the Mac's accent colour is Multicolor.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: CueME Stage
         INFOPLIST_KEY_NSHumanReadableCopyright: Copyright L252 Media Production

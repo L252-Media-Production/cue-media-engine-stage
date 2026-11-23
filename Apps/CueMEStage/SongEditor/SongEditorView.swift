@@ -10,10 +10,24 @@ struct SongEditorView: View {
     let model: SongEditorModel
     let onClose: () -> Void
     @Environment(\.theme) private var theme
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            if let problem = model.saveProblem {
+                // In the content, under the toolbar, never beside Done.
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(problem).fontWeight(.semibold)
+                    Spacer()
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(theme.warning)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(theme.surface)
+                .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+                .accessibilityElement(children: .combine)
+            }
             if let song = model.song {
                 HStack(spacing: 0) {
                     SongSlideList(model: model, song: song)
@@ -35,17 +49,16 @@ struct SongEditorView: View {
         .navigationTitle("Song Editor")
         .navigationSubtitle(model.song?.title ?? "")
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Text(model.isSaved ? "Saved" : "Saving…")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.textSecondary)
-                    .help("Changes save themselves about a second after each edit")
-                Button("Done") { dismiss() }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Done") { model.done() }
                     .buttonStyle(PanelButtonStyle(kind: .primary, minWidth: 0, height: 28))
+                    .help("Close the editor (changes save themselves)")
             }
         }
         .focusedSceneValue(\.songEditor, model)
-        .background(ShortcutGuardWindowMarker(role: .editor))
+        .background(ShortcutGuardWindowMarker(role: .editor) { window in
+            model.closeWindow = { [weak window] in window?.close() }
+        })
         .onDisappear(perform: onClose)
     }
 }

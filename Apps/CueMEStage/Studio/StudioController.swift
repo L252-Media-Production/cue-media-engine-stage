@@ -26,6 +26,8 @@ final class StudioController {
     /// Where new Studios go (~/Documents/CueME Stage in the app, a temp folder in tests).
     @ObservationIgnored let documentsFolder: URL
     @ObservationIgnored var dialogs: StudioDialogs
+    /// The open Song editors' models, one per song.
+    @ObservationIgnored let editors = SongEditorRegistry()
 
     /// A non-blocking message (a missing last Studio, an import summary). Save failures come from `studios.notice`.
     var notice: String?

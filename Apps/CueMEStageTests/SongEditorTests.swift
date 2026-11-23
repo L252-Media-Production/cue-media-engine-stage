@@ -171,10 +171,9 @@ final class SongEditorTests: StudioEditTestCase {
         await openEditor()
         let count = controller.studios.saveCount
         editor.setKey("G")
-        XCTAssertFalse(editor.isSaved)
         let written = await saved(after: count)
         XCTAssertEqual(Set(written), ["library/\(song.id.uuidString).json", "manifest.json"])
-        XCTAssertTrue(editor.isSaved)
+        XCTAssertNil(editor.saveProblem, "nothing is shown while saves succeed")
     }
 
     /// The proof through the editor: editing the live song changes the engine's slides, never the outputs.

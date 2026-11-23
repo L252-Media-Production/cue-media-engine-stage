@@ -71,7 +71,16 @@ final class SongEditorModel {
 
     var studio: Studio? { controller.studios.studio }
     var groups: [SongGroup] { song.map(SongLyrics.groups(of:)) ?? [] }
-    var isSaved: Bool { !controller.studios.isSavePending }
+    /// Shown only while the autosave fails (it retries on its own); nil otherwise.
+    var saveProblem: String? {
+        controller.studios.notice?.hasPrefix(StudioStore.saveFailedPrefix) == true ? Self.notSaved : nil
+    }
+
+    static let notSaved = "Not saved, retrying"
+
+    /// Closes the editor's window (set by the view once it is in one). Done: there is nothing left to save.
+    @ObservationIgnored var closeWindow: (() -> Void)?
+    func done() { closeWindow?() }
     var canUndo: Bool { !undoStack.isEmpty && song != nil }
     var canRedo: Bool { !redoStack.isEmpty && song != nil }
 
@@ -285,15 +294,33 @@ final class SongEditorModel {
 
 extension EnvironmentValues {
     /// Opens the Song editor for a song of the open Studio (one window per song). nil where no editor can be opened.
-    @Entry var editSong: ((Song.ID) -> Void)?
+    @Entry var editSong: ((Song.ID, Slide.ID?) -> Void)?
 }
 
 extension SongEditorScene {
-    /// Opens (or brings to the front) the editor of `song` in the open Studio.
+    /// Readies the editor of `song` before its window opens: with `slide`, that slide is selected in the Slide tab
+    /// (also in an editor that is already open); without, a new editor starts on the first slide and an open one
+    /// keeps its selection. Returns the window's value, nil when the song is not in the open Studio.
+    @MainActor @discardableResult
+    static func prepare(_ song: Song.ID, slide: Slide.ID? = nil, studios: StudioController) -> SongEditorTarget? {
+        guard let studio = studios.studios.studio, let found = studio.songs.first(where: { $0.id == song }) else { return nil }
+        let target = SongEditorTarget(studioID: studio.id, songID: song)
+        let isNew = !studios.editors.openTargets.contains(target)
+        let model = studios.editors.model(for: target, controller: studios)
+        if let slide, found.slides.contains(where: { $0.id == slide }) {
+            model.selectedSlide = slide
+            model.centreTab = .slide
+        } else if isNew {
+            model.selectedSlide = found.slides.first?.id
+        }
+        return target
+    }
+
+    /// Opens the editor of `song` (see `prepare`), or brings its window to the front when it is open.
     @MainActor
-    static func open(_ song: Song.ID, studios: StudioController, with openWindow: OpenWindowAction) {
-        guard let studio = studios.studios.studio, studio.songs.contains(where: { $0.id == song }) else { return }
-        openWindow(id: id, value: SongEditorTarget(studioID: studio.id, songID: song))
+    static func open(_ song: Song.ID, slide: Slide.ID? = nil, studios: StudioController, with openWindow: OpenWindowAction) {
+        guard let target = prepare(song, slide: slide, studios: studios) else { return }
+        openWindow(id: id, value: target)
     }
 }
 

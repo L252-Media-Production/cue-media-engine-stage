@@ -117,7 +117,7 @@ private struct CollectionsList: View {
                             .accessibilityElement(children: .combine)
                             .contextMenu {
                                 if let song = entry.songID {
-                                    Button("Edit…") { editSong?(song) }.disabled(editSong == nil)
+                                    Button("Edit…") { editSong?(song, nil) }.disabled(editSong == nil)
                                 }
                             }
                     }
@@ -305,7 +305,7 @@ private struct ItemList: View {
                                     .contextMenu {
                                         Button("Go Live") { go(row.id) }
                                         if let song = row.songID {
-                                            Button("Edit…") { editSong?(song) }.disabled(editSong == nil)
+                                            Button("Edit…") { editSong?(song, nil) }.disabled(editSong == nil)
                                         }
                                     }
                             }

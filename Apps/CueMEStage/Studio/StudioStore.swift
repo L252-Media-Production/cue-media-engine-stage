@@ -45,8 +45,6 @@ final class StudioStore {
     /// Paths written by the last successful save (tests and diagnostics).
     private(set) var lastWrite: [String] = []
     private(set) var saveCount = 0
-    /// True from a change until the autosave that writes it (the Song editor's "Saved").
-    private(set) var isSavePending = false
 
     @ObservationIgnored private var saved: StudioCodec.Files = [:]
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -116,7 +114,6 @@ final class StudioStore {
         change(&studio)
         guard studio != self.studio else { return }
         self.studio = studio
-        isSavePending = true
         scheduleSave(after: environment.debounce)
     }
 
@@ -146,7 +143,6 @@ final class StudioStore {
             saved = files
             self.studio = studio
             saveCount += 1
-            isSavePending = false
             if notice?.hasPrefix(Self.saveFailedPrefix) == true { notice = nil }
             return true
         } catch {

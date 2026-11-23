@@ -60,7 +60,7 @@ enum SongEditorScene {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let ui = OperatorUIState()
-    let editors = SongEditorRegistry()
+    var editors: SongEditorRegistry { studios.editors }
     let store: StageStore
     let studios: StudioController
     private var launched = false

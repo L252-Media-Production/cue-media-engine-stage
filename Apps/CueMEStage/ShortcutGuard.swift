@@ -128,14 +128,18 @@ enum ShortcutGuard {
 struct ShortcutGuardWindowMarker: NSViewRepresentable {
     enum Role { case `operator`, editor }
     let role: Role
+    /// Also told the window, once the view is in one.
+    var onWindow: ((NSWindow) -> Void)?
 
-    func makeNSView(context: Context) -> NSView { MarkerView(role: role) }
+    func makeNSView(context: Context) -> NSView { MarkerView(role: role, onWindow: onWindow) }
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     final class MarkerView: NSView {
         let role: Role
-        init(role: Role) {
+        let onWindow: ((NSWindow) -> Void)?
+        init(role: Role, onWindow: ((NSWindow) -> Void)?) {
             self.role = role
+            self.onWindow = onWindow
             super.init(frame: .zero)
         }
 
@@ -148,6 +152,7 @@ struct ShortcutGuardWindowMarker: NSViewRepresentable {
             case .operator: ShortcutGuard.registerOperatorWindow(window)
             case .editor: ShortcutGuard.registerEditorWindow(window)
             }
+            onWindow?(window)
         }
     }
 }

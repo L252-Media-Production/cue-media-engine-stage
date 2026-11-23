@@ -190,6 +190,16 @@ final class StudioFixTests: TempFolderTestCase {
 
     /// Counts pixels of `color` (within a tolerance) in a rect of the view, in points from the top left.
     private func pixels(of color: (UInt8, UInt8, UInt8), in hosting: NSView, rect: NSRect) throws -> Int {
+        try pixels(in: hosting, rect: rect) { r, g, b in
+            abs(r - Int(color.0)) < 24 && abs(g - Int(color.1)) < 24 && abs(b - Int(color.2)) < 24
+        }
+    }
+
+    /// The dark green tint of `--sel` (#1f3a29): green well above red and blue, and dark (not the bright accent, not
+    /// the greys of --panel and --chrome, whatever small shift the bitmap's colour space adds).
+    private func selTint(_ r: Int, _ g: Int, _ b: Int) -> Bool { g - r > 15 && g - b > 10 && g < 110 }
+
+    private func pixels(in hosting: NSView, rect: NSRect, where match: (Int, Int, Int) -> Bool) throws -> Int {
         let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
         hosting.cacheDisplay(in: hosting.bounds, to: rep)
         let scale = CGFloat(rep.pixelsWide) / hosting.bounds.width
@@ -198,7 +208,7 @@ final class StudioFixTests: TempFolderTestCase {
             for x in stride(from: Int(rect.minX * scale), to: Int(rect.maxX * scale), by: 1) {
                 guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
                 let r = UInt8(c.redComponent * 255), g = UInt8(c.greenComponent * 255), b = UInt8(c.blueComponent * 255)
-                if abs(Int(r) - Int(color.0)) < 24, abs(Int(g) - Int(color.1)) < 24, abs(Int(b) - Int(color.2)) < 24 { count += 1 }
+                if match(Int(r), Int(g), Int(b)) { count += 1 }
             }
         }
         return count
@@ -219,10 +229,11 @@ final class StudioFixTests: TempFolderTestCase {
         let (window, hosting) = host(store, ui: ui, size: size)
         defer { window.orderOut(nil) }
 
-        // The slide grid (right of the 240 pt service panel, left of the 360 pt right column, above the 330 pt bottom
+        // The slide grid (right of the 280 pt service panel, left of the 360 pt right column, above the 330 pt bottom
         // panel) and the right column's monitor (under the 30 pt output picker).
         let right = size.width - OperatorLayout.rightColumnWidth
-        let grid = NSRect(x: 242, y: 0, width: right - 243,
+        let left = ServicePanelLayout.width + 2
+        let grid = NSRect(x: left, y: 0, width: right - left - 1,
                           height: size.height - OperatorLayout.statusBarHeight - OperatorLayout.bottomPanelHeight - 2)
         let monitorWidth = OperatorLayout.rightColumnWidth - 2 * OperatorLayout.columnPadding
         let monitor = NSRect(x: right + OperatorLayout.columnPadding, y: OperatorLayout.columnPadding + 30 + OperatorLayout.columnSpacing,
@@ -238,6 +249,33 @@ final class StudioFixTests: TempFolderTestCase {
         XCTAssertEqual(store.state.outputScreens.map(\.name), ["Left", "Stage", "Right"])
         XCTAssertEqual(MonitorChoice().screen(in: store.state)?.name, "Left", "one monitor: the first output screen by default")
         XCTAssertNotNil(store.state.nextSlide, "the data is still there")
+    }
+
+    /// The service panel's row styles in a real render: the selected row on the `--sel` green tint even though the list
+    /// does not have focus, the live row with its red bar, and the panel 280 pt wide (the selected row reaches past 240).
+    func testServiceRowStylesAndPanelWidth() async throws {
+        let store = StageStore.mock(library: .sample)
+        let items = Library.sample.service.items
+        store.send(.go(itemID: items[1].id, slideIndex: 0))
+        await until("live") { store.state.primaryLive != nil }
+        let ui = OperatorUIState()
+        let size = NSSize(width: 1100, height: 720)
+        let (window, hosting) = host(store, ui: ui, size: size)
+        defer { window.orderOut(nil) }
+        // After the view appeared (it selects the live item then): Doxology is selected, Amazing Grace live.
+        ui.selection = items[3].id
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        let red: (UInt8, UInt8, UInt8) = (0xE5, 0x48, 0x3F)
+        let panel = NSRect(x: 0, y: 0, width: ServicePanelLayout.width, height: size.height - OperatorLayout.bottomPanelHeight - 30)
+        XCTAssertGreaterThan(try pixels(in: hosting, rect: panel, where: selTint), 500, "selected row: --sel background, list not focused")
+        XCTAssertGreaterThan(try pixels(of: red, in: hosting, rect: NSRect(x: 0, y: 0, width: 16, height: panel.height)), 30,
+                             "live row: the 3 pt red bar at the leading edge")
+        XCTAssertGreaterThan(try pixels(in: hosting, rect: NSRect(x: 250, y: 0, width: 20, height: panel.height), where: selTint), 0,
+                             "the panel is wider than the old 240")
+        XCTAssertEqual(try pixels(in: hosting, rect: NSRect(x: ServicePanelLayout.width + 2, y: 0, width: 200, height: panel.height), where: selTint), 0,
+                       "and ends at 280")
+        XCTAssertEqual(try pixels(of: (0x4D, 0xA3, 0xFF), in: hosting, rect: panel), 0, "no next (preview) marking in the list")
     }
 
     func testNextSlideIsStillInTheStateAndPublished() async throws {

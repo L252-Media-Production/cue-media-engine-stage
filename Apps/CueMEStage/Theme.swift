@@ -29,6 +29,8 @@ struct ThemeTokens {
     var onAccent: Color
     /// Text on an amber fill (Black while on): `#111` in `Main.dc.html` L979, both themes.
     var onWarning: Color
+    /// Text on a live-red fill (the LIVE chip): `#fff` in `Main.dc.html` L85, both themes.
+    var onLive: Color
 
     /// `Main.dc.html` L844.
     static let dark = ThemeTokens(
@@ -46,7 +48,8 @@ struct ThemeTokens {
         danger: Color(hex: 0xE5483F),        // --live
         selection: Color(hex: 0x1F3A29),     // --sel
         onAccent: Color(hex: 0x0D0D0D),
-        onWarning: Color(hex: 0x111111)
+        onWarning: Color(hex: 0x111111),
+        onLive: Color(hex: 0xFFFFFF)
     )
 
     /// `Main.dc.html` L843. (`QuitDialog.dc.html` L37 has slightly different light --warn and --live; Main wins.)
@@ -65,7 +68,8 @@ struct ThemeTokens {
         danger: Color(hex: 0xC4231C),        // --live
         selection: Color(hex: 0xD6EEDE),     // --sel
         onAccent: Color(hex: 0xFFFFFF),
-        onWarning: Color(hex: 0x111111)
+        onWarning: Color(hex: 0x111111),
+        onLive: Color(hex: 0xFFFFFF)
     )
 
     static func `for`(_ scheme: ColorScheme) -> ThemeTokens { scheme == .dark ? .dark : .light }

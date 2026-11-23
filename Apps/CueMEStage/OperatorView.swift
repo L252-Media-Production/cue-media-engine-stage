@@ -31,10 +31,11 @@ struct OperatorView: View {
                 // Main.dc.html L44: service and slide grid, the bottom panel under both; the right column beside them.
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
-                        ServicePanel(state: state, selection: $ui.selection) { item in
-                            store.send(.go(itemID: item.id, slideIndex: 0))
+                        ServicePanel(state: state, studio: studios.studios.studio, relink: studios.relinkReport,
+                                     selection: $ui.selection) { id in
+                            store.send(.go(itemID: id, slideIndex: 0))
                         }
-                        .frame(width: 240)
+                        .frame(width: ServicePanelLayout.width)
                         Divider()
                         SlideGrid(state: state, item: state.item(selection)) { item, index in
                             store.send(.go(itemID: item.id, slideIndex: index))
@@ -70,90 +71,6 @@ struct OperatorView: View {
         }
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
-    }
-}
-
-// MARK: Service
-
-private struct ServicePanel: View {
-    let state: StageState
-    @Binding var selection: Item.ID?
-    let go: (Item) -> Void
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PanelHeader(title: state.service?.name ?? "No service")
-            List(state.service?.items ?? [], selection: $selection) { item in
-                ServiceRow(item: item, isLive: isLive(item))
-                    .tag(item.id)
-                    // The mockup's selected row is tinted `--sel` (Main.dc.html L927).
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: ThemeTokens.radius)
-                            .fill(selection == item.id ? theme.selection : .clear)
-                    )
-            }
-            // Double-click. Return is Service > Go Live: the menu's key equivalent takes it before the list sees it,
-            // so a press of Return is one Go, never two.
-            .contextMenu(forSelectionType: Item.ID.self) { ids in
-                Button("Go Live") { goFirst(of: ids) }.disabled(ids.isEmpty)
-            } primaryAction: { ids in
-                goFirst(of: ids)
-            }
-            .scrollContentBackground(.hidden)
-            Text("Double-click or Return takes an item live")
-                .font(.caption)
-                .foregroundStyle(theme.textSecondary)
-                .padding(ThemeTokens.spacingS)
-        }
-        .background(theme.surface)
-    }
-
-    private func goFirst(of ids: Set<Item.ID>) {
-        guard let item = state.service?.items.first(where: { ids.contains($0.id) }) else { return }
-        go(item)
-    }
-
-    private func isLive(_ item: Item) -> Bool {
-        if state.primaryLive?.itemID == item.id { return true }
-        guard case let .media(id) = item.content else { return false }
-        return state.audio.liveTrack == id
-    }
-}
-
-/// A service entry. Selection is the list's own highlight; LIVE is a red bar on the leading edge plus a chip,
-/// so the two read differently also when the live item is the selected one.
-private struct ServiceRow: View {
-    let item: Item
-    let isLive: Bool
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        HStack(spacing: ThemeTokens.spacingS) {
-            Rectangle()
-                .fill(isLive ? theme.live : .clear)
-                .frame(width: 3)
-            Image(systemName: icon)
-                .foregroundStyle(isLive ? theme.live : theme.textSecondary)
-                .frame(width: 16)
-            Text(item.title)
-                .fontWeight(isLive ? .semibold : .regular)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            if isLive { Chip(text: "LIVE", color: theme.live, filled: true) }
-        }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(isLive ? "Live" : "")
-    }
-
-    private var icon: String {
-        switch item.content {
-        case .song: "music.note.list"
-        case .media: "waveform"
-        case .blank: "rectangle"
-        }
     }
 }
 

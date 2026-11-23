@@ -38,6 +38,9 @@ struct StageMenuCommands: Commands {
             Button("Close Studio") { studios.closeStudio() }
                 .disabled(!file.canClose)
             Divider()
+            // MenuBar.dc.html `file`: the New group comes first, then Import, then Close Window.
+            Button("New Service…") {}.disabled(true)
+            Divider()
             Button("Import Studio…") { studios.chooseAndImportStudio() }
                 .disabled(!file.canImportStudio)
             Button("Import Items…") { studios.chooseAndImportItems() }
@@ -50,7 +53,12 @@ struct StageMenuCommands: Commands {
             Button("Relink Media…") { ui.showRelink = true }
                 .disabled(!file.canRelink)
             Divider()
-            Button("New Service") {}.disabled(true)
+            // Replacing the Save group (below) also drops the system Close, so Close Window is here, last
+            // (MenuBar.dc.html `file`). It closes the operator window only; nothing live stops, and the Dock icon opens
+            // the window again (AppDelegate).
+            Button("Close Window") { (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil) }
+                .keyboardShortcut(Shortcuts.closeWindow)
+                .disabled(!file.canCloseWindow)
         }
         // A Studio saves itself (autosave), so there is no Save; the system's Save items are removed.
         CommandGroup(replacing: .saveItem) {}
@@ -102,7 +110,7 @@ struct StageMenuCommands: Commands {
                 Button("Audio") { store.send(.clear(.audio)) }
                 Button("Message") { store.send(.clear(.messages)) }
             }
-            Button(model.blackoutTitle) { store.send(model.blackoutCommand) }
+            Toggle("Black Out", isOn: Binding(get: { model.isBlackout }, set: { _ in store.send(model.blackoutCommand) }))
                 .keyboardShortcut(Shortcuts.blackout)
             Divider()
             Menu("Audio") {
@@ -110,7 +118,7 @@ struct StageMenuCommands: Commands {
                 Button(toggle.title) { toggle.command.map(store.send) }
                     .keyboardShortcut(Shortcuts.audioPlayPause)
                     .disabled(toggle.command == nil)
-                Button("Stop") { store.send(.stopAudio) }
+                Button("Stop Playback") { store.send(.stopAudio) }
                     .keyboardShortcut(Shortcuts.audioStop)
                     .disabled(!model.hasTrack)
                 Button("Fade Out") { store.send(.fadeAudio(seconds: 3)) }

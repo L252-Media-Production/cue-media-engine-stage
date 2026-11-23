@@ -105,6 +105,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Quitting while live asks first (QuitDialog.dc.html); Cancel keeps everything running.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Self.terminateReply(studios)
+    }
+
+    static func terminateReply(_ studios: StudioController) -> NSApplication.TerminateReply {
+        studios.shouldQuit() ? .terminateNow : .terminateCancel
+    }
+
+    /// File > Close Window closes the operator window only: the engine, the open Studio and anything live keep running,
+    /// and clicking the Dock icon opens the window again on the same state (the store, UI state and Studio live here).
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationWillTerminate(_ notification: Notification) {
         studios.shutdown()
     }

@@ -31,12 +31,12 @@ final class OperatorModelTests: XCTestCase {
         var m = ServiceMenuModel(state: await state([]), selection: nil)
         XCTAssertTrue(m.canNext)
         XCTAssertTrue(m.canPrevious)
-        XCTAssertEqual(m.blackoutTitle, "Black Out")
+        XCTAssertFalse(m.isBlackout, "Black Out, no checkmark")
         XCTAssertEqual(m.blackoutCommand, .blackout(true))
 
         m = ServiceMenuModel(state: await state([.go(itemID: doxology.id, slideIndex: 1), .blackout(true)]), selection: nil)
         XCTAssertFalse(m.canNext, "end of service")
-        XCTAssertEqual(m.blackoutTitle, "End Black Out")
+        XCTAssertTrue(m.isBlackout, "the same title, with a checkmark")
         XCTAssertEqual(m.blackoutCommand, .blackout(false))
 
         m = ServiceMenuModel(state: StageState(), selection: nil)
@@ -104,7 +104,8 @@ final class OperatorModelTests: XCTestCase {
 
     func testBottomTabFallsBackToAudio() {
         XCTAssertEqual(BottomTab.resolve("Audio"), .audio)
-        XCTAssertEqual(BottomTab.resolve("Activities"), .activities)
+        XCTAssertEqual(BottomTab.resolve("Activities"), .audio, "disabled in v0.1")
+        XCTAssertEqual(BottomTab.allCases.filter(\.isEnabled), [.audio], "only Audio opens in v0.1")
         XCTAssertEqual(BottomTab.resolve("Scripture"), .audio, "disabled")
         XCTAssertEqual(BottomTab.resolve("Media"), .audio, "disabled")
         XCTAssertEqual(BottomTab.resolve("Looks"), .audio, "disabled")

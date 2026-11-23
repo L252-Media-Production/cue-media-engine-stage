@@ -99,6 +99,14 @@ final class StudioController {
         return dialogs.confirmSwitch(live: live, action: action)
     }
 
+    /// Quit (Cmd-Q, the Dock, logout): true = go ahead. Asks only while a slide is on an output or audio is playing;
+    /// otherwise quits at once. Saving and releasing the lock happen after this, in `shutdown()` (applicationWillTerminate).
+    func shouldQuit() -> Bool {
+        let state = stage.state
+        guard QuitWarning.isLive(state) else { return true }
+        return dialogs.confirmQuit(subject: QuitWarning.subject(state))
+    }
+
     /// Opens a Studio: the switching warning when something is live, then the lock check. True when it opened.
     @discardableResult
     func open(_ url: URL, checkLive: Bool = true) -> Bool {

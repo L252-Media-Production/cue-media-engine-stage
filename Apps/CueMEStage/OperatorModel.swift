@@ -53,8 +53,9 @@ enum BottomTab: String, CaseIterable, Identifiable {
     case activities = "Activities"
 
     var id: Self { self }
-    /// Scripture, Media and Looks are placeholders that cannot be opened yet.
-    var isEnabled: Bool { self == .audio || self == .activities }
+    /// Only Audio in v0.1. Scripture, Media, Looks and Activities are placeholders that cannot be opened yet (their tabs
+    /// and View > Cmd-1/2/3/5 are disabled).
+    var isEnabled: Bool { self == .audio }
 
     /// The tab for a saved value: an unknown or disabled value falls back to Audio.
     static func resolve(_ raw: String) -> BottomTab {
@@ -82,6 +83,8 @@ enum Shortcuts {
     /// New Window (Cmd-N) is gone and nothing else uses these.
     static let newStudio = KeyboardShortcut("n", modifiers: .command)
     static let openStudio = KeyboardShortcut("o", modifiers: .command)
+    /// File > Close Window (the system's Close is removed with the Save group).
+    static let closeWindow = KeyboardShortcut("w", modifiers: .command)
     /// Cmd-1 ... Cmd-5 in `BottomTab.allCases` order.
     static func tab(_ tab: BottomTab) -> KeyboardShortcut {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
@@ -90,7 +93,7 @@ enum Shortcuts {
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
-         skipNextTrigger, outputSetup, visuals, newStudio, openStudio] + BottomTab.allCases.map(tab)
+         skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow] + BottomTab.allCases.map(tab)
     }
 
     /// Shortcuts without Command, Control or Option: these must never fire while text input has focus.
@@ -119,7 +122,8 @@ struct ServiceMenuModel {
     /// StageState does not say whether there is a slide before the cursor; the engine refuses at the start.
     var canPrevious: Bool { !isModalOpen && !(state.service?.items.isEmpty ?? true) }
 
-    var blackoutTitle: String { state.blackout ? "End Black Out" : "Black Out" }
+    /// Service > Black Out keeps its title and shows a checkmark while on (MenuBar.dc.html `service`; Main.dc.html L1231).
+    var isBlackout: Bool { state.blackout }
     var blackoutCommand: Command { .blackout(!state.blackout) }
 
     /// Pause while playing, Resume while paused; nothing to toggle otherwise.
@@ -155,6 +159,8 @@ struct FileMenuModel {
     var canImportItems: Bool { hasStudio && !isModalOpen }
     var canExport: Bool { hasStudio && !isModalOpen }
     var canRelink: Bool { hasStudio && !isModalOpen }
+    /// Not while a sheet is open: the sheet is the key window, and closing under it is not wanted.
+    var canCloseWindow: Bool { !isModalOpen }
     /// Until UI-3b brings the editors.
     var canExportSelectedItem: Bool { false }
 }

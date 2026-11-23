@@ -2,6 +2,12 @@ import AppKit
 import SwiftUI
 
 /// Colour, spacing and type tokens. Views use these instead of literal colours so dark and light stay in step.
+///
+/// The colours are the mockup's (docs/mockups, `Main.dc.html` `renderVals()` `vars`, L843 light and L844 dark).
+/// Mockup variable → token: `--bg` background, `--chrome` surface (panels, bars), `--panel` surfaceRaised (controls,
+/// headers, cards), `--line` border, `--fg` textPrimary, `--dim` textSecondary, `--accent` accent, `--live` live,
+/// `--next` preview, `--ok` ok, `--warn` warning, `--sel` selection. The mockup has no separate danger colour; danger
+/// uses `--live`.
 struct ThemeTokens {
     var background: Color
     var surface: Color
@@ -17,35 +23,41 @@ struct ThemeTokens {
     var ok: Color
     var warning: Color
     var danger: Color
+    /// A selected row's tint (`--sel`).
+    var selection: Color
 
+    /// `Main.dc.html` L844.
     static let dark = ThemeTokens(
-        background: Color(hex: 0x111214),
-        surface: Color(hex: 0x1A1C1F),
-        surfaceRaised: Color(hex: 0x24272B),
-        border: Color(hex: 0x33373D),
-        textPrimary: Color(hex: 0xECEDEE),
-        textSecondary: Color(hex: 0x9BA1A8),
-        accent: Color(hex: 0x4C9EFF),
-        live: Color(hex: 0xFF453A),
-        preview: Color(hex: 0x30D158),
-        ok: Color(hex: 0x30D158),
-        warning: Color(hex: 0xFFD60A),
-        danger: Color(hex: 0xFF453A)
+        background: Color(hex: 0x161616),    // --bg
+        surface: Color(hex: 0x202020),       // --chrome
+        surfaceRaised: Color(hex: 0x2B2B2B), // --panel
+        border: Color(hex: 0x3A3A3A),        // --line
+        textPrimary: Color(hex: 0xF5F5F5),   // --fg
+        textSecondary: Color(hex: 0xA8A8A8), // --dim
+        accent: Color(hex: 0x47C86E),        // --accent
+        live: Color(hex: 0xE5483F),          // --live
+        preview: Color(hex: 0x4DA3FF),       // --next
+        ok: Color(hex: 0x47C86E),            // --ok
+        warning: Color(hex: 0xFFB020),       // --warn
+        danger: Color(hex: 0xE5483F),        // --live
+        selection: Color(hex: 0x1F3A29)      // --sel
     )
 
+    /// `Main.dc.html` L843. (`QuitDialog.dc.html` L37 has slightly different light --warn and --live; Main wins.)
     static let light = ThemeTokens(
-        background: Color(hex: 0xF4F5F7),
-        surface: Color(hex: 0xFFFFFF),
-        surfaceRaised: Color(hex: 0xECEEF1),
-        border: Color(hex: 0xD5D9DE),
-        textPrimary: Color(hex: 0x16181B),
-        textSecondary: Color(hex: 0x5D646C),
-        accent: Color(hex: 0x0A66D8),
-        live: Color(hex: 0xD70015),
-        preview: Color(hex: 0x248A3D),
-        ok: Color(hex: 0x248A3D),
-        warning: Color(hex: 0xB25000),
-        danger: Color(hex: 0xD70015)
+        background: Color(hex: 0xF3F3F1),    // --bg
+        surface: Color(hex: 0xE8E8E5),       // --chrome
+        surfaceRaised: Color(hex: 0xFFFFFF), // --panel
+        border: Color(hex: 0xCFCFCA),        // --line
+        textPrimary: Color(hex: 0x1A1A1A),   // --fg
+        textSecondary: Color(hex: 0x555555), // --dim
+        accent: Color(hex: 0x17803C),        // --accent
+        live: Color(hex: 0xC4231C),          // --live
+        preview: Color(hex: 0x0A6BD6),       // --next
+        ok: Color(hex: 0x17803C),            // --ok
+        warning: Color(hex: 0xA85A00),       // --warn
+        danger: Color(hex: 0xC4231C),        // --live
+        selection: Color(hex: 0xD6EEDE)      // --sel
     )
 
     static func `for`(_ scheme: ColorScheme) -> ThemeTokens { scheme == .dark ? .dark : .light }
@@ -137,7 +149,9 @@ struct Themed: ViewModifier {
     @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
-        content.environment(\.theme, .for(scheme))
+        let tokens = ThemeTokens.for(scheme)
+        // The accent also tints SwiftUI controls (toggles, prominent buttons, focus) instead of the system blue.
+        content.environment(\.theme, tokens).tint(tokens.accent)
     }
 }
 

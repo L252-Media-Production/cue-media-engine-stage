@@ -132,6 +132,25 @@ that is gone, is listed only under the bin's "All media" / "All audio" row. Medi
 index is not added again. **Link a folder** adds the folder to this Mac's media folders, makes a bin folder with its
 `linkedPath`, and registers the video and photos in it the same way.
 
+### Messages and timers (`messages.json`, `timers.json`, edited since UI-3c-2a)
+
+```json
+[ { "id" : "…", "text" : "Please be seated" } ]
+[ { "id" : "…", "name" : "Countdown", "mode" : "countdown", "duration" : 300 },
+  { "id" : "…", "name" : "Service clock", "mode" : "countUp", "duration" : 0 } ]
+```
+
+Not new: both files have been part of format version 1 from the start and are always written (`[\n\n]` when empty),
+so a Studio from before the editors saves back byte for byte. The right column's Message and Timer tabs edit them
+(+ New, ✎, 🗑, right-click) and save through the usual autosave, then `reloadStudio`. No field was added: a message is
+its `text`; a timer is its `name`, `mode` (`countdown` or `countUp`) and `duration` in seconds (kept, but not used,
+for `countUp`). Style, show-for time, flash, per-message screens, "count down to time" and overrun have no field yet,
+so the editors draw them disabled.
+
+What is showing or running is not show data: it comes from the engine (`StageState.visibleMessages`,
+`runningTimers`). A message edited while it is showing keeps its shown text on the screens until it is shown again
+(the engine's job; the mock does it).
+
 ## Versions
 
 - `formatVersion` higher than the app knows: refused before anything else is read, with the message

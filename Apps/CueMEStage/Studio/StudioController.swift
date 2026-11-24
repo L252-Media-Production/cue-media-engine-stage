@@ -248,6 +248,29 @@ final class StudioController {
         }
     }
 
+    /// The message editor's Save: replaces the message with the same id, or adds it at the end. A message on air keeps
+    /// its shown text until it is shown again (the engine's job; the mock does it).
+    func saveMessage(_ message: Message) {
+        edit { studio in
+            if let i = studio.messages.firstIndex(where: { $0.id == message.id }) { studio.messages[i] = message } else { studio.messages.append(message) }
+        }
+    }
+
+    func deleteMessage(_ id: Message.ID) {
+        edit { $0.messages.removeAll { $0.id == id } }
+    }
+
+    /// The timer editor's Save: replaces the timer with the same id, or adds it at the end.
+    func saveTimer(_ timer: StageTimer) {
+        edit { studio in
+            if let i = studio.timers.firstIndex(where: { $0.id == timer.id }) { studio.timers[i] = timer } else { studio.timers.append(timer) }
+        }
+    }
+
+    func deleteTimer(_ id: StageTimer.ID) {
+        edit { $0.timers.removeAll { $0.id == id } }
+    }
+
     /// File > New Song…: an untitled song with one empty slide, in no collection. Returns its id.
     @discardableResult
     func newSong() -> Song.ID? {

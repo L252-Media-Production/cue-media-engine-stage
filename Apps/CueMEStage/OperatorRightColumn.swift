@@ -29,6 +29,7 @@ enum RightColumnPart: String, CaseIterable, Identifiable {
 struct RightColumn: View {
     let state: StageState
     @Bindable var ui: OperatorUIState
+    let studios: StudioController
     let send: (Command) -> Void
     @Environment(\.theme) private var theme
     /// Per Studio, on this machine; shared by every window and by Output > Monitor.
@@ -72,7 +73,7 @@ struct RightColumn: View {
                             .accessibilityLabel("Next slide")
                     }
                 case .tabs:
-                    SideTabsPanel(state: state, send: send)
+                    SideTabsPanel(state: state, studios: studios, ui: ui, send: send)
                 }
             }
         }
@@ -379,17 +380,19 @@ struct ScopeChip: View {
 /// The tabbed panel at the bottom of the right column (Main.dc.html L598): rounded, on --bg, tabs sharing the width.
 private struct SideTabsPanel: View {
     let state: StageState
+    let studios: StudioController
+    let ui: OperatorUIState
     let send: (Command) -> Void
     @Environment(\.theme) private var theme
     @AppStorage(StorageKeys.sideTab) private var tabRaw = SideTab.audio.rawValue
     private var tab: SideTab { SideTab.resolve(tabRaw) }
+    private var studio: Studio? { studios.studios.studio }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(SideTab.allCases) { item in
-                    TabButton(title: item.rawValue, isSelected: tab == item, isEnabled: item.isEnabled,
-                              help: item.isEnabled ? "" : "Timers are not available in v0.1", fill: true) {
+                    TabButton(title: item.rawValue, isSelected: tab == item, isEnabled: true, fill: true) {
                         tabRaw = item.rawValue
                     }
                 }
@@ -397,8 +400,12 @@ private struct SideTabsPanel: View {
             .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
             switch tab {
             case .audio: AudioCuePanel(state: state, send: send)
-            case .message: MessagesPanel(state: state, send: send)
-            case .timer: EmptyMessage(text: "Timers are not available in v0.1")
+            case .message:
+                MessagesPanel(model: MessagesPanelModel(messages: studio?.messages ?? [], state: state, hasStudio: studio != nil),
+                              ui: ui, send: send, delete: studios.deleteMessage)
+            case .timer:
+                TimersPanel(model: TimersPanelModel(timers: studio?.timers ?? [], state: state, hasStudio: studio != nil),
+                            ui: ui, send: send, delete: studios.deleteTimer)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -478,88 +485,6 @@ private struct AudioCuePanel: View {
     }
 }
 
-/// The Message tab (MainMessages.dc.html): the Studio's messages with Show / Hide, and Hide all. Show sends to every
-/// screen (`showMessage(id, screens: [])`). New, Edit and Delete belong to the message editor, not built in v0.1.
-private struct MessagesPanel: View {
-    let state: StageState
-    let send: (Command) -> Void
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        let model = ServiceMenuModel(state: state, selection: nil)
-        let live = state.messages.filter(model.isVisible).count
-        VStack(alignment: .leading, spacing: ThemeTokens.spacingS) {
-            HStack(spacing: ThemeTokens.spacingS) {
-                SectionLabel(text: "MESSAGES")
-                Text("\(live) live")
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button("Hide all") { send(.clear(.messages)) }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(live > 0 ? theme.textPrimary : theme.textSecondary)
-                    .disabled(live == 0)
-                    .opacity(live > 0 ? 1 : 0.5)
-                    .accessibilityLabel("Hide all messages")
-                Button("+ New") {}
-                    .buttonStyle(.plain)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(theme.accent)
-                    .disabled(true)
-                    .opacity(0.5)
-                    .help("The message editor is not available in v0.1")
-                    .accessibilityLabel("New message")
-            }
-            if state.messages.isEmpty {
-                EmptyMessage(text: "No messages in this Studio")
-                    .frame(maxWidth: .infinity)
-            } else {
-                ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(state.messages) { message in
-                            MessageRow(text: message.text, isOn: model.isVisible(message)) {
-                                send(model.toggleCommand(message))
-                            }
-                        }
-                    }
-                }
-            }
-            Text("Several messages can be live at once. In v0.1 each goes to every screen.")
-                .font(.system(size: 11))
-                .foregroundStyle(theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, ThemeTokens.spacingM)
-        .padding(.vertical, 10)
-    }
-}
-
-private struct MessageRow: View {
-    let text: String
-    let isOn: Bool
-    let toggle: () -> Void
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        HStack(spacing: ThemeTokens.spacingS) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(text).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
-                Text("All screens").font(.system(size: 11)).foregroundStyle(theme.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Button(isOn ? "Hide" : "Show", action: toggle)
-                .buttonStyle(PanelButtonStyle(kind: isOn ? .hide : .primary, width: nil, minWidth: 58, height: 28,
-                                              font: .system(size: 12, weight: .bold)))
-                .fixedSize()
-                .accessibilityLabel("\(isOn ? "Hide" : "Show") message: \(text)")
-        }
-        .padding(EdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 8))
-        .background(isOn ? theme.selection : theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isOn ? theme.accent : theme.border, lineWidth: 1))
-    }
-}
-
 // MARK: Shared
 
 /// The mockup's section label (Main.dc.html L845).
@@ -580,6 +505,8 @@ struct SectionLabel: View {
 struct PanelButtonStyle: ButtonStyle {
     enum Kind: Equatable {
         case secondary, primary, hide
+        /// Outlined in the accent, bold (MessageEditor.dc.html "Save and show").
+        case accentOutline
         case black(on: Bool)
     }
 
@@ -601,7 +528,7 @@ struct PanelButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(style.font ?? .system(size: 13, weight: style.kind == .primary ? .bold : .regular))
+                .font(style.font ?? .system(size: 13, weight: [.primary, .accentOutline].contains(style.kind) ? .bold : .regular))
                 .lineLimit(1)
                 .foregroundStyle(foreground)
                 .padding(.horizontal, style.minWidth == nil ? 0 : 10)
@@ -618,6 +545,7 @@ struct PanelButtonStyle: ButtonStyle {
             case .secondary: theme.textPrimary
             case .primary: theme.onAccent
             case .hide: theme.live
+            case .accentOutline: theme.accent
             case let .black(on): on ? theme.onWarning : theme.warning
             }
         }
@@ -626,7 +554,7 @@ struct PanelButtonStyle: ButtonStyle {
             switch style.kind {
             case .secondary: theme.surfaceRaised
             case .primary: theme.accent
-            case .hide: .clear
+            case .hide, .accentOutline: .clear
             case let .black(on): on ? theme.warning : .clear
             }
         }
@@ -636,6 +564,7 @@ struct PanelButtonStyle: ButtonStyle {
             case .secondary: theme.border
             case .primary: nil
             case .hide: theme.live
+            case .accentOutline: theme.accent
             case .black: theme.warning
             }
         }

@@ -9,6 +9,7 @@ struct StageMenuCommands: Commands {
     let studios: StudioController
     @AppStorage(StorageKeys.theme) private var themeRaw = AppTheme.fallback.rawValue
     @AppStorage(StorageKeys.bottomTab) private var bottomTabRaw = BottomTab.audio.rawValue
+    @AppStorage(StorageKeys.sideTab) private var sideTabRaw = SideTab.audio.rawValue
     @AppStorage(StorageKeys.monitorScreens) private var monitorRaw = ""
     @Environment(\.openWindow) private var openWindow
     /// The Song editor of the key window, if it is one: Undo and Redo go to it.
@@ -127,6 +128,15 @@ struct StageMenuCommands: Commands {
                 .disabled(!tab.isEnabled)
             }
             Divider()
+            // The right column's tabs (Main.dc.html L1229); they only pick the tab.
+            ForEach(SideTab.allCases) { tab in
+                Toggle(tab.menuTitle, isOn: Binding(
+                    get: { SideTab.resolve(sideTabRaw) == tab },
+                    set: { if $0 { sideTabRaw = tab.rawValue } }
+                ))
+                .keyboardShortcut(Shortcuts.sideTab(tab))
+            }
+            Divider()
         }
 
         CommandMenu("Service") {
@@ -170,15 +180,22 @@ struct StageMenuCommands: Commands {
                     .keyboardShortcut(Shortcuts.skipNextTrigger)
                     .disabled(!model.canSkipTrigger)
             }
+            // Main.dc.html L1233: Hide All Messages and Stop All Timers; then one toggle per saved message.
             Menu("Messages") {
-                ForEach(store.state.messages) { message in
-                    Toggle(message.text, isOn: Binding(
-                        get: { model.isVisible(message) },
-                        set: { _ in store.send(model.toggleCommand(message)) }
-                    ))
+                Button("Hide All Messages") { store.send(model.hideAllMessagesCommand) }
+                    .disabled(!model.canHideAllMessages)
+                Button("Stop All Timers") { model.stopAllTimersCommands.forEach(store.send) }
+                    .disabled(!model.canStopAllTimers)
+                if model.hasMessages {
+                    Divider()
+                    ForEach(store.state.messages) { message in
+                        Toggle(message.text, isOn: Binding(
+                            get: { model.isVisible(message) },
+                            set: { _ in store.send(model.toggleCommand(message)) }
+                        ))
+                    }
                 }
             }
-            .disabled(!model.hasMessages)
             Divider()
             Button("Add Section…") { ui.showAddSection = true }
                 .disabled(studios.studios.studio == nil || store.state.service == nil || ui.isModalOpen)

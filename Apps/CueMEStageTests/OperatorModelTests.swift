@@ -314,7 +314,7 @@ final class OperatorModelTests: XCTestCase {
     func testRightColumnTabsAndSizes() {
         XCTAssertEqual(SideTab.allCases.map(\.rawValue), ["Audio", "Message", "Timer"], "Main.dc.html L993")
         XCTAssertEqual(SideTab.resolve("Message"), .message)
-        XCTAssertEqual(SideTab.resolve("Timer"), .audio, "disabled in v0.1")
+        XCTAssertEqual(SideTab.resolve("Timer"), .timer, "open since UI-3c-2a")
         XCTAssertEqual(SideTab.resolve("nonsense"), .audio)
         XCTAssertEqual(BottomTab.allCases.map(\.rawValue), ["Scripture", "Media", "Looks", "Audio", "Activities"], "Main.dc.html L999")
         XCTAssertEqual(OperatorLayout.rightColumnWidth, 360)

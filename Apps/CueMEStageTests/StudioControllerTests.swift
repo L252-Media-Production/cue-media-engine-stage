@@ -21,6 +21,8 @@ final class FakeDialogs: StudioDialogs {
     func clashChoice(for item: StudioItemPayload, remaining: Int) -> (ItemClashChoice, forAll: Bool) { (.skip, true) }
     func chooseFile(title: String, types: [UTType], directory: URL?) -> URL? { nil }
     func chooseFolder(title: String) -> URL? { nil }
+    var filesAnswer: [URL] = []
+    func chooseFiles(title: String, types: [UTType]) -> [URL] { filesAnswer }
     func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL? { saveAnswer }
     func showError(_ title: String, _ error: Error) { XCTFail("\(title): \(error)") }
     func confirmQuit(subject: String) -> Bool { quitAsked.append(subject); return quitAnswer }

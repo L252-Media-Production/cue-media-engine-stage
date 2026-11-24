@@ -105,9 +105,9 @@ final class OperatorModelTests: XCTestCase {
     func testBottomTabFallsBackToAudio() {
         XCTAssertEqual(BottomTab.resolve("Audio"), .audio)
         XCTAssertEqual(BottomTab.resolve("Activities"), .audio, "disabled in v0.1")
-        XCTAssertEqual(BottomTab.allCases.filter(\.isEnabled), [.audio], "only Audio opens in v0.1")
+        XCTAssertEqual(BottomTab.allCases.filter(\.isEnabled), [.media, .audio], "the Media and Audio bins open (Cmd-2, Cmd-4)")
         XCTAssertEqual(BottomTab.resolve("Scripture"), .audio, "disabled")
-        XCTAssertEqual(BottomTab.resolve("Media"), .audio, "disabled")
+        XCTAssertEqual(BottomTab.resolve("Media"), .media, "the Media bin")
         XCTAssertEqual(BottomTab.resolve("Looks"), .audio, "disabled")
         XCTAssertEqual(BottomTab.resolve("nonsense"), .audio, "unknown")
         XCTAssertEqual(BottomTab.resolve(""), .audio)

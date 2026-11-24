@@ -15,12 +15,33 @@ final class OperatorUIState {
     var showNewCollection = false
     /// The Section popover under "+ Add ▾".
     var showAddSection = false
+    /// The Media or Audio bin's dialog (New folder, Add files, Adding files, Link a folder).
+    var binDialog: BinDialog?
 
     /// True while any sheet, dialog or popover of the app is open. While it is, Go Live, Next and Previous are off in
     /// the menu and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added
     /// here. (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the
     /// sheet.) Editor windows are not modal: they are separate windows, and `ShortcutGuard` keeps show keys out of them.
-    var isModalOpen: Bool { showOutputSetup || showRelink || showNewCollection || showAddSection }
+    var isModalOpen: Bool { showOutputSetup || showRelink || showNewCollection || showAddSection || binDialog != nil }
+}
+
+/// The bins' dialogs (MediaDialog.dc.html), one at a time, as a sheet on the operator window.
+enum BinDialog: Identifiable, Equatable {
+    case newFolder(StudioBinFolder.Bin)
+    /// The files chosen in Finder (or dropped), and the folder that was selected (ADD TO starts there).
+    case addFiles(StudioBinFolder.Bin, [URL], folder: StudioBinFolder.ID?)
+    /// The add in progress (`MediaLibrary.job`).
+    case progress
+    case linkFolder(URL?)
+
+    var id: String {
+        switch self {
+        case let .newFolder(bin): "folder-\(bin.rawValue)"
+        case let .addFiles(bin, urls, _): "files-\(bin.rawValue)-\(urls.count)"
+        case .progress: "progress"
+        case .linkFolder: "link"
+        }
+    }
 }
 
 /// UserDefaults keys used through @AppStorage.
@@ -66,9 +87,9 @@ enum BottomTab: String, CaseIterable, Identifiable {
     case activities = "Activities"
 
     var id: Self { self }
-    /// Only Audio in v0.1. Scripture, Media, Looks and Activities are placeholders that cannot be opened yet (their tabs
-    /// and View > Cmd-1/2/3/5 are disabled).
-    var isEnabled: Bool { self == .audio }
+    /// Media (the Media bin) and Audio (the Audio bin). Scripture, Looks and Activities are placeholders that cannot
+    /// be opened yet (their tabs and View > Cmd-1/3/5 are disabled).
+    var isEnabled: Bool { self == .media || self == .audio }
 
     /// The tab for a saved value: an unknown or disabled value falls back to Audio.
     static func resolve(_ raw: String) -> BottomTab {

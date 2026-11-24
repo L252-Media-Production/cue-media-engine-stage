@@ -17,12 +17,18 @@ final class OperatorUIState {
     var showAddSection = false
     /// The Media or Audio bin's dialog (New folder, Add files, Adding files, Link a folder).
     var binDialog: BinDialog?
+    /// The message editor (a sheet), from the Message tab.
+    var messageEditor: ItemEditorTarget?
+    /// The timer editor (a sheet), from the Timer tab.
+    var timerEditor: ItemEditorTarget?
 
     /// True while any sheet, dialog or popover of the app is open. While it is, Go Live, Next and Previous are off in
     /// the menu and `ShortcutGuard` keeps Return and the arrows away from the menu. A new sheet's flag must be added
     /// here. (Dialogs shown from inside a sheet, such as Output Setup's "Apply your changes?", are covered by the
     /// sheet.) Editor windows are not modal: they are separate windows, and `ShortcutGuard` keeps show keys out of them.
-    var isModalOpen: Bool { showOutputSetup || showRelink || showNewCollection || showAddSection || binDialog != nil }
+    var isModalOpen: Bool {
+        showOutputSetup || showRelink || showNewCollection || showAddSection || binDialog != nil || messageEditor != nil || timerEditor != nil
+    }
 }
 
 /// The bins' dialogs (MediaDialog.dc.html), one at a time, as a sheet on the operator window.
@@ -112,14 +118,12 @@ enum SideTab: String, CaseIterable, Identifiable {
     case timer = "Timer"
 
     var id: Self { self }
-    /// Timer is off in v0.1: StageState has no timer list to show (only the ids of running ones).
-    var isEnabled: Bool { self != .timer }
 
-    /// The tab for a saved value: an unknown or disabled value falls back to Audio.
-    static func resolve(_ raw: String) -> SideTab {
-        guard let tab = SideTab(rawValue: raw), tab.isEnabled else { return .audio }
-        return tab
-    }
+    /// View menu title (Main.dc.html L1229): "Audio (right column)", "Message", "Timer".
+    var menuTitle: String { self == .audio ? "Audio (right column)" : rawValue }
+
+    /// The tab for a saved value: an unknown value falls back to Audio.
+    static func resolve(_ raw: String) -> SideTab { SideTab(rawValue: raw) ?? .audio }
 }
 
 /// Which output screen the right column's single monitor shows. Kept per Studio on this machine: one JSON map
@@ -507,10 +511,17 @@ enum Shortcuts {
         let n = (BottomTab.allCases.firstIndex(of: tab) ?? 0) + 1
         return KeyboardShortcut(KeyEquivalent(Character(String(n))), modifiers: .command)
     }
+    /// View > Audio (right column) / Message / Timer: Option-Cmd-1 ... Option-Cmd-3 in `SideTab.allCases` order
+    /// (Main.dc.html L1229).
+    static func sideTab(_ tab: SideTab) -> KeyboardShortcut {
+        let n = (SideTab.allCases.firstIndex(of: tab) ?? 0) + 1
+        return KeyboardShortcut(KeyEquivalent(Character(String(n))), modifiers: [.command, .option])
+    }
 
     static var all: [KeyboardShortcut] {
         [goLive, nextSlide, previousSlide, clearSlide, clearAll, blackout, audioPlayPause, audioStop, audioFadeOut,
          skipNextTrigger, outputSetup, visuals, newStudio, openStudio, closeWindow, newCollection, newSong, editSelectedItem, undo, redo] + BottomTab.allCases.map(tab)
+            + SideTab.allCases.map(sideTab)
     }
 
     /// Show shortcuts that are also standard text-editing keys. Checked against Cmd-Left/Right/Up/Down, Cmd-A, Cmd-Z,
@@ -564,6 +575,13 @@ struct ServiceMenuModel {
     var hasMessages: Bool { !state.messages.isEmpty }
 
     func isVisible(_ message: Message) -> Bool { state.visibleMessages.contains(message.id) }
+
+    /// Service > Messages > Hide All Messages and Stop All Timers (Main.dc.html L1233).
+    var canHideAllMessages: Bool { !state.visibleMessages.isEmpty }
+    var hideAllMessagesCommand: Command { .clear(.messages) }
+    var canStopAllTimers: Bool { !state.runningTimers.isEmpty }
+    /// One `stopTimer` per running timer (there is no stop-all Command).
+    var stopAllTimersCommands: [Command] { state.runningTimers.map(Command.stopTimer) }
     /// Show on every screen, or hide.
     func toggleCommand(_ message: Message) -> Command {
         isVisible(message) ? .hideMessage(message.id) : .showMessage(message.id, screens: [])

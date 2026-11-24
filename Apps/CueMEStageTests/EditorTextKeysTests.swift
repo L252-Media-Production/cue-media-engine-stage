@@ -189,6 +189,74 @@ final class EditorTextKeysTests: StudioEditTestCase {
         XCTAssertFalse(ShortcutGuard.isTextCollision(key(delete, 51, .option, in: window)), "Option-Delete is no show key")
     }
 
+    // MARK: Message and timer editors (sheets on the operator window)
+
+    private func textFields(in view: NSView) -> [NSTextField] {
+        (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap(textFields)
+    }
+
+    /// Hosts an editor sheet in a window of its own (a sheet is its own window, never the operator window), focuses its
+    /// first editable text field, and returns the field editor.
+    private func focusedSheetField<V: View>(_ view: V) throws -> (NSWindow, NSTextView) {
+        let window = window(view)
+        XCTAssertFalse(ShortcutGuard.isOperatorWindow(window))
+        let field = try XCTUnwrap(textFields(in: window.contentView!).first { $0.isEditable }, "the editor's text field")
+        XCTAssertTrue(window.makeFirstResponder(field))
+        let editor = try XCTUnwrap(window.firstResponder as? NSTextView, "the field editor")
+        return (window, editor)
+    }
+
+    private func assertTextKeysEditText(in window: NSWindow, _ editor: NSTextView, file: StaticString = #filePath, line: UInt = #line) {
+        let shownBefore = stage.state.visibleMessages
+        let liveBefore = stage.state.primaryLive
+        editor.string = "First text"
+        editor.moveToEndOfDocument(nil)
+        press(key(delete, 51, .command, in: window))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertEqual(editor.string, "", "Cmd-Delete deleted to the start of the line", file: file, line: line)
+        editor.string = "Second text"
+        editor.moveToEndOfDocument(nil)
+        press(key(delete, 51, [.command, .shift], in: window))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertEqual(editor.string, "", "Shift-Cmd-Delete edited the text too", file: file, line: line)
+        XCTAssertEqual(sent, [], "no Clear Slide or Clear All was sent", file: file, line: line)
+        XCTAssertEqual(stage.state.visibleMessages, shownBefore, file: file, line: line)
+        XCTAssertEqual(stage.state.primaryLive, liveBefore, file: file, line: line)
+    }
+
+    func testCmdDeleteInTheMessageEditorEditsTextAndNeverClearsTheShow() async throws {
+        await launch()
+        let message = studio.messages[0]
+        stage.send(.go(itemID: item("Amazing Grace").id, slideIndex: 0))
+        stage.send(.showMessage(message.id, screens: []))
+        await until("live and showing") { [self] in stage.state.primaryLive != nil && stage.state.visibleMessages == [message.id] }
+        ShortcutGuard.isModalOpen = true
+        defer { ShortcutGuard.isModalOpen = false }
+        let sheet = MessageEditorSheet(state: stage.state, save: { _ in }, send: { _ in },
+                                       model: MessageEditorModel(target: .edit(message.id), messages: studio.messages))
+        let (window, editor) = try focusedSheetField(sheet)
+        assertTextKeysEditText(in: window, editor)
+    }
+
+    func testCmdDeleteInTheTimerEditorEditsTextAndNeverClearsTheShow() async throws {
+        await launch()
+        stage.send(.go(itemID: item("Amazing Grace").id, slideIndex: 0))
+        await until("live") { [self] in stage.state.primaryLive != nil }
+        ShortcutGuard.isModalOpen = true
+        defer { ShortcutGuard.isModalOpen = false }
+        let sheet = TimerEditorSheet(save: { _ in }, model: TimerEditorModel(target: .new, timers: studio.timers))
+        let (window, editor) = try focusedSheetField(sheet)
+        assertTextKeysEditText(in: window, editor)
+    }
+
+    func testBlackOutStillWorksFromAnEditorSheet() async throws {
+        await launch()
+        let sheet = TimerEditorSheet(save: { _ in }, model: TimerEditorModel(target: .new, timers: studio.timers))
+        let (window, _) = try focusedSheetField(sheet)
+        press(key(".", 47, .command, in: window))
+        XCTAssertEqual(sent, [.blackout(true)], "Black Out is no text key")
+    }
+
     func testTheCollisionList() {
         XCTAssertEqual(Shortcuts.textEditingCollisions, [Shortcuts.clearSlide, Shortcuts.clearAll])
         let textKeys: [KeyboardShortcut] = [

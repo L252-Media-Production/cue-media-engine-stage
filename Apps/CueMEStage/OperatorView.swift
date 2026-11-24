@@ -89,7 +89,7 @@ struct OperatorView: View {
                     PanelDivider(axis: .vertical, value: sizes.right, direction: -1, label: "Right column width") {
                         keep(sizes.setting(.right, to: $0, width: w, height: h, windowHeight: window))
                     } reset: { keep(sizes.resetting(.right)) }
-                    RightColumn(state: state, ui: ui, send: store.send)
+                    RightColumn(state: state, ui: ui, studios: studios, send: store.send)
                         .frame(width: sizes.right)
                 }
             }
@@ -119,6 +119,16 @@ struct OperatorView: View {
         }
         .sheet(item: $ui.binDialog) { dialog in
             BinDialogSheet(dialog: dialog, studios: studios, ui: ui).modifier(Themed())
+        }
+        .sheet(item: $ui.messageEditor) { target in
+            MessageEditorSheet(state: store.state, save: studios.saveMessage, send: store.send,
+                               model: MessageEditorModel(target: target, messages: studios.studios.studio?.messages ?? []))
+                .modifier(Themed())
+        }
+        .sheet(item: $ui.timerEditor) { target in
+            TimerEditorSheet(save: studios.saveTimer,
+                             model: TimerEditorModel(target: target, timers: studios.studios.studio?.timers ?? []))
+                .modifier(Themed())
         }
         .background(ShortcutGuardWindowMarker(role: .operator))
         .environment(\.editSong, { id, slide in SongEditorScene.open(id, slide: slide, studios: studios, with: openWindow) })

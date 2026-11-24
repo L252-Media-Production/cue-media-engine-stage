@@ -24,6 +24,7 @@ public enum StudioCodec {
     static let timersPath = "timers.json"
     static let messagesPath = "messages.json"
     static let collectionsPath = "collections.json"
+    static let binsPath = "bins.json"
 
     /// A service file: the `Service` itself plus, only when the service has any, its `sections`. Without sections the
     /// bytes are exactly what `Service` alone writes, so a Studio from before sections writes back unchanged.
@@ -94,6 +95,7 @@ public enum StudioCodec {
         files[timersPath] = try encoder.encode(studio.timers)
         files[messagesPath] = try encoder.encode(studio.messages)
         if !studio.collections.isEmpty { files[collectionsPath] = try encoder.encode(studio.collections) }
+        if !studio.binFolders.isEmpty { files[binsPath] = try encoder.encode(studio.binFolders) }
         return files
     }
 
@@ -179,14 +181,15 @@ public enum StudioCodec {
             timers: try list([StageTimer].self, timersPath),
             messages: try list([Message].self, messagesPath),
             collections: try list([StudioCollection].self, collectionsPath),
-            sections: sections
+            sections: sections,
+            binFolders: try list([StudioBinFolder].self, binsPath)
         ).normalized()
     }
 
     /// True for the paths this codec owns (the files `encode` writes). Anything else in the package (lock.json,
     /// cache/, Finder files) is left alone by a save.
     public static func isShowDataPath(_ path: String) -> Bool {
-        if [manifestPath, audioPath, mediaPath, looksPath, screensPath, timersPath, messagesPath, collectionsPath].contains(path) { return true }
+        if [manifestPath, audioPath, mediaPath, looksPath, screensPath, timersPath, messagesPath, collectionsPath, binsPath].contains(path) { return true }
         let parts = path.split(separator: "/")
         return parts.count == 2 && (parts[0] == libraryFolder || parts[0] == servicesFolder) && path.hasSuffix(".json")
     }

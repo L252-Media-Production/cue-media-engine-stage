@@ -12,6 +12,10 @@ import Foundation
 /// Outputs: the mock plays the engine's part and reports `sampleConnectors` (or the list it is given). Slides and
 /// messages go to output screens only, never to input screens. A test pattern is state only: the mock has no
 /// pixels, and the live slide is left as it was.
+///
+/// Messages: a visible message keeps the text it was shown with until it is shown again. When the Studio changes
+/// (`reloadStudio`) while a message is visible, `state.messages` keeps the shown version of that message, so editing
+/// it never changes what the audience sees; hiding it, or showing it again, takes the saved version.
 public actor MockStageClient: StageClient {
     /// Reduction shown while a voice-over plays.
     public static let fakeDuckingDB = 8.0
@@ -32,6 +36,8 @@ public actor MockStageClient: StageClient {
     /// Passes still to play after the running one; nil = loop for ever.
     private var passesLeft: Int? = 0
     private var telemetryTask: Task<Void, Never>?
+    /// The version of each visible message as it was shown (see the type's note on messages).
+    private var shownMessages: [Message.ID: Message] = [:]
 
     /// The connectors of the v0.1 rig: two DeckLink Duo 2 cards with 4 SDI connectors each (card B's 4th set to
     /// input, for IMAG), two NDI senders and one display.
@@ -168,6 +174,7 @@ public actor MockStageClient: StageClient {
         if let track = state.audio.liveTrack { emit(.audioEnded(mediaID: track)) }
         let counters = state.audio.counters
         self.library = library
+        shownMessages = [:]
         state = Self.makeState(library: library, connectors: state.connectors, assignments: assignments, studio: studio)
         state.audio.counters = counters
         refreshOutputs()
@@ -292,6 +299,8 @@ public actor MockStageClient: StageClient {
             if target == .messages || target == .all {
                 state.visibleMessages = []
                 for i in outputIndices { state.screens[i].messages = [] }
+                shownMessages = [:]
+                refreshMessages()
             }
             if target == .audio { endTrack() }
             emit(.cleared(target))
@@ -315,10 +324,14 @@ public actor MockStageClient: StageClient {
                 if targets.contains(state.screens[i].screenID) { state.screens[i].messages.append(id) }
             }
             if !state.visibleMessages.contains(id) { state.visibleMessages.append(id) }
+            shownMessages[id] = library.messages.first { $0.id == id }
+            refreshMessages()
 
         case let .hideMessage(id):
             state.visibleMessages.removeAll { $0 == id }
             for i in state.screens.indices { state.screens[i].messages.removeAll { $0 == id } }
+            shownMessages[id] = nil
+            refreshMessages()
 
         case let .startTimer(id):
             guard library.timers.contains(where: { $0.id == id }) else { return reject(command, "unknown timer") }
@@ -442,10 +455,20 @@ public actor MockStageClient: StageClient {
             library = loaded.library
             state.service = loaded.library.service
             state.slides = Self.slides(of: loaded.library)
-            state.messages = loaded.library.messages
+            refreshMessages()
             state.looks = loaded.library.looks
             state.studio = loaded.info
         }
+    }
+
+    /// `state.messages` from the library, with each visible message as it was shown. A visible message the library no
+    /// longer has stays (at the end) until it is hidden.
+    private func refreshMessages() {
+        let visible = Set(state.visibleMessages)
+        let saved = library.messages.map { visible.contains($0.id) ? (shownMessages[$0.id] ?? $0) : $0 }
+        let savedIDs = Set(library.messages.map(\.id))
+        let gone = state.visibleMessages.filter { !savedIDs.contains($0) }.compactMap { shownMessages[$0] }
+        state.messages = saved + gone
     }
 
     /// Indices in `state.screens` of the screens that take slides and messages.

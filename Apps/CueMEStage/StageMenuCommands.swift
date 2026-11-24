@@ -147,7 +147,9 @@ struct StageMenuCommands: Commands {
                 Button("Slide") { store.send(.clear(.slide)) }
                     .keyboardShortcut(Shortcuts.clearSlide)
                 Button("Media") {}.disabled(true) // no Command clears media yet
-                Button("Audio") { store.send(.clear(.audio)) }
+                // Fades out over 2 s, then stops (ClearAudio); Stop Playback is the instant stop.
+                Button("Audio") { ClearAudio.commands(store.state).forEach(store.send) }
+                    .disabled(ClearAudio.commands(store.state).isEmpty)
                 Button("Message") { store.send(.clear(.messages)) }
             }
             Toggle("Black Out", isOn: Binding(get: { model.isBlackout }, set: { _ in store.send(model.blackoutCommand) }))

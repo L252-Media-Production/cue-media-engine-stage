@@ -90,9 +90,11 @@ struct PanelSizes: Equatable {
         store.set(Double(bottom), forKey: StorageKeys.bottomPanelHeight)
     }
 
-    static let storageKeys = [StorageKeys.servicePanelWidth, StorageKeys.rightColumnWidth, StorageKeys.bottomPanelHeight]
+    static let storageKeys = [StorageKeys.servicePanelWidth, StorageKeys.rightColumnWidth, StorageKeys.bottomPanelHeight,
+                              StorageKeys.collectionsHeight] + BinColumnSizes.Keys.audio.all + BinColumnSizes.Keys.media.all
 
-    /// View > Reset Panel Sizes: forget all three, so the defaults apply.
+    /// View > Reset Panel Sizes: forget every panel size (the three above, the collections list, the bins' columns), so
+    /// the defaults apply.
     static func resetAll(in store: UserDefaults) {
         storageKeys.forEach(store.removeObject(forKey:))
     }
@@ -117,7 +119,8 @@ struct PanelDivider: View {
     @State private var start: CGFloat?
     @State private var hovering = false
 
-    static let hitThickness: CGFloat = 6
+    /// At least 8 pt to grab, centred on the 1 pt line.
+    static let hitThickness: CGFloat = 8
 
     var body: some View {
         let vertical = axis == .vertical
@@ -147,8 +150,12 @@ struct PanelDivider: View {
                                 .onChanged { drag in
                                     if start == nil { start = value }
                                     cursor.set()
+                                    // The start is taken once; the size follows the translation in global space (which
+                                    // does not move with the panels), with no animation, so every frame is exact.
                                     let delta = vertical ? drag.translation.width : drag.translation.height
-                                    set((start ?? value) + direction * delta)
+                                    var still = Transaction()
+                                    still.disablesAnimations = true
+                                    withTransaction(still) { set(PanelDivider.dragged(start: start ?? value, delta: delta, direction: direction)) }
                                 }
                                 .onEnded { _ in
                                     start = nil
@@ -167,4 +174,81 @@ struct PanelDivider: View {
     }
 
     private var cursor: NSCursor { axis == .vertical ? .resizeLeftRight : .resizeUpDown }
+
+    /// The size a drag asks for: the size at drag start plus the translation (signed by `direction`). Never the size as
+    /// drawn during the drag, which would feed the panel's own movement back into the drag.
+    static func dragged(start: CGFloat, delta: CGFloat, direction: CGFloat) -> CGFloat { start + direction * delta }
+}
+
+/// The two side columns of a bin: the folder or library column (leading) and the inspector (trailing). The middle (grid
+/// or track list) takes the rest and keeps at least `middleMin`. The board's widths are the defaults. Stored on this
+/// machine; pure, so the limits are tested without the UI.
+struct BinColumnSizes: Equatable {
+    enum Column: CaseIterable { case leading, trailing }
+
+    struct Keys: Equatable {
+        let leading: String
+        let trailing: String
+        var all: [String] { [leading, trailing] }
+
+        static let audio = Keys(leading: StorageKeys.audioLibraryWidth, trailing: StorageKeys.audioInspectorWidth)
+        static let media = Keys(leading: StorageKeys.mediaFolderWidth, trailing: StorageKeys.mediaInspectorWidth)
+    }
+
+    var leading: CGFloat
+    var trailing: CGFloat
+
+    /// Main.dc.html L263 / L314 (Media bin) and L417 / L453 (Audio bin): 250 and 250.
+    static let defaults = BinColumnSizes(leading: 250, trailing: 250)
+    static let sideRange: ClosedRange<CGFloat> = 180...420
+    static let middleMin: CGFloat = 200
+
+    /// The widths as they fit a bin `width` wide: leading first, then trailing, each in its range, the middle never
+    /// below its minimum (in a bin too narrow for every minimum the minimums win).
+    func fitted(width: CGFloat) -> BinColumnSizes {
+        let free = width - 2 * PanelSizes.dividerThickness - Self.middleMin
+        let leading = PanelSizes.clamp(self.leading, Self.sideRange.lowerBound,
+                                       min(Self.sideRange.upperBound, free - Self.sideRange.lowerBound))
+        let trailing = PanelSizes.clamp(self.trailing, Self.sideRange.lowerBound, min(Self.sideRange.upperBound, free - leading))
+        return BinColumnSizes(leading: leading, trailing: trailing)
+    }
+
+    /// A drag: these widths (fitted) with one column set to `value`; the other keeps its width.
+    func setting(_ column: Column, to value: CGFloat, width: CGFloat) -> BinColumnSizes {
+        var copy = fitted(width: width)
+        let free = width - 2 * PanelSizes.dividerThickness - Self.middleMin
+        switch column {
+        case .leading: copy.leading = PanelSizes.clamp(value, Self.sideRange.lowerBound, min(Self.sideRange.upperBound, free - copy.trailing))
+        case .trailing: copy.trailing = PanelSizes.clamp(value, Self.sideRange.lowerBound, min(Self.sideRange.upperBound, free - copy.leading))
+        }
+        return copy
+    }
+
+    func resetting(_ column: Column) -> BinColumnSizes {
+        var copy = self
+        switch column {
+        case .leading: copy.leading = Self.defaults.leading
+        case .trailing: copy.trailing = Self.defaults.trailing
+        }
+        return copy
+    }
+}
+
+/// The height of the service panel's COLLECTIONS list. Until it is dragged it fits its rows (up to
+/// `ServicePanelLayout.collectionsMaxHeight`, as before); once dragged it keeps the stored height, at least `min`, and
+/// the service list under it keeps at least `listMin`.
+enum CollectionsHeight {
+    static let min: CGFloat = 80
+    static let listMin: CGFloat = 120
+
+    /// The height to draw: nil (fit the rows) while nothing is stored. `shared` is the collections list and the service
+    /// list together, as drawn: the room the divider splits.
+    static func fitted(_ stored: CGFloat?, shared: CGFloat) -> CGFloat? {
+        stored.map { clamp($0, shared: shared) }
+    }
+
+    /// A drag to `value`.
+    static func clamp(_ value: CGFloat, shared: CGFloat) -> CGFloat {
+        PanelSizes.clamp(value, min, shared - listMin)
+    }
 }

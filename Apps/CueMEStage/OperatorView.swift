@@ -15,12 +15,15 @@ struct OperatorView: View {
     @AppStorage private var serviceWidth: Double
     @AppStorage private var rightWidth: Double
     @AppStorage private var bottomHeight: Double
+    /// Where every `@AppStorage` under this view reads and writes (`defaultAppStorage`): the app's defaults, or a test's.
+    private let layoutDefaults: UserDefaults
 
     /// `layoutDefaults` is where the panel sizes are kept: the app's defaults, or a scratch suite in tests.
     init(store: StageStore, ui: OperatorUIState, studios: StudioController, layoutDefaults: UserDefaults = .standard) {
         self.store = store
         self.ui = ui
         self.studios = studios
+        self.layoutDefaults = layoutDefaults
         let d = PanelSizes.defaults
         _serviceWidth = AppStorage(wrappedValue: Double(d.service), StorageKeys.servicePanelWidth, store: layoutDefaults)
         _rightWidth = AppStorage(wrappedValue: Double(d.right), StorageKeys.rightColumnWidth, store: layoutDefaults)
@@ -81,7 +84,7 @@ struct OperatorView: View {
                             keep(sizes.setting(.bottom, to: $0, width: w, height: h, windowHeight: window))
                         } reset: { keep(sizes.resetting(.bottom)) }
                         BottomPanel(state: state, send: store.send, studios: studios, ui: ui)
-                            .frame(height: sizes.bottom)
+                            .frame(height: sizes.bottom, alignment: .top)
                     }
                     PanelDivider(axis: .vertical, value: sizes.right, direction: -1, label: "Right column width") {
                         keep(sizes.setting(.right, to: $0, width: w, height: h, windowHeight: window))
@@ -121,6 +124,7 @@ struct OperatorView: View {
         .environment(\.editSong, { id, slide in SongEditorScene.open(id, slide: slide, studios: studios, with: openWindow) })
         .navigationTitle(studios.title)
         .onChange(of: ui.isModalOpen, initial: true) { _, open in ShortcutGuard.isModalOpen = open }
+        .defaultAppStorage(layoutDefaults)
     }
 }
 
@@ -393,11 +397,19 @@ private struct SlideCard: View {
 
 /// The bottom panel (Main.dc.html L167): 330 pt, title-case tabs on a 32 pt bar with a 2 pt accent underline. Media
 /// and Audio are the bins; the engine's audio diagnostics are behind the status bar's Engine chip.
-private struct BottomPanel: View {
+///
+/// Its height is the stored one only (`PanelSizes`); no tab or content changes it. The tab bar is pinned to the top
+/// and the tab's content fills exactly the rest, top-aligned and clipped, so the two always move together. (Content
+/// taller than the panel used to make the stack taller than its frame, which then centred it: the tabs went up, the
+/// content down, and the bins' shorter columns were centred against the taller inspector.)
+struct BottomPanel: View {
     let state: StageState
     let send: (Command) -> Void
     let studios: StudioController
     @Bindable var ui: OperatorUIState
+    /// Tests: open a bin with this item selected (the inspector is the tallest part).
+    var mediaSelection: MediaItem.ID?
+    var audioSelection: MediaItem.ID?
     @Environment(\.theme) private var theme
     /// Remembered across launches; View > Cmd-1 ... Cmd-5 write the same key.
     @AppStorage(StorageKeys.bottomTab) private var tabRaw = BottomTab.audio.rawValue
@@ -415,17 +427,26 @@ private struct BottomPanel: View {
             .padding(.horizontal, ThemeTokens.spacingM)
             .frame(height: OperatorLayout.tabBarHeight, alignment: .bottom)
             .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+            .layoutProbe("bottom.header")
 
-            switch tab {
-            case .media:
-                MediaBinView(studios: studios, ui: ui)
-            case .audio:
-                AudioBinView(studios: studios, state: state, send: send, ui: ui)
-            case .activities, .scripture, .looks:
-                PlaceholderPanel(title: tab.rawValue)
+            Group {
+                switch tab {
+                case .media:
+                    MediaBinView(studios: studios, ui: ui, initialSelection: mediaSelection)
+                case .audio:
+                    AudioBinView(studios: studios, state: state, send: send, ui: ui, initialSelection: audioSelection)
+                case .activities, .scripture, .looks:
+                    PlaceholderPanel(title: tab.rawValue)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .clipped()
+            .layoutProbe("bottom.content")
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(theme.surface) // --chrome (Main.dc.html L1327)
+        .clipped()
+        .layoutProbe("bottom.panel")
     }
 }
 

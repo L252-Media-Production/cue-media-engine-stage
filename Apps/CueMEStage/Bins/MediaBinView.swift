@@ -15,6 +15,12 @@ struct MediaBinView: View {
     @State private var selectedItem: MediaItem.ID?
     @State private var dropTargeted = false
 
+    init(studios: StudioController, ui: OperatorUIState, initialSelection: MediaItem.ID? = nil) {
+        self.studios = studios
+        _ui = Bindable(ui)
+        _selectedItem = State(initialValue: initialSelection)
+    }
+
     private var library: MediaLibrary { studios.media }
 
     private var model: MediaBinModel {
@@ -25,15 +31,14 @@ struct MediaBinView: View {
 
     var body: some View {
         let model = model
-        HStack(spacing: 0) {
+        BinColumns(keys: .media, labels: ("Folder column width", "Inspector width"), probe: "media") {
             folderColumn(model)
-                .frame(width: BinLayout.sideWidth)
-            theme.border.frame(width: 1)
+        } middle: {
             grid(model)
-                .frame(maxWidth: .infinity)
-            theme.border.frame(width: 1)
-            MediaInspector(model: model, entry: model.selected, studios: studios)
-                .frame(width: BinLayout.sideWidth)
+        } trailing: {
+            ColumnScroll {
+                MediaInspector(model: model, entry: model.selected, studios: studios)
+            }
         }
         .disabled(studios.studios.studio == nil)
     }
@@ -176,8 +181,7 @@ struct MediaBinView: View {
 }
 
 enum BinLayout {
-    /// Main.dc.html L262, L313: the folder and settings columns.
-    static let sideWidth: CGFloat = 250
+    // The side columns' widths are `BinColumnSizes` (resizable, 250 by default).
     /// L287: four columns.
     static let columns = 4
 }
@@ -295,11 +299,12 @@ private struct MediaInspector: View {
                         .help(BinHelp.goLive)
                 }
             } else {
-                EmptyMessage(text: "Select a video or photo").frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyMessage(text: "Select a video or photo").frame(maxWidth: .infinity)
             }
         }
         .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
         .frame(maxHeight: .infinity, alignment: .top)
+        .layoutProbe("media.inspector")
     }
 }
 

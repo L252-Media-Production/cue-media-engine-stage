@@ -64,6 +64,13 @@ enum StorageKeys {
     static let servicePanelWidth = "cueme.layout.servicePanelWidth"
     static let rightColumnWidth = "cueme.layout.rightColumnWidth"
     static let bottomPanelHeight = "cueme.layout.bottomPanelHeight"
+    /// Height of the service panel's COLLECTIONS list once dragged (`CollectionsHeight`); missing = fits its rows.
+    static let collectionsHeight = "cueme.layout.collectionsHeight"
+    /// Side columns of the bins (`BinColumnSizes`).
+    static let audioLibraryWidth = "cueme.layout.audioLibraryWidth"
+    static let audioInspectorWidth = "cueme.layout.audioInspectorWidth"
+    static let mediaFolderWidth = "cueme.layout.mediaFolderWidth"
+    static let mediaInspectorWidth = "cueme.layout.mediaInspectorWidth"
 }
 
 /// View > Theme. A fresh install is dark (the `@AppStorage` default); Auto follows the system appearance.

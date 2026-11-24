@@ -17,6 +17,18 @@ struct ServicePanel: View {
     @Environment(\.theme) private var theme
     @State private var query = ""
     @State private var expanded: Set<String> = []
+    /// The COLLECTIONS list's height once dragged (`CollectionsHeight`); nil fits its rows. On this machine.
+    @AppStorage(StorageKeys.collectionsHeight) private var storedCollections: Double?
+    /// As drawn: the collections list and the service list. Their sum is the room the divider splits, which a drag
+    /// does not change.
+    @State private var drawnCollections: CGFloat = 0
+    @State private var drawnList: CGFloat = 0
+
+    private var shared: CGFloat { drawnCollections + drawnList }
+    private var collectionsHeight: CGFloat? {
+        guard shared > 0 else { return storedCollections.map { CGFloat($0) } }
+        return CollectionsHeight.fitted(storedCollections.map { CGFloat($0) }, shared: shared)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,13 +47,21 @@ struct ServicePanel: View {
                 }
                 .padding(.horizontal, 4)
                 .padding(.top, 2)
-                CollectionsList(model: CollectionsModel(studio: studio, query: query, expanded: expanded)) { id in
+                CollectionsList(model: CollectionsModel(studio: studio, query: query, expanded: expanded), height: collectionsHeight) { id in
                     expanded = expanded.symmetricDifference([id])
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { drawnCollections = $0 }
+                .layoutProbe("service.collections")
                 .padding(.bottom, 6)
-                .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
             }
-            .padding(EdgeInsets(top: 10, leading: 10, bottom: 4, trailing: 10))
+            .padding(EdgeInsets(top: 10, leading: 10, bottom: 0, trailing: 10))
+
+            // Between COLLECTIONS and the service list (the board's line under the collections).
+            PanelDivider(axis: .horizontal, value: drawnCollections, direction: 1, label: "Collections height") {
+                storedCollections = Double(CollectionsHeight.clamp($0, shared: shared))
+            } reset: { storedCollections = nil }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 4)
 
             ServiceHeader(model: ServicePickerModel(state: state, studio: studio), canAddSection: studio != nil && state.service != nil,
                           showAddSection: $ui.showAddSection) { name in
@@ -51,6 +71,9 @@ struct ServicePanel: View {
             .padding(.vertical, 6)
 
             ItemList(model: ServiceListModel(state: state, studio: studio, relink: relink), selection: $ui.selection, go: go)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { drawnList = $0 }
+                .layoutProbe("service.list")
                 .dropDestination(for: String.self) { payloads, _ in
                     let ids = payloads.compactMap(MediaDrag.id(from:))
                     guard let addMedia, !ids.isEmpty else { return false }
@@ -94,6 +117,8 @@ private struct SearchField: View {
 
 private struct CollectionsList: View {
     let model: CollectionsModel
+    /// Dragged height; nil fits the rows (up to `ServicePanelLayout.collectionsMaxHeight`).
+    let height: CGFloat?
     let toggle: (String) -> Void
     @Environment(\.theme) private var theme
     @Environment(\.editSong) private var editSong
@@ -132,8 +157,7 @@ private struct CollectionsList: View {
                 }
             }
         }
-        .frame(height: min(CGFloat(max(rows.count, 1)) * ServicePanelLayout.collectionRowHeight,
-                           ServicePanelLayout.collectionsMaxHeight))
+        .frame(height: height ?? ServicePanelLayout.collectionsHeight(rows: rows.count))
     }
 }
 

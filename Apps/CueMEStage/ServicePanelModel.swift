@@ -9,6 +9,11 @@ enum ServicePanelLayout {
     static let collectionsMaxHeight: CGFloat = 150
     /// One collection row: padding 6 + 13 pt text + 6, plus the 1 pt gap.
     static let collectionRowHeight: CGFloat = 27
+
+    /// The collections list's height until the owner drags its divider: its rows, at most `collectionsMaxHeight`.
+    static func collectionsHeight(rows: Int) -> CGFloat {
+        min(CGFloat(max(rows, 1)) * collectionRowHeight, collectionsMaxHeight)
+    }
 }
 
 /// What colour a row's right-hand meta is drawn in (Main.dc.html L920 `metaColor`).

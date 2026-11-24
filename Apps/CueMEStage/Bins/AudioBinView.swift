@@ -16,6 +16,15 @@ struct AudioBinView: View {
     @State private var selectedItem: MediaItem.ID?
     @State private var dropTargeted = false
 
+    init(studios: StudioController, state: StageState, send: @escaping (Command) -> Void, ui: OperatorUIState,
+         initialSelection: MediaItem.ID? = nil) {
+        self.studios = studios
+        self.state = state
+        self.send = send
+        _ui = Bindable(ui)
+        _selectedItem = State(initialValue: initialSelection)
+    }
+
     private var library: MediaLibrary { studios.media }
 
     private var model: AudioBinModel {
@@ -25,21 +34,18 @@ struct AudioBinView: View {
 
     var body: some View {
         let model = model
-        HStack(spacing: 0) {
+        BinColumns(keys: .audio, labels: ("Library column width", "Inspector width"), probe: "audio") {
             libraryColumn(model)
-                .frame(width: BinLayout.sideWidth)
-            theme.border.frame(width: 1)
+        } middle: {
             trackList(model)
-                .frame(maxWidth: .infinity)
-            theme.border.frame(width: 1)
-            Group {
+        } trailing: {
+            ColumnScroll {
                 if let entry = model.selected {
                     AudioInspectorView(entry: entry, studios: studios).id(entry.id)
                 } else {
-                    EmptyMessage(text: "Select a track").frame(maxWidth: .infinity, maxHeight: .infinity)
+                    EmptyMessage(text: "Select a track").frame(maxWidth: .infinity)
                 }
             }
-            .frame(width: BinLayout.sideWidth)
         }
         .disabled(studios.studios.studio == nil)
     }
@@ -301,6 +307,7 @@ private struct AudioInspectorView: View {
         }
         .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
         .frame(maxHeight: .infinity, alignment: .top)
+        .layoutProbe("audio.inspector")
         .task(id: entry.id) {
             studios.media.requestProbe(entry)
             studios.media.requestPeaks(entry)

@@ -12,6 +12,8 @@ struct ServicePanel: View {
     let go: (Item.ID) -> Void
     /// Adds a section header above the given item (nil = at the end).
     let addSection: (String, Item.ID?) -> Void
+    /// A Media or Audio bin item dropped on the list: a media row at the end of the service.
+    var addMedia: ((MediaItem.ID) -> Void)?
     @Environment(\.theme) private var theme
     @State private var query = ""
     @State private var expanded: Set<String> = []
@@ -49,6 +51,12 @@ struct ServicePanel: View {
             .padding(.vertical, 6)
 
             ItemList(model: ServiceListModel(state: state, studio: studio, relink: relink), selection: $ui.selection, go: go)
+                .dropDestination(for: String.self) { payloads, _ in
+                    let ids = payloads.compactMap(MediaDrag.id(from:))
+                    guard let addMedia, !ids.isEmpty else { return false }
+                    ids.forEach(addMedia)
+                    return true
+                }
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(theme.surface) // --chrome (Main.dc.html L49)

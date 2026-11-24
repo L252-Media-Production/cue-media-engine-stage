@@ -53,9 +53,11 @@ public struct MediaIndexEntry: Codable, Sendable, Hashable, Identifiable {
     public var sha256: String?
     /// Where the file was last found on any machine. A hint, never a key.
     public var lastKnownPath: String?
+    /// The bin folder it is listed in (`StudioBinFolder.id`, bins.json); nil = none. Left out of the JSON while nil.
+    public var folderID: UUID?
 
     public init(id: MediaItem.ID, name: String, kind: MediaItem.Kind, duration: Double? = nil, size: Int64? = nil,
-                sha256: String? = nil, lastKnownPath: String? = nil) {
+                sha256: String? = nil, lastKnownPath: String? = nil, folderID: UUID? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -63,6 +65,7 @@ public struct MediaIndexEntry: Codable, Sendable, Hashable, Identifiable {
         self.size = size
         self.sha256 = sha256
         self.lastKnownPath = lastKnownPath
+        self.folderID = folderID
     }
 
     /// The file name used for the name + size fallback: the last path component of `lastKnownPath`, else `name`.
@@ -165,10 +168,12 @@ public struct Studio: Sendable, Hashable {
     public var collections: [StudioCollection]
     /// Section headers per service, in the service's file (`sections`). A service without sections has no entry.
     public var sections: [Service.ID: [ServiceSection]]
+    /// bins.json: the folders of the Media and Audio bins. Written only when there is at least one.
+    public var binFolders: [StudioBinFolder]
 
     public init(manifest: StudioManifest, songs: [Song] = [], services: [Service] = [], audioSettings: [MediaItem.ID: AudioSettings] = [:],
                 media: [MediaIndexEntry] = [], looks: [Look] = [], screens: [StudioScreen] = [], timers: [StageTimer] = [], messages: [Message] = [],
-                collections: [StudioCollection] = [], sections: [Service.ID: [ServiceSection]] = [:]) {
+                collections: [StudioCollection] = [], sections: [Service.ID: [ServiceSection]] = [:], binFolders: [StudioBinFolder] = []) {
         self.manifest = manifest
         self.songs = songs
         self.services = services
@@ -180,6 +185,7 @@ public struct Studio: Sendable, Hashable {
         self.messages = messages
         self.collections = collections
         self.sections = sections.filter { !$0.value.isEmpty }
+        self.binFolders = binFolders
     }
 
     public var id: UUID { manifest.id }
@@ -265,6 +271,7 @@ public struct Studio: Sendable, Hashable {
         duplicates(timers, "timer")
         duplicates(messages, "message")
         duplicates(collections, "collection")
+        duplicates(binFolders, "bin folder")
 
         let collectionIDs = Set(collections.map(\.id))
         for song in songs {
@@ -295,6 +302,18 @@ public struct Studio: Sendable, Hashable {
             }
         }
         for id in audioSettings.keys where !mediaIDs.contains(id) { issues.append("audio settings for unknown media \(id)") }
+        let folders = Dictionary(binFolders.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for folder in binFolders {
+            if let parent = folder.parentID, folders[parent]?.bin != folder.bin { issues.append("bin folder \(folder.name) is inside an unknown folder") }
+        }
+        for entry in media {
+            guard let id = entry.folderID else { continue }
+            if let folder = folders[id] {
+                if !folder.bin.holds(entry.kind) { issues.append("media \(entry.name) is in a folder of the \(folder.bin.rawValue) bin") }
+            } else {
+                issues.append("media \(entry.name) is in an unknown bin folder")
+            }
+        }
         for look in looks {
             if let bg = look.backgroundMediaID, !mediaIDs.contains(bg) { issues.append("look \(look.name) uses unknown media") }
         }

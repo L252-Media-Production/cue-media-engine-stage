@@ -19,12 +19,13 @@ A Studio is a macOS package (a folder the Finder shows as one file) named `<Name
   library/<id>.json  one file per library item (songs; "presentation" is reserved for UI-3b)
   services/<id>.json one file per service
   audio.json         per-track audio settings, keyed by MediaItem id
-  media.json         the media index: [{ id, name, kind, duration, size, sha256, lastKnownPath }]
+  media.json         the media index: [{ id, name, kind, duration, size, sha256, lastKnownPath, folderID? }]
   looks.json
   screens.json       screens by id and name with their layouts; NO connector assignments
   timers.json
   messages.json
   collections.json   optional: collections of slide-bearing library items (below); written only when there is one
+  bins.json          optional: folders of the Media and Audio bins (below); written only when there is one
   lock.json          who has the Studio open (see Lock); not show data
   cache/             rebuildable (peaks, transcodes); never read for correctness; may be deleted
 ```
@@ -106,6 +107,30 @@ Slides are unchanged (`id`, `label`, `lines`): a slide's `label` is still what t
 the editor sets it to the slide's group name unless the operator gave the slide a label of its own. A song in a
 `.stgitem` file carries these fields too, and its `audioTrackID` / `backgroundID` go into the file's `mediaRefs`.
 An imported song that names a collection the Studio does not have is put in no collection.
+
+### Bin folders (`bins.json`, `folderID` in `media.json`, UI-3c)
+
+```json
+[ { "id" : "…", "name" : "Sunday Loops", "bin" : "media" },
+  { "id" : "…", "name" : "Advent", "bin" : "media", "parentID" : "…" },
+  { "id" : "…", "name" : "Easter Services", "bin" : "media", "linkedPath" : "/Users/jc/Movies/Easter Services" },
+  { "id" : "…", "name" : "Worship Tracks", "bin" : "audio" } ]
+```
+
+The folders of the operator view's **Media bin** (`bin` "media": video and photos) and **Audio bin** (`bin` "audio":
+music). A folder only groups media index entries; it is not a folder on disk, and nothing in the user's media folders
+is ever created, moved, written or deleted for it. `parentID` (optional) nests a folder inside another folder of the
+same bin. `linkedPath` (optional) marks a folder made with "Link a folder…": where the linked folder was on the Mac
+that linked it, a hint like `lastKnownPath`; the folder shows as linked on a Mac whose media folders
+(`media-folders.json`, below) include that path. The file is written only while there is at least one folder.
+
+An index entry names its folder with `folderID` (optional, left out while nil). An entry in no folder, or in a folder
+that is gone, is listed only under the bin's "All media" / "All audio" row. Media is still never a collection.
+
+**Add files** registers the chosen files in place: each gets an index entry (name, kind, duration, size, SHA-256,
+`lastKnownPath`); nothing is copied or moved. A file whose SHA-256 (or, without a hash, whose path) is already in the
+index is not added again. **Link a folder** adds the folder to this Mac's media folders, makes a bin folder with its
+`linkedPath`, and registers the video and photos in it the same way.
 
 ## Versions
 

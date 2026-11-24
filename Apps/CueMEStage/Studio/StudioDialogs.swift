@@ -72,6 +72,8 @@ protocol StudioDialogs {
     func clashChoice(for item: StudioItemPayload, remaining: Int) -> (ItemClashChoice, forAll: Bool)
     func chooseFile(title: String, types: [UTType], directory: URL?) -> URL?
     func chooseFolder(title: String) -> URL?
+    /// Several files (the bins' Add files…); empty when cancelled.
+    func chooseFiles(title: String, types: [UTType]) -> [URL]
     func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL?
     func showError(_ title: String, _ error: Error)
     /// True = quit. Asked only when something is live (`QuitWarning.isLive`).
@@ -228,6 +230,15 @@ struct AppKitStudioDialogs: StudioDialogs {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         return ModalRunner.run { panel.runModal() == .OK ? panel.url : nil }
+    }
+
+    func chooseFiles(title: String, types: [UTType]) -> [URL] {
+        let panel = NSOpenPanel()
+        panel.title = title
+        panel.allowedContentTypes = types
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        return ModalRunner.run { panel.runModal() == .OK ? panel.urls : [] }
     }
 
     func chooseSave(title: String, name: String, type: UTType, directory: URL?) -> URL? {

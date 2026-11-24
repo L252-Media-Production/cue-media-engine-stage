@@ -28,6 +28,8 @@ final class StudioController {
     @ObservationIgnored var dialogs: StudioDialogs
     /// The open Song editors' models, one per song.
     @ObservationIgnored let editors = SongEditorRegistry()
+    /// The Media and Audio bins' file work (missing files, thumbnails, waveforms, adding files).
+    @ObservationIgnored let media = MediaLibrary()
 
     /// A non-blocking message (a missing last Studio, an import summary). Save failures come from `studios.notice`.
     var notice: String?
@@ -185,6 +187,7 @@ final class StudioController {
         relinkReport = nil
         catalog.put(.init(info: StudioInfo(id: studio.id, name: studio.name), library: studio.library(), assignments: assignments))
         stage.send(.openStudio(studio.id))
+        media.checkAvailability(studio.media)
         recents.add(url)
         defaults.set(url.standardizedFileURL.path, forKey: StorageKeys.lastStudio)
     }
@@ -205,7 +208,9 @@ final class StudioController {
     func edit(_ change: (inout Studio) -> Void) {
         guard let before = studios.studio else { return }
         studios.update(change)
-        if studios.studio != before { reloadEngine() }
+        guard let after = studios.studio, after != before else { return }
+        reloadEngine()
+        if after.media != before.media { media.checkAvailability(after.media) }
     }
 
     /// File > New Collection… / "+ New": an empty collection at the end. Returns its id (nil without a Studio or name).
@@ -413,12 +418,82 @@ final class StudioController {
             self.relinkReport = report
             self.studios.update { $0.media = report.index }
             self.reloadEngine()
+            self.media.checkAvailability(report.index)
         }
     }
 
     func cancelRelink() {
         scanTask?.cancel()
         isScanning = false
+    }
+
+    // MARK: Media and Audio bins
+
+    /// + Add ▾ > New folder (a library folder; nothing is made on disk). Returns its id (nil without a Studio or name).
+    @discardableResult
+    func addBinFolder(named name: String, in bin: StudioBinFolder.Bin, parent: StudioBinFolder.ID?) -> StudioBinFolder.ID? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard studios.studio != nil, !trimmed.isEmpty else { return nil }
+        var id: StudioBinFolder.ID?
+        edit { id = $0.addBinFolder(named: trimmed, in: bin, parent: parent).id }
+        return id
+    }
+
+    /// Adds index entries for files already hashed and probed (in place: nothing is copied).
+    @discardableResult
+    func registerMedia(_ entries: [MediaIndexEntry], into folder: StudioBinFolder.ID?) -> MediaRegistration {
+        var result = MediaRegistration()
+        edit { result = $0.registerMedia(entries, into: folder) }
+        return result
+    }
+
+    /// Link a folder…: the folder joins this Mac's media folders (relink finds its files too) and the Media bin gets a
+    /// folder that remembers its path. The files are added afterwards (`MediaLibrary.startAdding`). Returns the bin
+    /// folder's id, or nil when the folder could not be added to this Mac's list.
+    @discardableResult
+    func linkFolder(_ folder: URL, name: String) -> StudioBinFolder.ID? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard studios.studio != nil, !trimmed.isEmpty else { return nil }
+        do { try MediaFolders(paths: machine).add(folder) } catch {
+            dialogs.showError("The folder could not be linked", error)
+            return nil
+        }
+        return addBinFolder(linked: folder, name: trimmed)
+    }
+
+    private func addBinFolder(linked folder: URL, name: String) -> StudioBinFolder.ID? {
+        var id: StudioBinFolder.ID?
+        edit { id = $0.addBinFolder(named: name, in: .media, linkedPath: folder.standardizedFileURL.path).id }
+        return id
+    }
+
+    /// Unlink: the bin folder stops being linked. Its items stay, the folder stays in this Mac's media folders (other
+    /// Studios and relink may use it), and nothing on disk changes.
+    func unlinkFolder(_ id: StudioBinFolder.ID) {
+        edit { studio in
+            guard let i = studio.binFolders.firstIndex(where: { $0.id == id }) else { return }
+            studio.binFolders[i].linkedPath = nil
+        }
+    }
+
+    /// True when a linked folder's path is one of this Mac's media folders.
+    func isLinkedHere(_ path: String?) -> Bool {
+        guard let path else { return false }
+        return mediaFolders.contains { $0.standardizedFileURL.path == path }
+    }
+
+    /// Double-click or drag from a bin, or "Add to show": a media row at the end of the service on air.
+    @discardableResult
+    func addMediaToService(_ id: MediaItem.ID) -> Item.ID? {
+        var item: Item?
+        edit { item = $0.appendMediaRow(id) }
+        return item?.id
+    }
+
+    /// The Audio bin's inspector: VOLUME, FADE In / Out, stored in audio.json by media id.
+    func setAudioSettings(_ settings: AudioSettings) {
+        guard studios.studio?.media.contains(where: { $0.id == settings.mediaID }) == true else { return }
+        edit { $0.audioSettings[settings.mediaID] = settings }
     }
 }
 

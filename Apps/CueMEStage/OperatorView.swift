@@ -66,6 +66,8 @@ struct OperatorView: View {
                                 store.send(.go(itemID: id, slideIndex: 0))
                             } addSection: { name, item in
                                 studios.addSection(named: name, above: item)
+                            } addMedia: { id in
+                                studios.addMediaToService(id)
                             }
                             .frame(width: sizes.service)
                             PanelDivider(axis: .vertical, value: sizes.service, direction: 1, label: "Service panel width") {
@@ -78,7 +80,7 @@ struct OperatorView: View {
                         PanelDivider(axis: .horizontal, value: sizes.bottom, direction: -1, label: "Bottom panel height") {
                             keep(sizes.setting(.bottom, to: $0, width: w, height: h, windowHeight: window))
                         } reset: { keep(sizes.resetting(.bottom)) }
-                        BottomPanel(state: state, send: store.send)
+                        BottomPanel(state: state, send: store.send, studios: studios, ui: ui)
                             .frame(height: sizes.bottom)
                     }
                     PanelDivider(axis: .vertical, value: sizes.right, direction: -1, label: "Right column width") {
@@ -111,6 +113,9 @@ struct OperatorView: View {
         }
         .sheet(isPresented: $ui.showNewCollection) {
             NewCollectionSheet { name in studios.addCollection(named: name) }.modifier(Themed())
+        }
+        .sheet(item: $ui.binDialog) { dialog in
+            BinDialogSheet(dialog: dialog, studios: studios, ui: ui).modifier(Themed())
         }
         .background(ShortcutGuardWindowMarker(role: .operator))
         .environment(\.editSong, { id, slide in SongEditorScene.open(id, slide: slide, studios: studios, with: openWindow) })
@@ -386,10 +391,13 @@ private struct SlideCard: View {
 
 // MARK: Bottom panel
 
-/// The bottom panel (Main.dc.html L167): 330 pt, title-case tabs on a 32 pt bar with a 2 pt accent underline.
+/// The bottom panel (Main.dc.html L167): 330 pt, title-case tabs on a 32 pt bar with a 2 pt accent underline. Media
+/// and Audio are the bins; the engine's audio diagnostics are behind the status bar's Engine chip.
 private struct BottomPanel: View {
     let state: StageState
     let send: (Command) -> Void
+    let studios: StudioController
+    @Bindable var ui: OperatorUIState
     @Environment(\.theme) private var theme
     /// Remembered across launches; View > Cmd-1 ... Cmd-5 write the same key.
     @AppStorage(StorageKeys.bottomTab) private var tabRaw = BottomTab.audio.rawValue
@@ -409,9 +417,11 @@ private struct BottomPanel: View {
             .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
 
             switch tab {
+            case .media:
+                MediaBinView(studios: studios, ui: ui)
             case .audio:
-                AudioPanel(state: state, send: send)
-            case .activities, .scripture, .media, .looks:
+                AudioBinView(studios: studios, state: state, send: send, ui: ui)
+            case .activities, .scripture, .looks:
                 PlaceholderPanel(title: tab.rawValue)
             }
         }
@@ -466,7 +476,9 @@ private struct PlaceholderPanel: View {
     }
 }
 
-private struct AudioPanel: View {
+/// The engine's audio diagnostics: transport, voice-over, ducking, next trigger and the counters that must stay at 0.
+/// Opened from the status bar's Engine chip.
+struct AudioDiagnosticsPanel: View {
     let state: StageState
     let send: (Command) -> Void
     @Environment(\.theme) private var theme
@@ -529,6 +541,7 @@ private struct StatusBar: View {
     let lastEvent: StageEvent?
     let send: (Command) -> Void
     @Environment(\.theme) private var theme
+    @State private var showDiagnostics = false
 
     var body: some View {
         let outputs = OutputsStatusModel(state: state)
@@ -543,8 +556,17 @@ private struct StatusBar: View {
                 .accessibilityLabel("Test pattern running: \(description)")
             }
             let engine = EngineChipModel(counters: state.audio.counters)
-            StatusItem(text: "Engine", dot: engine.isAlert ? theme.warning : theme.ok)
-                .help(engine.tooltip)
+            Button { showDiagnostics.toggle() } label: {
+                StatusItem(text: "Engine", dot: engine.isAlert ? theme.warning : theme.ok)
+            }
+            .buttonStyle(.plain)
+            .help(engine.tooltip + "\nClick for audio diagnostics")
+            .accessibilityHint("Shows the audio diagnostics")
+            .popover(isPresented: $showDiagnostics, arrowEdge: .top) {
+                AudioDiagnosticsPanel(state: state, send: send)
+                    .frame(width: 640, height: 200)
+                    .modifier(Themed())
+            }
             StatusItem(text: outputs.text, dot: outputs.level.map(color) ?? theme.textSecondary)
                 .help(outputs.tooltip)
             // No IMAG input state in StageState yet: the board's label with a dash.
